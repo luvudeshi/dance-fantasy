@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://midnight-ball.dev/schemas/analysis.schema.json",
+  "title": "Midnight Ball song analysis",
+  "description": "Response of POST /api/analyze and GET /api/songs/{file}/analysis. Keep in sync with shared/analysis.ts and the server's Pydantic models (server tests validate responses against this schema).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "analysisVersion",
+    "title",
+    "source",
+    "audioUrl",
+    "durationSec",
+    "sampleRate",
+    "bpm",
+    "beatsPerBar",
+    "beats",
+    "filledBeats",
+    "downbeats",
+    "downbeatPhase",
+    "onsetEnvelope",
+    "beatEnergy",
+    "sections",
+    "elapsedMs",
+    "cached"
+  ],
+  "properties": {
+    "id": { "description": "sha256 hex of the audio file bytes.", "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "analysisVersion": { "type": "integer", "minimum": 1 },
+    "title": { "type": "string" },
+    "artist": { "type": "string" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["library", "upload"] },
+        "file": { "description": "File name in assets/songs (library) or the uploaded name.", "type": "string" }
+      }
+    },
+    "audioUrl": { "description": "Same-origin path to fetch the audio: /api/songs/{file} or /api/audio/{id}.", "type": "string" },
+    "durationSec": { "type": "number", "minimum": 0 },
+    "sampleRate": { "type": "integer", "minimum": 1 },
+    "bpm": { "type": "number", "minimum": 0 },
+    "beatsPerBar": { "const": 4 },
+    "beats": {
+      "description": "Beat times in seconds, strictly ascending, covering the whole song (gaps where no beat was detected are filled from the tempo).",
+      "type": "array",
+      "items": { "type": "number", "minimum": 0 }
+    },
+    "filledBeats": {
+      "description": "Indices into beats that were filled in from the tempo grid rather than detected.",
+      "type": "array",
+      "items": { "type": "integer", "minimum": 0 }
+    },
+    "downbeats": {
+      "description": "Bar starts (subset of beats), = beats[downbeatPhase::beatsPerBar].",
+      "type": "array",
+      "items": { "type": "number", "minimum": 0 }
+    },
+    "downbeatPhase": { "description": "Index of the first downbeat in beats (0..beatsPerBar-1).", "type": "integer", "minimum": 0, "maximum": 3 },
+    "onsetEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hopSec", "values"],
+      "properties": {
+        "hopSec": { "description": "Seconds between values (about 0.05).", "type": "number", "exclusiveMinimum": 0 },
+        "values": { "description": "Onset strength, normalized to 0..1.", "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+      }
+    },
+    "beatEnergy": {
+      "description": "Loudness of each beat interval (RMS in dB, scaled to 0..1 over the song). Same length as beats.",
+      "type": "array",
+      "items": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "sections": {
+      "description": "Contiguous, in order, covering 0..durationSec.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start", "end", "label", "energy", "group", "startBeat", "endBeat", "bars"],
+        "properties": {
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "minimum": 0 },
+          "label": { "enum": ["intro", "verse", "chorus", "bridge", "outro"] },
+          "energy": { "type": "number", "minimum": 0, "maximum": 1 },
+          "group": { "description": "Sections with the same group letter repeat the same music (e.g. every chorus).", "type": "string", "pattern": "^[A-Z]$" },
+          "startBeat": { "description": "Index into beats.", "type": "integer", "minimum": 0 },
+          "endBeat": { "description": "Exclusive index into beats (= next section's startBeat; len(beats) for the last).", "type": "integer", "minimum": 0 },
+          "bars": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "elapsedMs": { "description": "Analysis time; ~0 when served from cache.", "type": "number", "minimum": 0 },
+    "cached": { "type": "boolean" }
+  }
+}

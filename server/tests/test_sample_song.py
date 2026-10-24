@@ -71,7 +71,7 @@ def test_chorus_is_louder_than_verse(song: tuple[np.ndarray, int, dict]) -> None
 
 def test_unknown_section_label_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown section"):
-        render_song(120.0, layout=[("bridge", 4)])
+        render_song(120.0, layout=[("solo", 4)])
 
 
 def test_cli_writes_wav_and_sidecar(tmp_path) -> None:

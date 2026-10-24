@@ -4,10 +4,12 @@ import { errorMessage, isAbortError } from './lib/errors'
 
 const PoseSpike = lazy(() => import('./pages/PoseSpike'))
 const BeatSpike = lazy(() => import('./pages/BeatSpike'))
+const AnalysisDebug = lazy(() => import('./pages/AnalysisDebug'))
 
 const ROUTES = [
   { hash: '#/pose', label: 'Pose spike' },
   { hash: '#/beats', label: 'Beat spike' },
+  { hash: '#/analysis', label: 'Analysis' },
 ] as const
 type RouteHash = (typeof ROUTES)[number]['hash']
 const DEFAULT_ROUTE: RouteHash = '#/pose'
@@ -109,7 +111,7 @@ export default function App() {
       </header>
       <main>
         <Suspense fallback={<p className="status">Loading…</p>}>
-          {route === '#/beats' ? <BeatSpike /> : <PoseSpike />}
+          {route === '#/beats' ? <BeatSpike /> : route === '#/analysis' ? <AnalysisDebug /> : <PoseSpike />}
         </Suspense>
       </main>
     </div>

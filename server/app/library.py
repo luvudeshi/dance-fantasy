@@ -78,19 +78,35 @@ def resolve_song(songs_dir: Path, name: str) -> Path:
     return path
 
 
+def read_sidecar(path: Path) -> dict:
+    """The optional ``<stem>.json`` next to a song as a dict ({} if missing or unreadable)."""
+    sidecar = path.with_suffix(".json")
+    if not sidecar.is_file():
+        return {}
+    try:
+        meta = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        log.warning("ignoring unreadable sidecar %s: %s", sidecar, exc)
+        return {}
+    return meta if isinstance(meta, dict) else {}
+
+
+def _sidecar_text(meta: dict, key: str) -> str | None:
+    value = meta.get(key)
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
 def song_title(path: Path) -> str:
     """Title from the optional ``<stem>.json`` sidecar, else the file stem with _ and - as spaces."""
-    sidecar = path.with_suffix(".json")
-    if sidecar.is_file():
-        try:
-            meta = json.loads(sidecar.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            log.warning("ignoring unreadable sidecar %s: %s", sidecar, exc)
-        else:
-            title = meta.get("title") if isinstance(meta, dict) else None
-            if isinstance(title, str) and title.strip():
-                return title.strip()
+    title = _sidecar_text(read_sidecar(path), "title")
+    if title:
+        return title
     return " ".join(path.stem.replace("_", " ").replace("-", " ").split()) or path.stem
+
+
+def song_artist(path: Path) -> str | None:
+    """Artist from the optional ``<stem>.json`` sidecar."""
+    return _sidecar_text(read_sidecar(path), "artist")
 
 
 def list_songs(songs_dir: Path) -> list[SongEntry]:

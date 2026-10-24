@@ -26,6 +26,7 @@ __all__ = [  # load_audio & co. live in decode.py; re-exported because Stage 0's
     "AudioDecodeError",
     "AudioTooLong",
     "BeatTrack",
+    "beats_from_envelope",
     "bpm_from_beats",
     "estimate_tempo",
     "load_audio",
@@ -72,16 +73,21 @@ def track_beats(y: np.ndarray, sr: int) -> BeatTrack:
     env = onset_envelope(y, sr)
     if not env.any():  # e.g. a constant tone: nothing to track
         return result
+    tempo, beats = beats_from_envelope(env, sr)
+    result["tempo"] = round(tempo, 2)
+    result["bpmFromBeats"] = round(bpm_from_beats(beats), 2)
+    result["beats"] = [round(float(t), 4) for t in beats]
+    return result
+
+
+def beats_from_envelope(env: np.ndarray, sr: int) -> tuple[float, np.ndarray]:
+    """(global tempo in BPM, beat times in seconds) from an ``onset_envelope`` (non-silent)."""
     tempo = estimate_tempo(env, sr)
     _, beat_frames = librosa.beat.beat_track(
         onset_envelope=env, sr=sr, hop_length=HOP_LENGTH, bpm=tempo, trim=False
     )
     beat_frames = _trim_weak_edge_beats(beat_frames, env)
-    beats = librosa.frames_to_time(beat_frames, sr=sr, hop_length=HOP_LENGTH)
-    result["tempo"] = round(tempo, 2)
-    result["bpmFromBeats"] = round(bpm_from_beats(beats), 2)
-    result["beats"] = [round(float(t), 4) for t in beats]
-    return result
+    return tempo, librosa.frames_to_time(beat_frames, sr=sr, hop_length=HOP_LENGTH)
 
 
 def onset_envelope(y: np.ndarray, sr: int, chunk_frames: int = STFT_CHUNK_FRAMES) -> np.ndarray:

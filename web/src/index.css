@@ -352,3 +352,192 @@ dd {
 .beat-live {
   font-size: 1.1rem;
 }
+
+/* --- analysis debug --- */
+.mono {
+  font-family: var(--mono);
+}
+
+.analysis-debug .panel + .panel {
+  margin-top: 14px;
+}
+
+label.file.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.panel .analysis-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.badge {
+  align-self: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.badge.cached {
+  color: var(--good);
+  background: rgba(74, 222, 128, 0.14);
+}
+
+.badge.fresh {
+  color: var(--accent-2);
+  background: rgba(125, 211, 252, 0.14);
+}
+
+.analysis-stats {
+  grid-template-columns: repeat(6, auto 1fr);
+  margin-bottom: 12px;
+}
+
+.analysis-stats dd {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .analysis-stats {
+    grid-template-columns: repeat(2, auto 1fr);
+  }
+
+  .analysis-stats dd {
+    white-space: normal;
+  }
+}
+
+.timeline-scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.timeline-track {
+  min-width: 100%;
+}
+
+/* Sticky: the canvas is always viewport-wide; the wide track only provides the scrollbar. */
+.analysis-timeline {
+  position: sticky;
+  left: 0;
+  display: block;
+  height: 236px; /* = TIMELINE_HEIGHT in src/analysis/drawTimeline.ts */
+  cursor: crosshair;
+}
+
+.zoom input[type='range'] {
+  width: 140px;
+  accent-color: var(--accent);
+}
+
+.live-view {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 10px 8px 4px;
+}
+
+.beat-circle.small {
+  width: 96px;
+  height: 96px;
+}
+
+.beat-circle.downbeat {
+  border-color: rgba(250, 204, 21, 0.7);
+  background: rgb(250 204 21 / calc(0.08 + 0.8 * var(--flash)));
+  box-shadow: 0 0 calc(70px * var(--flash)) rgb(250 204 21 / calc(0.8 * var(--flash)));
+}
+
+.live-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-transform: capitalize;
+}
+
+.live-group {
+  font-size: 1rem;
+  padding: 1px 9px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+}
+
+.live-barbeat {
+  margin-top: 4px;
+  font-size: 1.15rem;
+  color: var(--muted);
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.sections-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.sections-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sections-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(148, 163, 255, 0.07);
+  white-space: nowrap;
+}
+
+.sections-table tbody tr {
+  cursor: pointer;
+}
+
+.sections-table tbody tr:hover {
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.sections-table tbody tr.active {
+  background: rgba(250, 204, 21, 0.1);
+}
+
+.group-chip {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--bg);
+}
+
+.energy-bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 120px;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(148, 163, 255, 0.12);
+}
+
+.energy-bar > span {
+  display: block;
+  height: 100%;
+}

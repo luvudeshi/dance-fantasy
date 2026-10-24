@@ -47,11 +47,13 @@ CHORDS: dict[str, tuple[tuple[int, ...], int]] = {
     "C": ((55, 60, 64), 48),
     "G": ((55, 59, 62), 43),
     "Em": ((55, 59, 64), 40),
+    "Dm": ((57, 62, 65), 38),
 }
 PROGRESSIONS: dict[str, list[str]] = {
     "intro": ["Am", "F", "C", "G"],
     "verse": ["Am", "F", "C", "G"],
     "chorus": ["F", "G", "Em", "Am"],
+    "bridge": ["Dm", "Em", "F", "G"],
     "outro": ["F", "G", "Am", "Am"],
 }
 LEAD_RANGE = [64, 65, 67, 69, 71, 72, 74, 76, 77, 79, 81]  # A natural minor, E4..A5
@@ -79,6 +81,7 @@ STYLES: dict[str, _Style] = {
     "intro": _Style((), False, 0.12, "", 0.0, 0.24, False, False, False),
     "verse": _Style((0, 2), True, 0.14, "quarter", 0.24, 0.24, False, False, False),
     "chorus": _Style((0, 1, 2, 3), True, 0.19, "eighth", 0.30, 0.24, True, True, True),
+    "bridge": _Style((0,), False, 0.10, "quarter", 0.20, 0.30, False, False, False),  # half-time breakdown
     "outro": _Style((), False, 0.0, "", 0.0, 0.26, False, False, False, fade_out=True),
 }
 KICK_GAIN, SNARE_GAIN, LEAD_GAIN, CRASH_GAIN = 0.8, 0.5, 0.3, 0.2
@@ -239,7 +242,7 @@ def render_song(
 ) -> tuple[np.ndarray, int, dict]:
     """Render a song. Returns (mono float32 audio peaking at -1 dBFS, sr, ground-truth info).
 
-    ``layout`` is a list of (section label, bars); labels: intro, verse, chorus, outro.
+    ``layout`` is a list of (section label, bars); labels: intro, verse, chorus, bridge, outro.
     Info: bpm, beatsPerBar, firstBeatSec, durationSec, sections[{label, startBar, bars,
     startSec, endSec}].
     """

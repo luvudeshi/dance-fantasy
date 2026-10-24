@@ -1,13 +1,22 @@
-"""Request body size limit (pure ASGI middleware, so it also sees bodies before form parsing)."""
+"""Request limits: body size (pure ASGI middleware, so it also sees bodies before form parsing) and
+the number of concurrent audio analyses."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
+import anyio
 from fastapi import HTTPException, status
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+
+MAX_CONCURRENT_ANALYSES = 2
+# Shared by every route that decodes/analyzes audio. Requests wait for a slot on the event loop,
+# not inside a worker thread: the threadpool also serves audio downloads and every sync
+# endpoint/dependency, so queued analyses must not hold it.
+ANALYSIS_SLOTS = anyio.CapacityLimiter(MAX_CONCURRENT_ANALYSES)
 
 
 class UploadTooLarge(HTTPException):

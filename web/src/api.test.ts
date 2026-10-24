@@ -1,5 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiUrl, beatsForSong, beatsForUpload, listSongs, SERVER_UNREACHABLE_MESSAGE, songAudioUrl } from './api'
+import type { Analysis } from '@shared/analysis'
+import {
+  analyzeLibrarySong,
+  analyzeUpload,
+  ApiError,
+  apiUrl,
+  beatsForSong,
+  beatsForUpload,
+  fetchAudio,
+  getAnalysis,
+  isAnalysis,
+  listSongs,
+  SERVER_UNREACHABLE_MESSAGE,
+  songAudioUrl,
+} from './api'
 
 const BEATS = {
   song: 'synth_120bpm.wav',
@@ -78,5 +92,89 @@ describe('api', () => {
       throw new DOMException('Aborted', 'AbortError')
     })
     await expect(listSongs()).rejects.toMatchObject({ name: 'AbortError' })
+  })
+})
+
+const ANALYSIS: Analysis = {
+  id: 'a'.repeat(64),
+  analysisVersion: 1,
+  title: 'Synth Ball 120',
+  artist: 'Midnight Ball test synth',
+  source: { kind: 'library', file: 'synth_120bpm.wav' },
+  audioUrl: '/api/songs/synth_120bpm.wav',
+  durationSec: 4,
+  sampleRate: 22050,
+  bpm: 120,
+  beatsPerBar: 4,
+  beats: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5],
+  filledBeats: [7],
+  downbeats: [0, 2],
+  downbeatPhase: 0,
+  onsetEnvelope: { hopSec: 0.05, values: [0, 1, 0.5] },
+  beatEnergy: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+  sections: [{ start: 0, end: 4, label: 'intro', energy: 0.4, group: 'A', startBeat: 0, endBeat: 8, bars: 2 }],
+  elapsedMs: 812.5,
+  cached: false,
+}
+
+describe('analysis api', () => {
+  it('validates Analysis structurally', () => {
+    expect(isAnalysis(ANALYSIS)).toBe(true)
+    const { artist: _artist, ...noArtist } = ANALYSIS
+    expect(isAnalysis(noArtist)).toBe(true)
+    expect(isAnalysis({ ...ANALYSIS, beatsPerBar: 3 })).toBe(false)
+    expect(isAnalysis({ ...ANALYSIS, cached: 'no' })).toBe(false)
+    expect(isAnalysis({ ...ANALYSIS, source: { kind: 'disk' } })).toBe(false)
+    expect(isAnalysis({ ...ANALYSIS, onsetEnvelope: { values: [] } })).toBe(false)
+    expect(isAnalysis({ ...ANALYSIS, sections: [{ ...ANALYSIS.sections[0], label: 'drop' }] })).toBe(false)
+    expect(isAnalysis({ ...ANALYSIS, beats: [0, 'x'] })).toBe(false)
+  })
+
+  it('GETs a library song analysis, with ?refresh=1 on demand', async () => {
+    const f = mockFetch(async () => json(ANALYSIS))
+    await expect(analyzeLibrarySong('my song.wav')).resolves.toEqual(ANALYSIS)
+    expect(f.mock.calls[0][0]).toBe('/api/songs/my%20song.wav/analysis')
+    await analyzeLibrarySong('a.wav', { refresh: true })
+    expect(f.mock.calls[1][0]).toBe('/api/songs/a.wav/analysis?refresh=1')
+  })
+
+  it('POSTs uploads to /api/analyze with file + optional title', async () => {
+    const f = mockFetch(async () => json({ ...ANALYSIS, source: { kind: 'upload', file: 'clip.mp3' } }))
+    const file = new File([new Uint8Array([1, 2, 3])], 'clip.mp3', { type: 'audio/mpeg' })
+    await analyzeUpload(file, { title: 'My Clip', refresh: true })
+    const [url, init] = f.mock.calls[0]
+    expect(url).toBe('/api/analyze?refresh=1')
+    expect(init?.method).toBe('POST')
+    const body = init?.body
+    expect(body).toBeInstanceOf(FormData)
+    if (body instanceof FormData) {
+      expect(body.get('title')).toBe('My Clip')
+      const sent = body.get('file')
+      expect(sent instanceof File && sent.name).toBe('clip.mp3')
+    }
+    await analyzeUpload(file)
+    const second = f.mock.calls[1]
+    expect(second[0]).toBe('/api/analyze')
+    const body2 = second[1]?.body
+    expect(body2 instanceof FormData && body2.has('title')).toBe(false)
+  })
+
+  it('gets a cached analysis by id and reports 400/404 details', async () => {
+    const f = mockFetch(async () => json(ANALYSIS))
+    await getAnalysis(ANALYSIS.id)
+    expect(f.mock.calls[0][0]).toBe(`/api/analysis/${ANALYSIS.id}`)
+    mockFetch(async () => json({ detail: 'Could not analyze this audio (no beats).' }, 400))
+    await expect(analyzeLibrarySong('x.wav')).rejects.toMatchObject({ status: 400, message: 'Could not analyze this audio (no beats).' })
+    mockFetch(async () => json({ ...ANALYSIS, beats: null }))
+    await expect(getAnalysis('x')).rejects.toThrow(/Unexpected response/)
+  })
+
+  it('fetches audio bytes from an audioUrl', async () => {
+    const f = mockFetch(async () => new Response(new Uint8Array([7, 8, 9]), { status: 200 }))
+    const buf = await fetchAudio('/api/audio/abc')
+    expect(new Uint8Array(buf)).toEqual(new Uint8Array([7, 8, 9]))
+    expect(f.mock.calls[0][0]).toBe('/api/audio/abc')
+    mockFetch(async () => json({ detail: 'unknown audio' }, 404))
+    await expect(fetchAudio('/api/audio/nope')).rejects.toMatchObject({ status: 404, message: 'unknown audio' })
   })
 })

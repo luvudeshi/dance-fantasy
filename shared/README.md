@@ -10,6 +10,7 @@ and run `make test` (contract tests fail if they drift).
 | `skeleton.ts` | Same, as typed TS constants (web) |
 | `routine.schema.json` | JSON Schema (draft 2020-12) for `routine.json` |
 | `routine.ts` | TS types for `routine.json` (web) |
+| `analysis.schema.json`, `analysis.ts` | Song analysis returned by the server (Stage 1) |
 | `examples/routine.example.json` | Small valid routine used by tests |
 | `../server/app/skeleton.py`, `../server/app/routine.py` | Python side (Pydantic v2) |
 
@@ -104,6 +105,26 @@ Stage 0 endpoints:
   "beats": [0.51, 1.01],   // beat times in seconds
   "elapsedMs": 412.3 }
 ```
+
+Stage 1 endpoints (song analysis; responses match `analysis.schema.json` / `analysis.ts`):
+
+| Method | Path | Returns |
+|---|---|---|
+| POST | `/api/analyze` (multipart `file`, optional form field `title`) | `Analysis`; the upload is stored by content hash |
+| GET | `/api/songs/{file}/analysis` | `Analysis` for a library song |
+| GET | `/api/analysis/{id}` | cached `Analysis` (404 if never analyzed) |
+| GET | `/api/audio/{id}` | an uploaded song's audio, by content hash |
+
+Add `?refresh=1` to the first two to bypass the cache. Results are cached on disk by
+`sha256(audio bytes)` + `analysisVersion`, so the same file is analyzed once.
+
+`Analysis` essentials: `beats` cover the whole song (gaps filled from the tempo grid,
+listed in `filledBeats`); `downbeats = beats[downbeatPhase::4]` (4/4 assumed);
+`sections` are contiguous, bar-aligned, labeled `intro | verse | chorus | bridge | outro`,
+and carry a `group` letter: sections with the same letter repeat the same music, so the
+choreographer reuses their moves. A routine's `song` is derived from an `Analysis` by
+keeping `id, title, artist, durationSec, bpm, beats, downbeats` and each section's
+`start, end, label, energy`.
 
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large).

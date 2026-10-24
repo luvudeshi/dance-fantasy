@@ -6,23 +6,17 @@ import time
 from pathlib import Path
 from typing import Annotated
 
-import anyio
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from librosa.util.exceptions import ParameterError
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from app.api.deps import read_upload, song_path, upload_display_name
-from app.audio import AudioDecodeError, load_audio, track_beats
+from app.api.deps import bad_audio_is_400, read_upload, song_path, upload_display_name
+from app.api.limits import ANALYSIS_SLOTS
+from app.audio import load_audio, track_beats
 from app.config import Settings, get_settings
 
 router = APIRouter(prefix="/spike", tags=["spike"])
 SettingsDep = Annotated[Settings, Depends(get_settings)]
-
-MAX_CONCURRENT_ANALYSES = 2
-# Requests wait for a slot on the event loop, not inside a worker thread: the threadpool also
-# serves audio downloads and every sync endpoint/dependency, so queued analyses must not hold it.
-ANALYSIS_SLOTS = anyio.CapacityLimiter(MAX_CONCURRENT_ANALYSES)
 
 
 class BeatResult(BaseModel):
@@ -55,12 +49,8 @@ async def beats_for_upload(settings: SettingsDep, file: Annotated[UploadFile, Fi
 def _analyze(source: Path | bytes, song: str, filename_hint: str | None, max_duration_sec: float) -> BeatResult:
     """Decode + beat-track (blocking; runs in a worker thread). Bad audio is a 400."""
     start = time.perf_counter()
-    try:
+    with bad_audio_is_400():
         y, sr = load_audio(source, filename_hint=filename_hint, max_duration_sec=max_duration_sec)
         track = track_beats(y, sr)
-    except AudioDecodeError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    except ParameterError as exc:  # librosa rejecting the signal itself
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Could not analyze this audio ({exc}).") from exc
     elapsed_ms = (time.perf_counter() - start) * 1000
     return BeatResult(song=song, elapsedMs=round(elapsed_ms, 1), **track)
