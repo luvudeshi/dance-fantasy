@@ -1,0 +1,54 @@
+{
+  "title": "Synth Ball 96",
+  "artist": "Midnight Ball test synth",
+  "license": "CC0 (generated)",
+  "source": "server/scripts/make_sample_song.py",
+  "bpm": 96.0,
+  "beatsPerBar": 4,
+  "firstBeatSec": 0.0,
+  "durationSec": 100.0,
+  "sections": [
+    {
+      "label": "intro",
+      "startBar": 0,
+      "bars": 4,
+      "startSec": 0.0,
+      "endSec": 10.0
+    },
+    {
+      "label": "verse",
+      "startBar": 4,
+      "bars": 8,
+      "startSec": 10.0,
+      "endSec": 30.0
+    },
+    {
+      "label": "chorus",
+      "startBar": 12,
+      "bars": 8,
+      "startSec": 30.0,
+      "endSec": 50.0
+    },
+    {
+      "label": "verse",
+      "startBar": 20,
+      "bars": 8,
+      "startSec": 50.0,
+      "endSec": 70.0
+    },
+    {
+      "label": "chorus",
+      "startBar": 28,
+      "bars": 8,
+      "startSec": 70.0,
+      "endSec": 90.0
+    },
+    {
+      "label": "outro",
+      "startBar": 36,
+      "bars": 4,
+      "startSec": 90.0,
+      "endSec": 100.0
+    }
+  ]
+}

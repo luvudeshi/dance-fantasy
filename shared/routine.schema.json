@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://midnight-ball.dev/schemas/routine.schema.json",
+  "title": "Midnight Ball routine",
+  "description": "A beat-synced dance routine for one song. Version 1. See shared/README.md for coordinate conventions. Keep in sync with shared/routine.ts and server/app/routine.py (tests enforce it).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "song", "difficulty", "mode", "seed", "moves"],
+  "properties": {
+    "version": { "const": 1 },
+    "song": { "$ref": "#/$defs/song" },
+    "difficulty": { "$ref": "#/$defs/difficulty" },
+    "mode": { "$ref": "#/$defs/mode" },
+    "seed": { "type": "integer" },
+    "moves": {
+      "description": "Moves in playback order, non-overlapping.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/move" }
+    },
+    "meta": {
+      "description": "Free-form, optional extras (generator name, createdAt, source video, ...). Never required by players.",
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "difficulty": { "enum": ["easy", "normal", "hard"] },
+    "mode": { "enum": ["standing", "seated"] },
+    "joint": {
+      "description": "17 COCO-style joints, in canonical order (see skeleton.json).",
+      "enum": [
+        "nose",
+        "l_eye",
+        "r_eye",
+        "l_ear",
+        "r_ear",
+        "l_shoulder",
+        "r_shoulder",
+        "l_elbow",
+        "r_elbow",
+        "l_wrist",
+        "r_wrist",
+        "l_hip",
+        "r_hip",
+        "l_knee",
+        "r_knee",
+        "l_ankle",
+        "r_ankle"
+      ]
+    },
+    "vec2": {
+      "description": "[x, y] in the normalized body frame: origin mid-hip, unit = mid-shoulder to mid-hip distance, +x toward the dancer's anatomical right, +y down.",
+      "type": "array",
+      "prefixItems": [{ "type": "number" }, { "type": "number" }],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "pose": {
+      "description": "Joint name -> position. Generated routines include all 17 joints; partial poses are allowed.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/joint" },
+      "additionalProperties": { "$ref": "#/$defs/vec2" }
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "label", "energy"],
+      "properties": {
+        "start": { "description": "Seconds.", "type": "number", "minimum": 0 },
+        "end": { "description": "Seconds.", "type": "number", "minimum": 0 },
+        "label": {
+          "description": "intro | verse | chorus | bridge | outro, or another short label.",
+          "type": "string",
+          "minLength": 1
+        },
+        "energy": { "description": "Relative energy, 0..1.", "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "song": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "durationSec", "bpm", "beats", "downbeats", "sections"],
+      "properties": {
+        "id": { "description": "Optional content hash of the audio file (sha256 hex).", "type": "string" },
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "durationSec": { "type": "number", "minimum": 0 },
+        "bpm": { "type": "number", "minimum": 0 },
+        "beats": {
+          "description": "Beat times in seconds, ascending.",
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 }
+        },
+        "downbeats": {
+          "description": "Bar-start times in seconds (subset of beats), ascending.",
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 }
+        },
+        "sections": { "type": "array", "items": { "$ref": "#/$defs/section" } }
+      }
+    },
+    "keyframe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["t", "pose"],
+      "properties": {
+        "t": { "description": "Normalized time within the move, 0..1.", "type": "number", "minimum": 0, "maximum": 1 },
+        "pose": { "$ref": "#/$defs/pose" }
+      }
+    },
+    "move": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "startBeat",
+        "lengthBeats",
+        "startTime",
+        "endTime",
+        "intensity",
+        "scoredJoints",
+        "keyframes"
+      ],
+      "properties": {
+        "id": { "description": "Move-library id, e.g. arm_wave_L.", "type": "string", "minLength": 1 },
+        "name": { "description": "Display name.", "type": "string" },
+        "startBeat": { "description": "Index into song.beats.", "type": "integer", "minimum": 0 },
+        "lengthBeats": { "type": "integer", "minimum": 1 },
+        "startTime": { "description": "Seconds; equals song.beats[startBeat].", "type": "number", "minimum": 0 },
+        "endTime": { "description": "Seconds; > startTime.", "type": "number", "minimum": 0 },
+        "intensity": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "scoredJoints": {
+          "description": "Joints whose limbs are scored for this move (a limb is scored when its distal joint is listed).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/joint" },
+          "uniqueItems": true
+        },
+        "keyframes": {
+          "description": "Ascending by t. Scoring checkpoints fall on the beats covered by the move.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/keyframe" }
+        }
+      }
+    }
+  }
+}

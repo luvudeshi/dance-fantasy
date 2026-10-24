@@ -1,0 +1,36 @@
+[project]
+name = "midnight-ball-server"
+version = "0.0.1"
+description = "Midnight Ball backend: audio analysis, choreography, multiplayer"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
+    "numpy>=1.26",
+    "librosa>=0.10.2",
+    "soundfile>=0.12",
+    "soxr>=0.3.2",
+    "audioread>=3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "httpx>=0.27",
+    "jsonschema>=4.22",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    # audioread (the non-libsndfile fallback decoder) imports stdlib modules deprecated in 3.11+
+    "ignore::DeprecationWarning:audioread.*",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

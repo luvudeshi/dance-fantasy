@@ -1,0 +1,54 @@
+{
+  "title": "Synth Ball 120",
+  "artist": "Midnight Ball test synth",
+  "license": "CC0 (generated)",
+  "source": "server/scripts/make_sample_song.py",
+  "bpm": 120.0,
+  "beatsPerBar": 4,
+  "firstBeatSec": 0.0,
+  "durationSec": 80.0,
+  "sections": [
+    {
+      "label": "intro",
+      "startBar": 0,
+      "bars": 4,
+      "startSec": 0.0,
+      "endSec": 8.0
+    },
+    {
+      "label": "verse",
+      "startBar": 4,
+      "bars": 8,
+      "startSec": 8.0,
+      "endSec": 24.0
+    },
+    {
+      "label": "chorus",
+      "startBar": 12,
+      "bars": 8,
+      "startSec": 24.0,
+      "endSec": 40.0
+    },
+    {
+      "label": "verse",
+      "startBar": 20,
+      "bars": 8,
+      "startSec": 40.0,
+      "endSec": 56.0
+    },
+    {
+      "label": "chorus",
+      "startBar": 28,
+      "bars": 8,
+      "startSec": 56.0,
+      "endSec": 72.0
+    },
+    {
+      "label": "outro",
+      "startBar": 36,
+      "bars": 4,
+      "startSec": 72.0,
+      "endSec": 80.0
+    }
+  ]
+}

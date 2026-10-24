@@ -1,0 +1,25 @@
+# deps / builds
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# generated at setup (MediaPipe wasm + models are copied/downloaded by web/scripts/setup-mediapipe.mjs)
+web/public/mediapipe/
+
+# server caches (analysis results keyed by file hash); curated demo routines live in assets/routines/
+assets/cache/
+
+# OS / editor
+.DS_Store
+*.log
+.idea/
+.vscode/
