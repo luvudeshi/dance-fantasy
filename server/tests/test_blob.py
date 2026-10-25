@@ -57,7 +57,10 @@ def test_client_token_is_signed_like_vercel_blob() -> None:
 
 
 @pytest.mark.usefixtures("blob_on")
-@pytest.mark.parametrize("pathname", ["song.mp3", "audio/x.mp3", "uploads/../audio/x.mp3", "uploads/a\nb.mp3"])
+@pytest.mark.parametrize(
+    "pathname",
+    ["song.mp3", "audio/x.mp3", "uploads/../audio/x.mp3", "uploads/a\nb.mp3", "uploads/..", "uploads/a/b.mp3"],
+)
 def test_client_token_only_for_uploads(pathname: str) -> None:
     with pytest.raises(blob.NotOurUpload):
         blob.client_token(pathname, 1234)
@@ -73,16 +76,25 @@ def test_client_token_only_for_uploads(pathname: str) -> None:
         f"https://{HOST}:8443/uploads/a.mp3",
         f"https://{HOST}/audio/{'a' * 64}.mp3",  # not an upload
         f"https://{HOST}/uploads/a.mp3?x=1",
+        f"https://user@{HOST}/uploads/a.mp3",
+        # each of these could resolve outside uploads/ and get a cache blob read and then deleted
+        f"https://{HOST}/uploads/../audio/{'a' * 64}.mp3",
+        f"https://{HOST}/uploads/%2e%2e/audio/x.mp3",
+        f"https://{HOST}/uploads/..%2faudio%2fx.mp3",
+        f"https://{HOST}/uploads/..",
+        f"https://{HOST}/uploads/a\\..\\b.mp3",
+        f"https://{HOST}/uploads//x.mp3",
     ],
 )
 def test_upload_url_must_be_ours(url: str) -> None:
     with pytest.raises(blob.NotOurUpload):
-        blob.check_upload_url(url)
+        blob.upload_url(url)
 
 
 @pytest.mark.usefixtures("blob_on")
 def test_upload_url_accepts_our_uploads() -> None:
-    blob.check_upload_url(f"https://{HOST}/uploads/song-Xy12.mp3")
+    url = f"https://{HOST}/uploads/song-Xy12.mp3"
+    assert blob.upload_url(url) == url
 
 
 def test_routes_404_with_blob_off() -> None:

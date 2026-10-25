@@ -345,7 +345,8 @@ export function analyzeUpload(file: File, opts: AnalyzeOptions & { title?: strin
 /** Upload to Vercel Blob (token from POST /api/blob/upload), then POST /api/analyze/blob with its URL. */
 async function analyzeViaBlob(file: File, opts: AnalyzeOptions & { title?: string }): Promise<Analysis> {
   const { upload } = await import('@vercel/blob/client')
-  const ext = file.name.includes('.') ? (file.name.split('.').pop() ?? '').toLowerCase() : ''
+  const rawExt = file.name.includes('.') ? (file.name.split('.').pop() ?? '').toLowerCase() : ''
+  const ext = /^[a-z0-9]{1,8}$/.test(rawExt) ? rawExt : '' // the server only signs plain names
   let url: string
   try {
     // The real name travels in the analyze request; the Blob path only needs the extension.

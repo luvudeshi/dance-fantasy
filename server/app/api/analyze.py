@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -104,14 +105,16 @@ async def analyze_blob_upload(req: BlobUpload, settings: SettingsDep, refresh: R
     """
     _require_blob()
     try:
-        if await run_in_threadpool(blob.upload_size, req.url) > settings.max_upload_bytes:
-            raise UploadTooLarge(settings.max_upload_bytes)
-        data = await run_in_threadpool(blob.read_upload, req.url)
+        url = blob.upload_url(req.url)
     except blob.NotOurUpload as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    except BlobNotFoundError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That upload is not in Blob storage.") from exc
-    try:
+    try:  # from here on the upload is always deleted, whatever happens
+        try:
+            if await run_in_threadpool(blob.upload_size, url) > settings.max_upload_bytes:
+                raise UploadTooLarge(settings.max_upload_bytes)
+            data = await run_in_threadpool(blob.read_upload, url)
+        except BlobNotFoundError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "That upload is not in Blob storage.") from exc
         if not data:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "Uploaded file is empty.")
         digest = sha256_bytes(data)
@@ -130,7 +133,8 @@ async def analyze_blob_upload(req: BlobUpload, settings: SettingsDep, refresh: R
                     analyze_and_store, store, digest, data, meta, name, settings.max_duration_sec
                 )
     finally:
-        await run_in_threadpool(blob.delete_upload, req.url)
+        with contextlib.suppress(BlobNotFoundError):  # already gone is fine
+            await run_in_threadpool(blob.delete_upload, url)
 
 
 @router.get("/songs/{file}/analysis", **ANALYSIS_RESPONSE)

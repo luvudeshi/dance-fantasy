@@ -21,6 +21,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 from urllib.parse import urlsplit
 
@@ -32,6 +33,8 @@ from app.library import MEDIA_TYPES
 UPLOAD_PREFIX = "uploads/"
 MAX_UPLOAD_PATHNAME = 300
 CLIENT_TOKEN_TTL_SEC = 10 * 60
+# One plain file name under uploads/: no further "/", no "%" escapes, must start alphanumeric (so no "..").
+UPLOAD_PATHNAME_RE = re.compile(r"^uploads/[A-Za-z0-9][A-Za-z0-9._-]{0,200}$")
 
 
 class NotOurUpload(ValueError):
@@ -101,13 +104,8 @@ def find_url(prefix: str) -> str | None:
 
 def client_token(pathname: str, max_bytes: int) -> str:
     """A token that lets the browser PUT one audio file of at most ``max_bytes`` under uploads/."""
-    if (
-        not pathname.startswith(UPLOAD_PREFIX)
-        or len(pathname) > MAX_UPLOAD_PATHNAME
-        or ".." in pathname
-        or any(ord(c) < 32 for c in pathname)
-    ):
-        raise NotOurUpload(f"Upload pathname must start with '{UPLOAD_PREFIX}' and be a plain name.")
+    if not UPLOAD_PATHNAME_RE.match(pathname):
+        raise NotOurUpload(f"Upload pathname must be '{UPLOAD_PREFIX}' plus a plain file name.")
     token = _require_token()
     payload = base64.b64encode(
         json.dumps(
@@ -126,31 +124,33 @@ def client_token(pathname: str, max_bytes: int) -> str:
     return f"vercel_blob_client_{store_id(token)}_{signed}"
 
 
-def check_upload_url(url: str) -> None:
-    """Raise NotOurUpload unless ``url`` is an uploads/ blob in this app's store (never fetch arbitrary URLs)."""
+def upload_url(url: str) -> str:
+    """The canonical URL of an uploads/ blob in this app's store, rebuilt from checked parts.
+
+    Raises NotOurUpload for anything else: other hosts (no SSRF), and paths that could resolve outside
+    uploads/ ("..", "%2e%2e", extra "/"), since callers read and then delete what this returns.
+    """
     parts = urlsplit(url)
+    host = public_host(_require_token())
     if (
         parts.scheme != "https"
-        or parts.hostname != public_host(_require_token())
-        or parts.port is not None
-        or not parts.path.startswith(f"/{UPLOAD_PREFIX}")
+        or parts.netloc != host
         or parts.query
         or parts.fragment
+        or not UPLOAD_PATHNAME_RE.match(parts.path.removeprefix("/"))
     ):
         raise NotOurUpload("Not an upload in this app's Blob store.")
+    return f"https://{host}{parts.path}"
 
 
 def upload_size(url: str) -> int:
     """Size in bytes of an upload blob (checked before downloading it)."""
-    check_upload_url(url)
-    return head_blob(url).size
+    return head_blob(upload_url(url)).size
 
 
 def read_upload(url: str) -> bytes:
-    check_upload_url(url)
-    return get_blob(url, access="public").body
+    return get_blob(upload_url(url), access="public").body
 
 
 def delete_upload(url: str) -> None:
-    check_upload_url(url)
-    delete_blob(url)
+    delete_blob(upload_url(url))
