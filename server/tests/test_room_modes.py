@@ -356,7 +356,7 @@ def test_modes_over_http(client: TestClient) -> None:
     assert post(host["token"], {"beats": [{**one, "score": 101}]}) == 400
     assert post(host["token"], {"beats": [one], "extra": 1}) == 400
     r = client.post(f"/api/rooms/{code}/beats", json={"beats": [one]})
-    assert r.status_code == 401
+    assert r.status_code == 404  # no seat answers like no room
     assert post(host["token"], {"beats": [one]}) == 200
     r = client.post(f"/api/rooms/{code}/beats", json={"beats": [one]}, headers=auth(guest["token"]))
     view = r.json()

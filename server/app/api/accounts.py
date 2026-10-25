@@ -14,6 +14,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 
 from app.accounts import store
+from app.api.limits import client_ip
 from app.accounts.models import (
     ACCOUNT_ID_PATTERN,
     Credentials,
@@ -52,12 +53,6 @@ def _token(request: Request) -> str | None:
     return request.cookies.get(COOKIE)
 
 
-def _client(request: Request) -> str:
-    """An IP-ish rate-limit key. Vercel sets these headers itself; elsewhere they are only a hint."""
-    forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for", "").split(",")[0]
-    return (forwarded.strip() or (request.client.host if request.client else "") or "unknown")[:64]
-
-
 def _set_session(request: Request, response: Response, token: str) -> None:
     https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").split(",")[0] == "https"
     response.set_cookie(
@@ -67,7 +62,7 @@ def _set_session(request: Request, response: Response, token: str) -> None:
 
 @router.post("/session")
 def start_session(request: Request, response: Response) -> Me:
-    me, token = store.start_session(_token(request), _client(request), _now())
+    me, token = store.start_session(_token(request), client_ip(request), _now())
     _set_session(request, response, token)
     return me
 
@@ -81,14 +76,14 @@ def claim(body: Credentials, request: Request, response: Response) -> Me:
 
 @router.post("/login")
 def login(body: Credentials, request: Request, response: Response) -> Me:
-    me, token = store.login(_token(request), body.username, body.password, _client(request), _now())
+    me, token = store.login(_token(request), body.username, body.password, client_ip(request), _now())
     _set_session(request, response, token)
     return me
 
 
 @router.post("/logout")
 def logout(request: Request, response: Response) -> Me:
-    me, token = store.logout(_token(request), _client(request), _now())
+    me, token = store.logout(_token(request), client_ip(request), _now())
     _set_session(request, response, token)
     return me
 

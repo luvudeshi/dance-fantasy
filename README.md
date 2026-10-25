@@ -165,6 +165,24 @@ One Vercel project, two services ([vercel.json](vercel.json)): `web/` (static Vi
   `assets/moves` into `server/assets`.
 - **Cold starts:** a fresh instance compiles librosa's beat tracker (numba) on its first analysis,
   ~30 s; later analyses take about a second, and cached ones are instant.
+- **Environment variables** (Project Settings → Environment Variables; all optional, the game runs
+  without any of them, and [.env.example](.env.example) documents each):
+
+  | Variable | What it turns on |
+  |---|---|
+  | `BLOB_READ_WRITE_TOKEN` | the shared cache and direct-to-Blob uploads (above) |
+  | `DATABASE_URL`, optional `DATABASE_CA_CERT` | rooms, accounts, friends and history (above) |
+  | `MUSE_API_KEY`, `MUSE_BASE_URL`, `MUSE_TEXT_MODEL` | the AI herald's lines (Meta Muse first) |
+  | `GEMINI_API_KEY`, `GEMINI_TEXT_MODEL` | Gemini: herald fallback, the herald's voice, naming signature dances |
+  | `GEMINI_TTS_VOICE` | which Gemini voice the herald speaks with |
+  | `AI_PROVIDER=gemini` | ask Gemini before Muse |
+  | `SERPAPI_API_KEY` | online signature-dance search (without it only the bundled table answers) |
+  | `VERCEL_SUPPORT_LARGE_FUNCTIONS=1` | required: the Python bundle is over 225 MB (above) |
+- **Pre-voice the herald:** with `GEMINI_API_KEY` and `BLOB_READ_WRITE_TOKEN` from the deployment in
+  your shell, `cd server && uv run python -m scripts.pregen_voice` voices every fixed canned line into
+  Blob once, so the common lines play instantly (a re-run only voices new lines). Re-run it after
+  changing `GEMINI_TTS_VOICE`.
+
 ## AIST++ motion clips
 
 **Moves from: Real dancers** (or **Mix**) choreographs with short moves captured from real dancers

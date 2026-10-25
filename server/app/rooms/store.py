@@ -108,14 +108,18 @@ def _live_room(tx: Tx, code: str, now: int, lock: bool) -> Row:
 
 
 def _player(tx: Tx, room: Row, token: str | None, now: int, touch_room: bool = True) -> Row:
-    """The token's player in this room (401 otherwise); marks them seen (and the room active, for writes)."""
+    """The token's player in this room; marks them seen (and the room active, for writes).
+
+    A missing or unknown token answers exactly like an unknown room (404), so a guessed code can't be told
+    apart from a live room without a seat in it.
+    """
     if not token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing X-Player-Token.")
+        raise _not_found()
     player = tx.one(
         "select * from df_players where code = :code and token_hash = :th", code=room["code"], th=_hash(token)
     )
     if player is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unknown player token for this room.")
+        raise _not_found()
     if touch_room:
         tx.run("update df_rooms set active_at = :now where code = :code", now=now, code=room["code"])
         room["active_at"] = now

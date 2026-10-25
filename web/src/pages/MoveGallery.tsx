@@ -148,7 +148,6 @@ function MoveCard({ move, loop, settings, onOpen }: CardProps) {
     <button type="button" className="move-card" onClick={() => onOpen(move.id)} title="Open detail view">
       <canvas ref={canvasRef} className="move-canvas" aria-label={`${move.name} animation`} />
       <div className="move-name">{move.name}</div>
-      <div className="move-id mono">{move.id}</div>
       <MoveMeta move={move} />
     </button>
   )

@@ -115,7 +115,7 @@ Stage 1 endpoints (song analysis; responses match `analysis.schema.json` / `anal
 | GET | `/api/songs/{file}/analysis` | `Analysis` for a library song |
 | GET | `/api/analysis/{id}` | cached `Analysis` (404 if never analyzed) |
 | GET | `/api/audio/{id}` | an uploaded song's audio, by content hash (on Vercel: may redirect to its Blob URL) |
-| POST | `/api/blob/upload` | Vercel only: `@vercel/blob` client `upload()` token endpoint (`handleUploadUrl`) |
+| POST | `/api/blob/upload` | Vercel only: `@vercel/blob` client `upload()` token endpoint (`handleUploadUrl`); 429 past 60 tokens per client IP an hour |
 | POST | `/api/analyze/blob` `{ url, filename?, title? }` | Vercel only: like `/api/analyze`, for a song the browser uploaded to Blob |
 
 Vercel caps request bodies at 4.5 MB, so deployed builds (`VITE_BLOB_UPLOADS=1`) upload to Blob
@@ -170,7 +170,7 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
 |---|---|---|---|---|
 | POST | `/api/rooms` | none | `{ name }` | `{ code, playerId, token }`; the creator is the host |
 | POST | `/api/rooms/{code}/join` | none | `{ name }` | `{ playerId, token }`; 409 when 8 players are in |
-| GET | `/api/rooms/{code}?chatAfter=<id>` | optional | | with a seat token: `RoomView`, and marks that player seen (401 for a token not in this room); without one only `{ code, state, playerCount, mode }` (no players, no chat) |
+| GET | `/api/rooms/{code}?chatAfter=<id>` | optional | | with a seat token: `RoomView`, and marks that player seen (404 for a token not in this room, exactly like an unknown room); without one only `{ code, state, playerCount, mode }` (no players, no chat) |
 | POST | `/api/rooms/{code}/routine` | host | `{ routineId, analysisId, title, difficulty, mode }` | `RoomView`; the routine must be one this server generated for that `analysisId` (else 404); lobby or finished only (else 409); back to lobby, scores, ready and crew sync reset |
 | POST | `/api/rooms/{code}/ready` | player | `{ ready: bool }` | `RoomView` |
 | POST | `/api/rooms/{code}/dancing` | player | `{ dancing: bool }` | `RoomView`; `false` = only watching (e.g. the host's big screen), kept across rounds until switched back; lobby or finished only (else 409) |
@@ -209,13 +209,16 @@ every lookup from that client answer 429 (with `Retry-After`) until the minute i
   Vercel Functions). Every write answers with the same `RoomView` as `GET` and accepts the same
   `?chatAfter=`, so a write doubles as that second's poll. `players` are in join order; sort
   them for a leaderboard yourself.
-- **Auth.** Writes send the `token` from create/join as the `X-Player-Token` header: 401 when it is
-  missing or not a player of this room (e.g. after `leave`), 403 when a non-host tries a host
-  action. A `GET` with an invalid token is also 401; without a token it is an anonymous viewer
+- **Auth.** Writes send the `token` from create/join as the `X-Player-Token` header: 404 when it is
+  missing or not a player of this room (e.g. after `leave`), the same answer as an unknown room, so a
+  guessed code reveals nothing; 403 when a non-host tries a host action. A `GET` with an invalid token
+  is also 404; without a token it is an anonymous viewer
   (e.g. a big screen) and nobody is marked seen. Keep `playerId`/`token` per room code in
   `sessionStorage` so a reload rejoins as the same player.
 - **Codes.** 4 letters from `ABCDEFGHJKMNPQRSTUVWXYZ` (no I, L, O); case-insensitive in paths.
-  Unknown, malformed or expired codes are 404. Suggested QR target: `<origin>/#/room?code=KQWX` (the web app owns the route).
+  Unknown, malformed or expired codes are 404. Every 404 from a `/api/rooms/{code}/*` route counts
+  toward a per-client throttle (20 a minute, then 429); token-less `GET`s and joins wait it out, while
+  a seated player's own calls keep working. Suggested QR target: `<origin>/#/room?code=KQWX` (the web app owns the route).
 - **Names** (1-24 chars) and chat `text` (1-200) are trimmed with inner whitespace collapsed;
   control characters are 400. A taken name gets a suffix (`Ana`, `ana 2`).
 - **State is derived from time.** `countdown` while `serverNow < startAt`, then `playing`, then
@@ -267,7 +270,7 @@ fallback (`AI_PROVIDER=gemini` swaps them). Prompts and model output are never l
 | Method | Path | Returns |
 |---|---|---|
 | POST | `/api/announcer` (JSON `AnnouncerRequest`) | `{ lines: string[], items: { id, text }[], source: "muse" \| "gemini" \| "canned" }`: 1-3 lines, each ≤ 90 chars; `items` are the same lines with ids. 429 over 120 requests/min per client |
-| GET | `/api/announcer/voice/{id}` | `audio/wav` (16-bit mono, 24 kHz): the line voiced by the herald (Gemini TTS, cached forever). 404 unless `/api/announcer` gave that line out, 429 over 40 requests/min per client, 503 not cached and no `GEMINI_API_KEY` (or TTS down) |
+| GET | `/api/announcer/voice/{id}` | `audio/wav` (16-bit mono, 24 kHz): the line voiced by the herald (Gemini TTS, cached forever). 404 unless `/api/announcer` gave that line out, 429 over 40 requests/min per client, 503 not cached and no `GEMINI_API_KEY` (or TTS down, or 1000 fresh voicings in the last 24 h across instances) |
 
 A line's `id` is the sha256 hex of its UTF-8 text, so a client holding only the text can compute it
 (web/src/voice). The voice route never takes text: it only voices lines the announcer returned (fixed canned
@@ -311,7 +314,7 @@ sends the header `X-DF: 1` (403 without it).
 | POST | `/api/friends/{id}/invite` | `{ roomCode }` | `{ ok: true }`; must be friends (404) and the room live (404); 429 after 20 invites in 10 min. Re-inviting renews the same invite |
 | GET | `/api/me/invites` | | `Invite[]`, newest first: not dismissed and under 10 min old |
 | POST | `/api/me/invites/{id}/dismiss` | none | `{ ok: true }`; 404 unless it was sent to you |
-| POST | `/api/me/rooms` | `{ roomCode, playerToken }` | `{ ok: true }`; records that you played in that room. The token is the one from create/join (401 if it isn't a player of that room, 404 unknown room) |
+| POST | `/api/me/rooms` | `{ roomCode, playerToken }` | `{ ok: true }`; records that you played in that room. The token is the one from create/join (404 if it isn't a player of that room or the room is unknown) |
 | GET | `/api/me/partners` | | `Partner[]`: accounts that recorded a room you recorded, last 30 days, most recent first (max 20) |
 | POST | `/api/me/rounds` | `{ analysisId, songTitle, score, accuracy, maxCombo, stars, mode }` | `{ ok: true }`; `score` and `maxCombo` integers, `accuracy` 0-100, `stars` 0-5 (fractions ok), `mode` `solo`, `party` or `room`; 429 after 120 rounds in an hour |
 | GET | `/api/me/history?tzOffset=<min>` | | `History`: last 20 rounds and totals. `tzOffset` is `new Date().getTimezoneOffset()` (for the day streak), default 0 |
@@ -362,14 +365,14 @@ sends the header `X-DF: 1` (403 without it).
   Like rooms, a Vercel deployment without `DATABASE_URL` answers 503 here.
 
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
-413 (upload too large); the rooms routes add 401, 403, 409, 429 and 503 as above, and the
+413 (upload too large); the rooms routes add 403, 409, 429 and 503 as above, and the
 accounts routes 401, 403, 404, 409 and 429.
 
 ## Signature dances (on by default; `?signature=0` or localStorage `mb.signature` = `"0"` turns them off)
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/api/signature/lookup?file=` (library song) or `?analysisId=`, optional `&title=&artist=` | `SignatureLookup` (below). Without `file`/`analysisId`, or with a `title` that isn't the song's own, only the bundled table and the signature moves answer (free). The online search (SerpApi + Gemini) runs only for the known song's own title and artist (from its analysis or the library), is cached per analysis for 24 h, and is limited to 2 at once (503), 10 fresh lookups per client per hour (429) and 150 a day (503). 400 without a title, 404 unknown song |
+| GET | `/api/signature/lookup?file=` (library song) or `?analysisId=`, optional `&title=&artist=` | `SignatureLookup` (below). Without `file`/`analysisId`, or with a `title` that isn't the song's own, only the bundled table and the signature moves answer (free). The online search (SerpApi + Gemini) runs only for the known song's own title and artist (from its analysis or the library), is cached per analysis for 24 h, and is limited to 2 at once (503), 10 fresh lookups per client per hour (429) and 150 a day (503), both counted in the database across instances. A typed artist never reaches the online search. 400 without a title, 404 unknown song |
 | GET | `/api/signature/moves` | `{ version, moves }`: `LibraryMove`s from `assets/moves/signature/` plus `signatureDance`, `songs`, `creator` |
 
 `POST /api/choreograph` takes an optional `pinnedMoves: [{ moveId, placement: "chorus" | "drop" | "finale" }]`

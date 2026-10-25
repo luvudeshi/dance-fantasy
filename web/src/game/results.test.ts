@@ -8,6 +8,7 @@ import {
   meanOffset,
   moveRows,
   practiceTip,
+  rankBlurb,
   rankTitle,
   roundDetails,
   scoreBand,
@@ -48,6 +49,12 @@ describe('formatting', () => {
     expect(rankTitle(5)).toBe('Midnight Princess')
     expect(rankTitle(4.2)).toBe('Belle of the Ball')
     expect(rankTitle(0)).toBe('Shy Wallflower')
+    expect(rankTitle(5, 'prince')).toBe('Midnight Prince')
+    expect(rankTitle(4.2, 'prince')).toBe('Beau of the Ball')
+    expect(rankBlurb(5, 'prince')).not.toMatch(/slipper/)
+    expect(rankBlurb(3, 'prince')).toMatch(/the princess won/)
+    expect(rankBlurb(0, 'prince')).toMatch(/^Every prince starts/)
+    expect(rankBlurb(0, 'princess')).toMatch(/^Every princess starts/)
   })
 
   it('colours bars by the judgment thresholds', () => {
