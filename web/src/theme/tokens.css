@@ -1,0 +1,106 @@
+/* Dance Fantasy design tokens, ported 1:1 from Body Double's "Fantasy: Storybook Stickers"
+   (body-double/tailwind.config.ts + public/lab/fantasy-stickers). Every text pair here is >= 5:1 on the paper.
+   Never pure white: the lightest colour is --df-cut (#fffaf0). */
+:root {
+  /* paper */
+  --df-paper: #f8f0de; /* sticker cream: cards, chips, fields */
+  --df-ground: #eadfc7; /* toned page ground (no projector glare) */
+  --df-ground-deep: #ddcfb2; /* deeper paper: wells, punched holes */
+  --df-cut: #fffaf0; /* die-cut border, warm white; text on dark fills */
+  --df-parchment: #f0dfb9; /* the settings scroll */
+  --df-parchment-roll: #e8d3a4;
+  --df-parchment-edge: #d4ba86; /* also the switch / slider track */
+  --df-rule: #c9ae7c; /* dashed rules on parchment */
+
+  /* ink */
+  --df-ink: #2e2421;
+  --df-ink-soft: #5b4a3b;
+  --df-ink-faint: #6f5d4c; /* placeholders only */
+
+  /* antique gold */
+  --df-gold: #dbb35e;
+  --df-gold-light: #f2db94;
+  --df-gold-shade: #b88d40; /* shading on gold stickers and medals */
+  --df-gold-deep: #8e6a2f;
+  --df-gold-text: #75561f; /* gold that passes on the paper */
+  --df-gold-ink: #4a3612; /* letters on a gold medal */
+  --df-foil: #e0b858; /* base of the #foil filter */
+
+  /* powder blue, glass and night */
+  --df-blue: #a3c3d8;
+  --df-blue-light: #d2e3ec;
+  --df-blue-shade: #7a9fbd;
+  --df-blue-deep: #56789a;
+  --df-night: #263a55; /* magic-mirror glass */
+  --df-night-deep: #152338;
+  --df-glass: #e4edf1; /* silver mirror glass */
+  --df-on-night: #e9dcb8; /* italic voice on night */
+  --df-on-night-soft: #d9e4ec;
+
+  /* sage, raspberry, burgundy */
+  --df-sage: #a8bc8b;
+  --df-sage-deep: #4f5e2c;
+  --df-rasp: #c04f66;
+  --df-rasp-light: #e6939f;
+  --df-rasp-deep: #963248; /* primary action, cut-letter titles, focus ring */
+  --df-rasp-hover: #a83a52;
+  --df-burg: #6e2338;
+  --df-on-rasp: #fff8ec; /* text on raspberry / burgundy */
+  --df-disabled: #b9a59a;
+
+  /* type */
+  --df-font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --df-font-ui: 'Figtree', 'Avenir Next', system-ui, sans-serif;
+  --df-fvs-display: 'SOFT' 100, 'WONK' 0; /* .df-display, Title */
+  --df-fvs-cut: 'SOFT' 100, 'WONK' 1, 'opsz' 144; /* die-cut lettering, foil */
+  --df-fvs-brand: 'SOFT' 100, 'opsz' 72;
+  --df-fvs-voice: 'SOFT' 50; /* italic storyteller */
+  --df-text-xs: 0.85rem;
+  --df-text-sm: 0.95rem;
+  --df-text-md: 1.0625rem;
+  --df-text-lg: 1.25rem;
+  --df-text-xl: 1.6rem;
+  --df-text-2xl: 2rem;
+  --df-text-hero: clamp(3.6rem, 7vw, 6.6rem);
+
+  /* shape */
+  --df-r-xs: 4px;
+  --df-r-sm: 10px;
+  --df-r-md: 14px;
+  --df-r-lg: 18px;
+  --df-r-xl: 26px;
+  --df-r-pill: 999px;
+  --df-space-1: 4px;
+  --df-space-2: 8px;
+  --df-space-3: 12px;
+  --df-space-4: 16px;
+  --df-space-5: 24px;
+  --df-space-6: 32px;
+  --df-space-7: 48px;
+  --df-gutter: clamp(16px, 3.6vw, 64px); /* page side padding */
+
+  /* depth (stickers get theirs from the SVG filters; these are the inset bevels) */
+  --df-shadow-primary: inset 0 -6px 0 rgb(70 14 34 / 0.35), inset 0 3px 0 rgb(255 220 220 / 0.18);
+  --df-shadow-pressed: inset 0 -3px 0 rgb(70 14 34 / 0.35), inset 0 2px 0 rgb(255 220 220 / 0.18);
+  --df-shadow-quiet: inset 0 -4px 0 rgb(70 40 30 / 0.12);
+  --df-shadow-medal: inset -4px -5px 0 var(--df-gold-shade), inset 3px 3px 0 var(--df-gold-light);
+  --df-shadow-well: inset 0 2px 3px rgb(70 40 20 / 0.3);
+  --df-shadow-lift: 0 0 0 4px var(--df-cut), 0 4px 8px 4px rgb(74 50 32 / 0.2); /* a die-cut look without a filter */
+  --df-shadow-picked: 0 0 0 5px var(--df-cut), 0 0 0 10px var(--df-rasp-deep);
+  --df-vignette: inset 0 0 120px rgb(150 118 70 / 0.22);
+  --df-glory: 0 0 70px 34px rgb(242 214 128 / 0.75), 0 0 140px 70px rgb(242 214 128 / 0.35);
+
+  /* art */
+  --df-paper-tex: url('/art/storybook/paper.svg');
+
+  /* motion */
+  --df-ease: cubic-bezier(0.22, 1, 0.36, 1); /* out-quint, everything */
+  --df-dur-fast: 150ms;
+  --df-dur: 200ms;
+  --df-dur-slow: 450ms;
+
+  /* layers */
+  --df-z-sticky: 10;
+  --df-z-drawer: 40;
+  --df-z-toast: 50;
+}

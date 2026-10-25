@@ -1,0 +1,306 @@
+/* Dance Fantasy pieces: modal / sheet, notices, list rows, medals, player tokens and the points seal. */
+
+/* ---------- modal / bottom sheet: native <dialog class="df-modal"> (or "df-modal df-sheet") ---------- */
+.df-modal {
+  width: min(34rem, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  border-radius: var(--df-r-lg);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  font-family: var(--df-font-ui);
+  filter: url(#dc-lg);
+}
+.df-modal[open] {
+  animation: df-rise var(--df-dur-slow) var(--df-ease);
+}
+.df-modal::backdrop {
+  background: rgb(46 36 33 / 0.45);
+  backdrop-filter: blur(2px);
+}
+.df-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: inherit;
+  overflow: auto;
+  padding: 24px 26px 26px;
+}
+.df-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.df-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+}
+.df-sheet {
+  width: min(40rem, 100vw);
+  margin: auto auto 0;
+  border-radius: var(--df-r-xl) var(--df-r-xl) 0 0;
+}
+.df-sheet .df-modal-body {
+  padding-bottom: max(26px, env(safe-area-inset-bottom));
+}
+.df-sheet[open] {
+  animation: df-sheet-in var(--df-dur-slow) var(--df-ease);
+}
+
+/* ---------- notices: a small paper sticker that slides up (toast), or sits inline ---------- */
+.df-notice-region {
+  position: fixed;
+  inset: auto 0 max(1rem, env(safe-area-inset-bottom));
+  z-index: var(--df-z-toast);
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.df-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 28rem;
+  margin: 0;
+  padding: 12px 20px;
+  border-radius: var(--df-r-md);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.35;
+  rotate: -1deg;
+  filter: url(#dc);
+  pointer-events: auto;
+  animation: df-rise 250ms var(--df-ease);
+}
+.df-notice > img {
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+}
+.df-notice-error {
+  color: var(--df-rasp-deep);
+  font-weight: 700;
+}
+.df-notice-success {
+  color: var(--df-sage-deep);
+  font-weight: 700;
+}
+
+/* ---------- list rows ----------
+   <ul class="df-list"><li class="df-item"><img class="df-item-icon"><div class="df-item-body">
+   <span class="df-item-title">..</span><span class="df-item-meta">..</span></div><span class="df-item-end">..</span></li></ul> */
+.df-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.df-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 4rem;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: var(--df-r-md);
+  background: var(--df-paper);
+  color: var(--df-ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  filter: url(#dc-sm);
+  transition:
+    background-color var(--df-dur-fast) var(--df-ease),
+    translate var(--df-dur-fast) var(--df-ease);
+}
+:is(a, button).df-item {
+  cursor: pointer;
+}
+:is(a, button).df-item:hover {
+  background: var(--df-cut);
+}
+:is(a, button).df-item:active {
+  translate: 0 1px;
+}
+.df-item:is([aria-current='true'], [aria-selected='true'], [aria-pressed='true'], .is-on) {
+  box-shadow: inset 0 0 0 3px var(--df-rasp-deep);
+}
+.df-item-icon {
+  flex: none;
+  width: 3rem;
+  height: 3rem;
+}
+.df-item-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.df-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--df-font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 650;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+.df-item-meta {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+.df-item-end {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--df-font-ui);
+  font-weight: 800;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--df-ink);
+}
+
+/* ---------- gold medallion: rank numbers, slot letters (A / B), step counters ---------- */
+.df-medal {
+  --df-medal-size: 3.4rem;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--df-medal-size);
+  height: var(--df-medal-size);
+  border-radius: 50%;
+  background: var(--df-gold);
+  color: var(--df-gold-ink);
+  box-shadow: var(--df-shadow-medal);
+  font-family: var(--df-font-display);
+  font-variant-numeric: lining-nums;
+  font-weight: 800;
+  font-size: calc(var(--df-medal-size) * 0.55);
+  line-height: 1;
+  filter: url(#dc);
+}
+.df-medal-silver {
+  background: var(--df-blue-light);
+  color: var(--df-night);
+  box-shadow:
+    inset -4px -5px 0 var(--df-blue-shade),
+    inset 3px 3px 0 var(--df-glass);
+}
+.df-medal-rasp {
+  background: var(--df-rasp);
+  color: var(--df-cut);
+  box-shadow:
+    inset -4px -5px 0 var(--df-rasp-deep),
+    inset 3px 3px 0 var(--df-rasp-light);
+}
+.df-medal-sm {
+  --df-medal-size: 2.5rem;
+}
+.df-medal-lg {
+  --df-medal-size: 5rem;
+}
+
+/* ---------- player token: a kit icon as a die-cut sticker ---------- */
+.df-token {
+  --df-token-size: 4rem;
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--df-token-size);
+  height: var(--df-token-size);
+}
+.df-token > img {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  filter: url(#dc);
+}
+.df-token-sm {
+  --df-token-size: 2.5rem;
+}
+.df-token-sm > img {
+  filter: url(#dc-sm);
+}
+.df-token-lg {
+  --df-token-size: 6rem;
+}
+.df-token-xl {
+  --df-token-size: 9rem;
+}
+/* the gold medallion behind a chosen token */
+.df-token-picked::before {
+  content: '';
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  background: var(--df-gold);
+  box-shadow: var(--df-shadow-medal), var(--df-shadow-lift);
+}
+.df-token-picked > img {
+  width: 84%;
+  height: 84%;
+}
+.df-token-off {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+/* raspberry check once the player has acted (Token's `tick` prop renders it) */
+.df-token-tick {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 38%;
+  height: 38%;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  border-radius: 50%;
+  background: var(--df-rasp-deep);
+  color: var(--df-cut);
+  filter: url(#dc-sm);
+}
+.df-token-tick > svg {
+  width: 55%;
+  height: 55%;
+}
+
+/* ---------- "+100" on a gold seal (Figtree numerals) ---------- */
+.df-seal {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 6.5rem;
+  height: 6.5rem;
+  rotate: -8deg;
+  font-family: var(--df-font-ui);
+  font-variant-numeric: lining-nums tabular-nums;
+  font-weight: 800;
+  font-size: 1.9rem;
+  color: #5a3d0e;
+  text-shadow: 0 1.5px 0 rgb(255 240 200 / 0.7);
+}
+.df-seal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('/art/storybook/seal.svg') center / contain no-repeat;
+  filter: url(#dc);
+}
+.df-seal > * {
+  position: relative;
+}

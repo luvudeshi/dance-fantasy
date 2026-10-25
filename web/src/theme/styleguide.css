@@ -1,0 +1,64 @@
+/* Layout for the #/ui style guide page only. */
+.sg {
+  padding-block: 8px 64px;
+}
+.sg-hero {
+  display: grid;
+  gap: 40px clamp(24px, 4vw, 64px);
+  align-items: center;
+}
+@media (min-width: 900px) {
+  .sg-hero {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+}
+.sg-cam {
+  margin-top: 26px;
+  rotate: -1.5deg;
+}
+.sg-cam-glass {
+  aspect-ratio: 4 / 3;
+  align-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.sg-cam-glass > .df-voice {
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+}
+.sg-glint {
+  position: absolute;
+  top: 16%;
+  right: 14%;
+  width: 22px;
+  color: var(--df-gold-light);
+}
+.sg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: 44px 32px;
+  align-items: start;
+}
+.sg-swatch {
+  display: grid;
+  gap: 2px;
+  font-size: 0.9rem;
+}
+.sg-swatch > span {
+  height: 52px;
+  margin-bottom: 8px;
+  border-radius: var(--df-r-md);
+}
+.sg-swatch code {
+  font-size: 0.78rem;
+  color: var(--df-ink-soft);
+}
+.sg-icon {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--df-ink-soft);
+}
