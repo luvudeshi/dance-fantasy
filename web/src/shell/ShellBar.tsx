@@ -1,3 +1,4 @@
+import { AccountChip } from '../account/AccountChip'
 import { Icon } from '../theme/Icon'
 import './shell.css'
 
@@ -31,6 +32,7 @@ export function ShellBar({ server, title }: { server: ServerState; title?: strin
         </a>
         {title && <span className="df-voice shell-where">{title}</span>}
         <div className="shell-bar-end">
+          <AccountChip />
           <ServerStatus server={server} />
           <a className="df-btn df-btn-secondary df-btn-sm shell-menu-btn" href="#/">
             <Icon name="castle" size="xs" cut="none" />

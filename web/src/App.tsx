@@ -4,6 +4,8 @@ import { teachHash } from './game/flow'
 import { loadShelf, SHELF_KEY } from './game/routineShelf'
 import { errorMessage, isAbortError } from './lib/errors'
 import { isRoutineId, parseHash } from './lib/hashRoute'
+import { InviteToast } from './account/InviteToast'
+import { usePartyCount } from './party/usePartyCount'
 import { useSettings } from './settings'
 import { ShellBar, type ServerState } from './shell/ShellBar'
 
@@ -21,11 +23,15 @@ const Credits = lazy(() => import('./shell/Credits'))
 const StyleGuide = lazy(() => import('./theme/StyleGuide'))
 const RoomPage = lazy(() => import('./rooms/RoomPage'))
 const AiPreview = lazy(() => import('./announcer/AiPreview'))
+const PartyPlay = lazy(() => import('./party/PartyPlay'))
+const PartyHarness = lazy(() => import('./party/PartyHarness'))
+const ProfilePage = lazy(() => import('./account/ProfilePage'))
+const FriendsPage = lazy(() => import('./account/FriendsPage'))
 
 /**
  * Every page. `shell`: a full-page Dance Fantasy screen (else the legacy .app column);
  * `bar`: the sticky header shows (with `title` beside the brand); `esc`: Esc goes back to the menu.
- * Dev pages (#/pose, #/beats, #/ui, #/ai) are linked from Settings > Developer.
+ * Dev pages (#/pose, #/beats, #/ui, #/ai, #/party-dev) are linked from Settings > Developer.
  */
 const ROUTES = [
   { hash: '#/', shell: true, bar: false, esc: false },
@@ -42,6 +48,9 @@ const ROUTES = [
   { hash: '#/room', shell: true, bar: true, esc: false },
   { hash: '#/join', shell: true, bar: true, esc: false },
   { hash: '#/ai', shell: true, bar: false, esc: true },
+  { hash: '#/profile', shell: true, bar: true, esc: true },
+  { hash: '#/friends', shell: true, bar: true, esc: true },
+  { hash: '#/party-dev', shell: false, bar: true, esc: false, title: 'Party harness' },
 ] as const
 type RouteHash = (typeof ROUTES)[number]['hash']
 const DEFAULT_ROUTE: RouteHash = '#/'
@@ -146,6 +155,8 @@ function useServerHealth(): Health {
 
 export default function App() {
   const route = useHashRoute()
+  // App's route store follows the hash path only; "#/play?party=N" needs the query too.
+  const party = usePartyCount()
   const health = useServerHealth()
   const learn = useSyncExternalStore(subscribeLearn, learnTarget)
   const { reducedMotion } = useSettings()
@@ -176,7 +187,13 @@ export default function App() {
       {route === '#/' ? (
         <Menu learn={learn} server={server} />
       ) : route === '#/play' ? (
-        <Play />
+        party ? <PartyPlay count={party} /> : <Play />
+      ) : route === '#/party-dev' ? (
+        <PartyHarness />
+      ) : route === '#/profile' ? (
+        <ProfilePage />
+      ) : route === '#/friends' ? (
+        <FriendsPage />
       ) : route === '#/teach' ? (
         <Teach />
       ) : route === '#/pose' ? (
@@ -213,6 +230,7 @@ export default function App() {
           <main className="shell-main">{content}</main>
         </div>
       )}
+      <InviteToast />
     </>
   )
 }

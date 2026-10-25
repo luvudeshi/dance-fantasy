@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type SyntheticEvent } from 'react'
+import { AccountChip } from '../account/AccountChip'
 import { Corners } from '../theme/components'
 import { Icon } from '../theme/Icon'
 import type { IconName } from '../theme/icons'
@@ -78,6 +79,7 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
     { icon: 'upload', title: 'Studio', meta: 'Bring a song, see its beats', href: '#/analysis' },
     { icon: 'storybook', title: 'Move Book', meta: 'Every step of the ball', href: '#/moves' },
     { icon: 'map', title: 'How to Play', meta: 'The rules of the ball', href: '#/how' },
+    { icon: 'party', title: 'Friends', meta: 'Friend codes, invites, who is dancing', href: '#/friends' },
     { icon: 'gear', title: 'Settings', meta: 'Sound, camera, difficulty', href: '#/settings' },
     { icon: 'quill', title: 'Credits', meta: 'Who made the magic', href: '#/credits' },
   ]
@@ -125,9 +127,16 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
 
             {party && (
               <div id="party-choices" className="df-card-sm title-party-card df-pop-in">
+                <p className="df-voice">2 to 4 dancers, one camera, right here</p>
+                <div className="df-cluster" style={{ '--df-gap': '12px' } as CSSProperties}>
+                  <a ref={roomRef} className="df-btn df-btn-primary df-btn-sm" href="#/play?party=3" data-menu {...sounds}>
+                    <Icon name="party" size="xs" cut="none" />
+                    Party in this room
+                  </a>
+                </div>
                 <p className="df-voice">Dance-off with friends in other homes</p>
                 <div className="df-cluster" style={{ '--df-gap': '12px' } as CSSProperties}>
-                  <a ref={roomRef} className="df-btn df-btn-primary df-btn-sm" href="#/room" data-menu {...sounds}>
+                  <a className="df-btn df-btn-secondary df-btn-sm" href="#/room" data-menu {...sounds}>
                     <Icon name="crown" size="xs" cut="none" />
                     Open a ballroom
                   </a>
@@ -165,6 +174,7 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
           </nav>
 
           <footer className="title-foot">
+            <AccountChip />
             <ServerStatus server={server} />
             <span className="df-note">HackTX 2026</span>
             <span className="df-note title-keys" aria-hidden="true">

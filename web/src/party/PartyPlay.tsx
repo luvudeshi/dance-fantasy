@@ -8,6 +8,7 @@ import type { Difficulty } from '@shared/routine'
 import { listSongs, type SongInfo } from '../api'
 import { loadCalibration } from '../game/calibration'
 import { GameClock } from '../game/clock'
+import { createScoreKeeper } from '../game/createScoreKeeper'
 import { loadJudging, scoringFor } from '../game/judging'
 import PlayStage, { type ActiveGame } from '../game/PlayStage'
 import { buildCheckpoints } from '../game/scoring'
@@ -101,6 +102,7 @@ export default function PartyPlay({ count: initialCount }: { count: number }) {
       checkpoints: buildCheckpoints(game.routine, game.routine.mode),
       config: scoringFor(loadJudging()),
       isPlaying: () => clock.playing,
+      makeKeeper: (cps, cfg) => createScoreKeeper(cps, cfg, game.track),
     })
     setStage({ active: { game, monitor: new SyncMonitor(game.routine.song.beats), run: null }, run })
     setStandings(null)
