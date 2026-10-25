@@ -97,10 +97,12 @@
   gap: 4px 12px;
   padding: 10px 18px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.92), rgba(219, 39, 119, 0.92));
-  border: 2px solid #facc15;
-  box-shadow: 0 0 28px rgba(250, 204, 21, 0.55);
-  color: #fff;
+  /* storybook palette: raspberry ribbon, gold trim, paper text */
+  background: var(--df-rasp-deep, #963248);
+  border: 2px solid var(--df-gold, #dbb35e);
+  box-shadow: 0 0 24px rgb(219 179 94 / 0.5);
+  color: var(--df-paper, #f8f0de);
+  font-family: var(--df-font-display, Georgia, serif);
   pointer-events: none;
   animation: mb-sig-in 280ms ease-out;
 }
@@ -116,8 +118,9 @@
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #facc15;
-  color: #1e1b4b;
+  background: var(--df-gold, #dbb35e);
+  color: var(--df-ink, #2e2421);
+  font-family: var(--df-font-ui, system-ui, sans-serif);
 }
 
 .mb-sig-banner-sub {
@@ -125,6 +128,15 @@
   text-align: center;
   font-size: 0.75rem;
   opacity: 0.85;
+}
+
+/* phone: below the stage's top badges (autoplay, score), smaller */
+@media (max-width: 600px) {
+  .mb-sig-banner {
+    top: 132px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
 }
 
 @keyframes mb-sig-in {
