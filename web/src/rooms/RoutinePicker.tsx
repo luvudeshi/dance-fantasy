@@ -5,6 +5,8 @@ import { analyzeLibrarySong, analyzeUpload, choreograph, listSongs, type SongInf
 import { loadShelf } from '../game/routineShelf'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId } from '../lib/hashRoute'
+import { AIST_CREDIT, MOVE_SOURCES, moveSourceSuffix } from '../routine/moveSource'
+import { moveSourceHint, useMoveSource } from '../routine/useMoveSource'
 import { Icon } from '../theme/Icon'
 import { Segmented } from '../theme/components'
 import type { RoomRoutine } from './client'
@@ -29,6 +31,7 @@ export default function RoutinePicker({ current, onPick, disabled }: { current: 
   const [songs, setSongs] = useState<SongInfo[] | null>(null)
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
   const [mode, setMode] = useState<Mode>('standing')
+  const moves = useMoveSource()
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [shelf] = useState(() => loadShelf().slice(0, 4))
@@ -56,7 +59,7 @@ export default function RoutinePicker({ current, onPick, disabled }: { current: 
   /** analysis -> a fresh routine with this setup (a new seed each pick). */
   const fromAnalysis = async (analysis: Analysis): Promise<RoomRoutine> => {
     setBusy('Choreographing…')
-    const { routine } = await choreograph({ analysisId: analysis.id, difficulty, mode, seed: randomSeed() })
+    const { routine } = await choreograph({ analysisId: analysis.id, difficulty, mode, seed: randomSeed(), moveSource: moves.value })
     const routineId = routine.meta?.routineId
     if (!isRoutineId(routineId)) throw new Error('The server did not return a saved routine id')
     return { routineId, analysisId: analysis.id, title: analysis.title.slice(0, 200) || 'Untitled song', difficulty, mode }
@@ -76,7 +79,12 @@ export default function RoutinePicker({ current, onPick, disabled }: { current: 
       <div className="df-cluster" style={{ '--df-gap': '10px' } as CSSProperties}>
         <Segmented label="Difficulty" value={difficulty} options={DIFFICULTIES} onChange={setDifficulty} disabled={off} />
         <Segmented label="Mode" value={mode} options={MODES} onChange={setMode} disabled={off} />
+        <Segmented label="Moves from" value={moves.value} options={MOVE_SOURCES} onChange={moves.choose} disabled={off || moves.realDancers === false} />
       </div>
+      <p className="df-note">
+        Moves from {MOVE_SOURCES.find((m) => m.value === moves.value)?.label}: {moveSourceHint(moves.value, moves.realDancers)}
+        {moves.value !== 'classic' && <span className="rm-credit"> {AIST_CREDIT}</span>}
+      </p>
       {busy && (
         <p className="df-notice rm-busy" role="status">
           <Icon name="music-note" size="sm" cut="none" className="df-bob-fast" />
@@ -117,6 +125,7 @@ export default function RoutinePicker({ current, onPick, disabled }: { current: 
                 <span className="df-item-title">{e.title}</span>
                 <span className="df-item-meta">
                   Your routine · {e.difficulty} · {e.mode}
+                  {moveSourceSuffix(e.moveSource)}
                 </span>
               </span>
             </button>

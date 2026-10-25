@@ -2,7 +2,8 @@
 //
 // All keyframes of the routine go on one global timeline (a move's last keyframe and the next
 // move's first keyframe merge when they meet with the same pose; a different start pose
-// blends in over transitionSec like poseAtTime). Each knot pose is decomposed into a rigid
+// blends in over transitionSec like poseAtTime, longer for big jumps, and keyframes inside that
+// window are skipped so dense in-betweens (real-dancer clips) can't cut the blend short). Each knot pose is decomposed into a rigid
 // kinematic tree rooted at mid-hip, one (angle, length) pair per bone, and every channel is
 // interpolated with a monotone cubic (PCHIP, Fritsch-Carlson/Butland slopes): C1, exact at
 // every knot, no overshoot (lengths and angles stay within their neighbouring knots), zero
@@ -16,7 +17,17 @@
 
 import type { Routine } from '@shared/routine'
 import { JOINTS, type JointName, type Pose2D, type Vec2 } from '@shared/skeleton'
-import { lastStartedIndex, NEUTRAL_POSE, poseAtTime, poseDistance, SAME_POSE_EPS, transitionSec, type KeyframeLike, type RoutineSample } from './pose'
+import {
+  lastStartedIndex,
+  NEUTRAL_POSE,
+  poseAtTime,
+  poseDistance,
+  SAME_POSE_EPS,
+  transitionGap,
+  transitionSec,
+  type KeyframeLike,
+  type RoutineSample,
+} from './pose'
 
 export interface MotionTrack {
   /** Pose + root at song time t (seconds), plus which move is playing / next. */
@@ -265,6 +276,16 @@ function moveKnots(m: MoveLike, fallback: FullPose): Knot[] {
   return out
 }
 
+/** The move's own pose at `time`, linearly between knots a and b (a.time <= time <= b.time). */
+function knotBetween(a: Knot, b: Knot, time: number): Knot {
+  const span = b.time - a.time
+  const u = span > 0 ? Math.min(1, Math.max(0, (time - a.time) / span)) : 1
+  const lerp = (p: Vec2, q: Vec2): Vec2 => [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u]
+  const pose = {} as FullPose
+  for (const j of JOINTS) pose[j] = lerp(a.pose[j], b.pose[j])
+  return { time, pose, root: lerp(a.root, b.root) }
+}
+
 /** The routine's global knot list (strictly increasing times). */
 export function routineKnots(moves: readonly MoveLike[]): Knot[] {
   const knots: Knot[] = []
@@ -288,9 +309,14 @@ export function routineKnots(moves: readonly MoveLike[]): Knot[] {
     } else {
       // Gap: hold the previous end pose until the move starts.
       if (first.time > prev.time + T_EPS) push({ ...prev, time: first.time })
-      // Then blend into the move's start pose over transitionSec (poseAtTime's window).
-      const blendEnd = first.time + transitionSec(m)
-      if (ks.length < 2 || blendEnd < ks[1].time - T_EPS) push({ ...first, time: blendEnd })
+      // Then blend into the move over transitionSec (poseAtTime's window, longer for a big jump),
+      // skipping the move's knots inside the window: the blend ends on the move's own pose.
+      const blendEnd = first.time + transitionSec(m, transitionGap(prev, first))
+      let i = 1
+      while (i < ks.length - 1 && ks[i].time < blendEnd - T_EPS) i++
+      if (blendEnd < ks[i].time - T_EPS) push(i === 1 ? { ...first, time: blendEnd } : knotBetween(ks[i - 1], ks[i], blendEnd))
+      for (; i < ks.length; i++) push(ks[i])
+      continue
     }
     for (let i = 1; i < ks.length; i++) push(ks[i])
   }

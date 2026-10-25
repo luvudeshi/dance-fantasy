@@ -98,6 +98,12 @@ describe('routine shelf', () => {
       songFile: 'waltz.mp3',
     })
     expect(e && recipeOf(e)).toEqual({ analysisId: 'b'.repeat(64), difficulty: 'hard', mode: 'seated', seed: 42, songFile: 'waltz.mp3' })
+    // Real-dancer routines keep their move source, so the recipe rebuilds the same routine.
+    const aist = shelfEntryFor({ ...routine, meta: { routineId: hex(7), moveSource: 'aist' } }, analysis, 'play', 123)
+    expect(aist?.moveSource).toBe('aist')
+    expect(aist && recipeOf(aist)).toMatchObject({ seed: 42, moveSource: 'aist' })
+    expect(parseShelf([aist])).toEqual([aist])
+    expect(parseShelf([{ ...aist, moveSource: 'robots' }])[0]).not.toHaveProperty('moveSource')
     // Offline demo routines have no server id: nothing to shelve.
     expect(shelfEntryFor({ ...routine, meta: {} }, analysis, 'play')).toBeNull()
   })

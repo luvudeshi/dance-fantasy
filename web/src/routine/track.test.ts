@@ -7,6 +7,14 @@ import { buildMotionTrack, routineKnots, type MotionTrack } from './track'
 
 const A: Pose2D = { ...NEUTRAL_POSE }
 const with_ = (o: Partial<Record<JointName, Vec2>>): Pose2D => ({ ...NEUTRAL_POSE, ...o })
+const shift = (p: Pose2D, dx: number, dy: number): Pose2D => {
+  const out: Pose2D = {}
+  for (const j of JOINTS) {
+    const v = p[j]
+    if (v) out[j] = [v[0] + dx, v[1] + dy]
+  }
+  return out
+}
 // Right arm raised in three steps: B -> C keeps going the same way.
 const B = with_({ r_elbow: [0.95, -0.85], r_wrist: [1.35, -0.75] })
 const C = with_({ r_elbow: [0.85, -1.45], r_wrist: [1.05, -1.95] })
@@ -175,6 +183,43 @@ describe('buildMotionTrack', () => {
     expect(poseDistance(t2.sample(2).pose, B)).toBeLessThan(1e-9)
     expect(poseDistance(t2.sample(2 + 0.25).pose, D)).toBeLessThan(1e-9) // transitionSec = 0.25
     expect(poseDistance(t2.sample(3).pose, C)).toBeLessThan(1e-9)
+  })
+
+  it('blends a big jump over the whole window even when the next move has dense keyframes', () => {
+    // A real-dancer clip: quarter-beat keyframes (beat 0.5 s), starting over 2 units away from
+    // the previous end pose. The blend must not be cut short by the quarter-beat knot at +0.125 s:
+    // it lasts the full half beat (0.25 s = min(0.5 beat, 1.5 / BLEND_SPEED)).
+    const far = with_({ r_elbow: [0.95, -1.6], r_wrist: [1.4, -2.1], l_elbow: [-0.95, -1.6], l_wrist: [-1.4, -2.1] })
+    const q = (t: number, pose: Pose2D): KeyframeLike => ({ t, pose })
+    const clip = move('clip', 2, 4, [q(0, far), q(1 / 16, C), q(2 / 16, far), q(3 / 16, B), q(4 / 16, far), q(1, far)])
+    const r = { moves: [move('a', 0, 2, [{ t: 0, pose: A }, { t: 1, pose: A }]), clip] }
+    const track = buildMotionTrack(r)
+    const knots = routineKnots(r.moves)
+    expect(knots.some((k) => Math.abs(k.time - 2.125) < 1e-9)).toBe(false) // the in-window knot is skipped
+    expect(knots.some((k) => Math.abs(k.time - 2.25) < 1e-9)).toBe(true) // ... the window ends on a knot
+    expect(poseDistance(track.sample(2).pose, A)).toBeLessThan(1e-9)
+    // At the window's end: the move's own pose (here exactly its half-beat keyframe).
+    expect(poseDistance(track.sample(2.25).pose, far)).toBeLessThan(1e-9)
+    expect(poseDistance(track.sample(2.5).pose, far)).toBeLessThan(1e-9) // on-beat keyframe exact
+    // Peak joint speed during the blend stays near the paced average (monotone cubic: <= 3x).
+    const avg = poseDistance(A, far) / 0.25
+    let peak = 0
+    for (let t = 2; t < 2.25; t += 0.005) peak = Math.max(peak, speed(track, t))
+    expect(peak).toBeLessThanOrEqual(3 * avg + 1e-6)
+    // Without the fix the blend would hit the quarter-beat pose C at 2.125 s (twice as fast).
+    expect(poseDistance(track.sample(2.125).pose, C)).toBeGreaterThan(0.1)
+  })
+
+  it('a window ending between two skipped knots lands on the move\'s interpolated pose', () => {
+    // 2-beat move (beat 0.5 s), knots every 1/8 beat; a 1.2-unit jump: window = 1.2 / 6 = 0.2 s.
+    const ks: KeyframeLike[] = Array.from({ length: 17 }, (_, i) => ({ t: i / 16, pose: shift(A, 1.2 + 0.1 * Math.min(i, 8), 0) }))
+    const r = { moves: [move('a', 0, 1, [{ t: 0, pose: A }, { t: 1, pose: A }], 2), move('b', 1, 2, ks, 2)] }
+    const knots = routineKnots(r.moves)
+    const k = knots.find((x) => Math.abs(x.time - 1.2) < 1e-9)
+    expect(k).toBeDefined()
+    // Between the knots at 1.1875 s (x + 1.5) and 1.25 s (x + 1.6): 1.2 s is 20% of the way.
+    expect(k?.pose.nose[0]).toBeCloseTo(1.5 + 0.1 * 0.2, 9)
+    expect(knots.filter((x) => x.time > 1 && x.time < 1.2 - 1e-9)).toHaveLength(0)
   })
 
   it('slides a foreshortened (spinning) shoulder line through zero width instead of swinging it', () => {

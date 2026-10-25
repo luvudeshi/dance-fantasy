@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 from app.moves.types import CompiledMove, MoveLibrary
@@ -45,7 +45,7 @@ def with_pinned_moves(
             continue
         ids.add(p.move.id)
         extra.append(p.move)
-    return MoveLibrary(moves=library.moves + tuple(extra), version=library.version)
+    return replace(library, moves=library.moves + tuple(extra))  # keeps the version and the clips' credit
 
 
 def pinned_sections(

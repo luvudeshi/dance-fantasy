@@ -6,6 +6,7 @@ tests pass explicit times; players count as connected for 10 s after their last 
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 import sqlite3
 from pathlib import Path
@@ -201,6 +202,41 @@ def test_crew_sync_follows_who_is_dancing(backend: str) -> None:
     assert crew.syncedBeats == 7 + modes.SYNC_LAG_BEATS + 1 and crew.lastSyncBeat == ahead[-1] + 1
 
 
+def test_watchers_count_in_neither_crew_sync_nor_standings(backend: str) -> None:
+    t = now_ms()
+    host = store.create_room("Host", t)
+    code = host.code
+    ana, bo = (store.join_room(code, name, t) for name in ("Ana", "Bo"))
+    store.set_routine(code, host.token, song(), None, t)
+    store.set_mode(code, host.token, "crew", None, t)
+    store.set_dancing(code, host.token, False, None, t)  # the host's big screen
+    start_at = store.start(code, host.token, None, t).startAt
+    assert start_at is not None
+    at = start_at + 1_000
+    store.get_room(code, host.token, None, at)  # connected all along, but not one of the crew
+    beats(code, ana, good(0, 1, 2), at)
+    view = beats(code, bo, judge((0, 100, "perfect"), (1, 90, "perfect"), (2, 80, "good")), at)
+    assert (view.crew.syncedBeats, view.crew.syncStreak, view.crew.lastSyncBeat) == (3, 3, 2)
+
+    # A watcher's beats and scores are ignored: never stored, never breaking the sync, never in the team score.
+    beats(code, host, judge((3, 0, "miss")), at + 100)
+    store.post_score(code, host.token, ScoreBody.model_validate({**SCORE, "score": 5_000}), None, at + 100)
+    assert host.playerId not in {pid for pid, _, _ in stored_beats(code)}
+    beats(code, ana, good(3), at + 200)
+    assert beats(code, bo, good(3), at + 200).crew.syncedBeats == 4
+
+    finish(code, ana, 700, at + 300)
+    view = finish(code, bo, 600, at + 300)
+    assert view.state == "finished"
+    assert view.crew.syncBonus == modes.SYNC_BONUS_STEP * (1 + 2 + 3 + 4)
+    assert view.crew.teamScore == 700 + 600 + view.crew.syncBonus
+    # Results: the watcher is flagged (clients leave them off the board and podium) and never leads.
+    assert [(p.name, p.dancing, p.score, p.beatsWon) for p in view.players] == [
+        ("Host", False, 0, 0), ("Ana", True, 700, 2), ("Bo", True, 600, 4),
+    ]  # fmt: skip
+    assert view.leaderId == bo.playerId
+
+
 def test_rematch_replays_the_same_routine_and_mode(backend: str) -> None:
     routine = song()
     host, (guest,), start_at = room(1, "crew", routine)
@@ -261,6 +297,37 @@ def test_an_older_rooms_table_gains_the_new_columns(tmp_path: Path, monkeypatch:
     con.close()
     view = store.get_room("KQWX", None, None, t)  # the first request adds the columns
     assert view.mode == "versus" and view.crew.syncedBeats == 0 and view.crew.lastSyncBeat is None
+    get_settings.cache_clear()
+
+
+def test_an_older_players_table_gains_the_dancing_column(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ASSETS_DIR", str(tmp_path))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    get_settings.cache_clear()
+    path = get_settings().cache_dir / "rooms.sqlite3"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    t = now_ms()
+    token_hash = hashlib.sha256(b"old-token").hexdigest()
+    con = sqlite3.connect(path)
+    con.executescript(  # df_players as first released: no dancing column
+        "create table df_rooms (code text primary key, host_id text not null, routine text, start_at bigint,"
+        " finished_at bigint, created_at bigint not null, active_at bigint not null);"
+        "create table df_players (seq integer primary key autoincrement, id text not null unique,"
+        " code text not null, token_hash text not null unique, name text not null, joined_at bigint not null,"
+        " seen_at bigint not null, ready smallint not null default 0, score bigint not null default 0,"
+        " combo integer not null default 0, max_combo integer not null default 0,"
+        " accuracy double precision not null default 0, progress double precision not null default 0,"
+        " finished smallint not null default 0);"
+        f"insert into df_rooms values ('KQWX', 'old-host', null, null, null, {t}, {t});"
+        "insert into df_players (id, code, token_hash, name, joined_at, seen_at)"
+        f" values ('old-host', 'KQWX', '{token_hash}', 'Old', {t}, {t});"
+    )
+    con.close()
+    view = store.get_room("KQWX", "old-token", None, t)  # the first request adds the column
+    assert [(p.name, p.dancing) for p in view.players] == [("Old", True)]  # players from before all dance
+    assert not store.set_dancing("KQWX", "old-token", False, None, t).players[0].dancing
+    joined = store.join_room("KQWX", "New", t)
+    assert [p.dancing for p in store.get_room("KQWX", joined.token, None, t).players] == [False, True]
     get_settings.cache_clear()
 
 

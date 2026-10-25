@@ -44,6 +44,24 @@ describe('estimateYaw', () => {
     }
   })
 
+  it('fades an unsure turn out instead of snapping sides (narrow shoulders, face ahead)', () => {
+    // Real-dancer poses: shoulders and hips ~30° narrower than neutral (a shrug, a reach) while the
+    // nose wobbles around the ear line. The side flips with the wobble, the yaw must not jump.
+    const narrow = (noseX: number): Pose2D => {
+      const p: Pose2D = { ...NEUTRAL_POSE }
+      for (const j of ['l_shoulder', 'r_shoulder', 'l_hip', 'r_hip'] as const) p[j] = [NEUTRAL_POSE[j][0] * 0.87, NEUTRAL_POSE[j][1]]
+      p.nose = [noseX, NEUTRAL_POSE.nose[1]]
+      return p
+    }
+    let prev = estimateYaw(narrow(-0.03))
+    for (let x = -0.03; x <= 0.03; x += 0.002) {
+      const y = estimateYaw(narrow(x))
+      expect(Math.abs(y - prev)).toBeLessThan(0.05)
+      prev = y
+    }
+    expect(estimateYaw(narrow(0))).toBeCloseTo(0, 6)
+  })
+
   it('ignores a torso lean and survives missing joints', () => {
     const leaned: Pose2D = { ...NEUTRAL_POSE }
     const a = (30 * Math.PI) / 180

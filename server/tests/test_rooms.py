@@ -165,7 +165,7 @@ def test_auth_and_unknown_rooms(client: TestClient) -> None:
 
     writes = [
         ("routine", ROUTINE), ("ready", {"ready": True}), ("start", None), ("score", SCORE),
-        ("chat", {"text": "hi"}), ("leave", None),
+        ("chat", {"text": "hi"}), ("dancing", {"dancing": False}), ("leave", None),
     ]  # fmt: skip
     for path, body in writes:
         url = f"/api/rooms/{code}/{path}"
@@ -344,6 +344,75 @@ def test_mid_song_joiner_sits_out(backend: str) -> None:
     # A finished flag never goes back to false.
     store.post_score(host.code, late.token, ScoreBody.model_validate(SCORE), None, start_at + 300)
     assert store.get_room(host.code, None, None, start_at + 300).players[2].finished
+
+
+def test_a_watching_host_never_holds_up_the_round(backend: str) -> None:
+    t = now_ms()
+    host = store.create_room("Host", t)
+    code = host.code
+    guest = store.join_room(code, "Guest", t)
+    store.set_routine(code, host.token, RoutineChoice.model_validate(ROUTINE), None, t)
+    assert all(p.dancing for p in store.get_room(code, None, None, t).players)  # everyone dances by default
+    view = store.set_dancing(code, host.token, False, None, t)
+    assert [(p.name, p.dancing) for p in view.players] == [("Host", False), ("Guest", True)]
+    start_at = store.start(code, host.token, None, t).startAt  # a watching host still runs the room
+    assert start_at is not None
+    for at in (t + 1, start_at + 1):  # countdown, playing: switch between songs only
+        with pytest.raises(HTTPException) as busy:
+            store.set_dancing(code, host.token, True, None, at)
+        assert busy.value.status_code == 409
+
+    # The host's screen keeps polling (connected) and never finishes: the round ends when the guest does.
+    done = ScoreBody.model_validate({**SCORE, "progress": 1.0, "finished": True})
+    assert store.get_room(code, host.token, None, start_at + 1_000).state == "playing"
+    assert store.post_score(code, host.token, done, None, start_at + 1_500).state == "playing"  # a watcher's: ignored
+    view = store.post_score(code, guest.token, done, None, start_at + 2_000)
+    assert view.state == "finished"
+    watcher = view.players[0]
+    assert watcher.connected and not watcher.dancing and not watcher.finished and watcher.score == 0
+    assert view.leaderId == guest.playerId
+
+    # Dancing again from the next song on: then the round waits for the host too.
+    assert store.set_dancing(code, host.token, True, None, start_at + 3_000).players[0].dancing
+    again = store.rematch(code, host.token, None, start_at + 3_000).startAt
+    assert again is not None
+    store.get_room(code, host.token, None, again + 1_000)
+    assert store.post_score(code, guest.token, done, None, again + 1_000).state == "playing"
+    assert store.post_score(code, host.token, done, None, again + 2_000).state == "finished"
+
+
+def test_a_round_needs_a_dancer(backend: str) -> None:
+    t = now_ms()
+    host = store.create_room("Host", t)
+    code = host.code
+    store.set_routine(code, host.token, RoutineChoice.model_validate(ROUTINE), None, t)
+    store.set_dancing(code, host.token, False, None, t)
+    with pytest.raises(HTTPException) as nobody:  # a watching host alone: the song would end before it began
+        store.start(code, host.token, None, t)
+    assert nobody.value.status_code == 409 and store.get_room(code, host.token, None, t).state == "lobby"
+    guest = store.join_room(code, "Guest", t)
+    start_at = store.start(code, host.token, None, t).startAt
+    assert start_at is not None
+    done = ScoreBody.model_validate({**SCORE, "progress": 1.0, "finished": True})
+    assert store.post_score(code, guest.token, done, None, start_at + 1_000).state == "finished"
+    store.leave(code, guest.token, start_at + 2_000)
+    with pytest.raises(HTTPException) as alone:  # and no rematch once the last dancer has gone
+        store.rematch(code, host.token, None, start_at + 2_000)
+    assert alone.value.status_code == 409
+
+
+def test_dancing_over_http(client: TestClient) -> None:
+    host = client.post("/api/rooms", json={"name": "Host"}).json()
+    code = host["code"]
+    guest = client.post(f"/api/rooms/{code}/join", json={"name": "Guest"}).json()
+    url, h = f"/api/rooms/{code}/dancing", auth(host["token"])
+    assert client.post(url, json={"dancing": "maybe"}, headers=h).status_code == 400
+    assert client.post(url, json={"dancing": False, "extra": 1}, headers=h).status_code == 400
+    assert client.post(url, json={}, headers=h).status_code == 400
+    r = client.post(url, json={"dancing": False}, headers=h)
+    assert r.status_code == 200 and [p["dancing"] for p in r.json()["players"]] == [False, True]
+    room = client.get(f"/api/rooms/{code}", headers=auth(guest["token"])).json()
+    assert [p["dancing"] for p in room["players"]] == [False, True]
 
 
 def test_rooms_expire_after_3_hours_idle(backend: str) -> None:

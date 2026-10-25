@@ -21,6 +21,8 @@ slippers wear through, because a dance game should feel like a night at the ball
 - **Any song becomes an original routine.** Upload a track; the server finds its beats, bars and
   sections (verse, chorus, bridge…) and choreographs moves that land on the downbeats, repeat on
   every chorus, and match the difficulty you pick.
+- **Moves from real dancers.** Pick *Classic* (our 87 storybook moves), *Real dancers* (249 clips
+  cut from motion-captured dancers across 10 genres, from AIST++) or *Mix*.
 - **A 3D princess or prince teaches it.** They dance the routine in a midnight ballroom, with the
   next moves sliding in as 3D cue cards.
 - **Your webcam scores every beat:** Perfect / Good / OK / Miss, combos, stars, your best and
@@ -144,6 +146,10 @@ lines and ballrooms use a local database. Technical docs: [shared/README.md](sha
 - **MediaPipe** (Google) for pose tracking.
 
 ## Credits
+
+Real-dancer moves: [AIST++](https://google.github.io/aistplusplus_dataset/) annotations (© Google LLC,
+CC BY 4.0), derived from the [AIST Dance Video Database](https://aistdancedb.ongaaccel.jp/) (research and
+non-commercial use). We ship only our processed 2D clips, never AIST video or music.
 
 Sample songs: "Vibe Ace" by Kevin MacLeod and "Let's Go Fishin'" by Karissa Hobbs (both CC BY 3.0,
 from [Free Music Archive](https://freemusicarchive.org) via librosa's example data), plus synth

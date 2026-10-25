@@ -166,18 +166,34 @@ export function moveIndexAt(routine: Pick<Routine, 'moves'>, t: number): number 
 /** Below this (body units) a move's start pose counts as equal to the previous end pose. */
 export const SAME_POSE_EPS = 1e-4
 
-/** Seconds over which move `m` blends in from a different previous end pose: min(0.5 beat, 15% of the move). */
-export function transitionSec(m: Timed & { lengthBeats: number }): number {
+/**
+ * Joint speed (body units / s) that a blend between moves is paced for: about what real dancers do
+ * (AIST++ clips move their fastest joint at ~4 u/s median, ~7 u/s p90).
+ */
+export const BLEND_SPEED = 6
+
+/**
+ * Seconds over which move `m` blends in from a different previous end pose: min(0.5 beat, 15% of the
+ * move), stretched for a big jump (`gap`: largest joint coordinate change, body units; real-dancer
+ * clips chain by distance rather than shared anchor poses) to gap / BLEND_SPEED, never past half a beat.
+ */
+export function transitionSec(m: Timed & { lengthBeats: number }, gap = 0): number {
   const dur = m.endTime - m.startTime
   if (!(dur > 0)) return 0
   const beatSec = dur / Math.max(1, m.lengthBeats)
-  return Math.min(0.5 * beatSec, 0.15 * dur)
+  const base = Math.min(0.5 * beatSec, 0.15 * dur)
+  return Math.max(base, Math.min(0.5 * beatSec, (gap > 0 ? gap : 0) / BLEND_SPEED))
+}
+
+/** The gap transitionSec paces for: largest joint coordinate or root change, body units. */
+export function transitionGap(a: PoseSample, b: PoseSample): number {
+  return Math.max(poseDistance(a.pose, b.pose), Math.abs(a.root[0] - b.root[0]), Math.abs(a.root[1] - b.root[1]))
 }
 
 /**
  * Coach pose at song time t. Inside a move: poseInMove at its progress; if the move's start
  * pose differs from the previous move's end pose it blends in (smoothstep) from that end pose
- * over transitionSec(move), so the figure never jumps. Before the first move the first start
+ * over transitionSec(move, gap), so the figure never jumps. Before the first move the first start
  * pose is held; between moves and after the last, the previous end pose. Neutral when empty.
  */
 export function poseAtTime(routine: Pick<Routine, 'moves'>, t: number): RoutineSample {
@@ -200,12 +216,13 @@ export function poseAtTime(routine: Pick<Routine, 'moves'>, t: number): RoutineS
   if (i === 0) return out
 
   const elapsed = t - move.startTime
-  const window = transitionSec(move)
-  if (!(elapsed < window)) return out
+  if (!(elapsed < transitionSec(move, Infinity))) return out // past the longest possible window
   const prevEnd = poseInMove(moves[i - 1].keyframes, 1)
   const start = poseInMove(move.keyframes, 0)
-  const rootGap = Math.max(Math.abs(prevEnd.root[0] - start.root[0]), Math.abs(prevEnd.root[1] - start.root[1]))
-  if (poseDistance(prevEnd.pose, start.pose) < SAME_POSE_EPS && rootGap < SAME_POSE_EPS) return out
+  const gap = transitionGap(prevEnd, start)
+  if (gap < SAME_POSE_EPS) return out
+  const window = transitionSec(move, gap)
+  if (!(elapsed < window)) return out
   const b = smoothstep(elapsed / window)
   out.pose = lerpPose(prevEnd.pose, sample.pose, b)
   out.root = lerpVec(prevEnd.root, sample.root, b)

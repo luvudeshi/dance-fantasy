@@ -12,6 +12,8 @@ import './party.css'
 interface Props {
   standings: readonly PartyStanding[]
   songTitle: string
+  /** Data credit when the routine has real-dancer moves. */
+  credit?: string
   onAgain: () => void
   onSetup: () => void
 }
@@ -47,7 +49,7 @@ function Step({ placing, standing }: { placing: Placing; standing: PartyStanding
   )
 }
 
-export default function PartyResults({ standings, songTitle, onAgain, onSetup }: Props) {
+export default function PartyResults({ standings, songTitle, credit, onAgain, onSetup }: Props) {
   const placings = rankParty(standings)
   const winner = placings[0]
   const winnerName = winner && winner.awards.some((a) => a.id === 'belle') ? displayName(standings[winner.index].player) : null
@@ -115,6 +117,7 @@ export default function PartyResults({ standings, songTitle, onAgain, onSetup }:
             Change the line-up
           </Button>
         </div>
+        {credit && <p className="df-note party-credit">{credit}</p>}
       </div>
     </div>
   )

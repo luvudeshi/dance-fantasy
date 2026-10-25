@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { formatScore } from '../game/results'
 import { Icon } from '../theme/Icon'
-import { avatarFor, rankPlayers, type RoomPlayer } from './client'
+import { avatarFor, dancersOf, rankPlayers, type RoomPlayer } from './client'
 
 // Room standings: the live board (lobby side panel and the in-game overlay) and the synced 5-4-3-2-1.
 // The final results are per mode (modes/ModeResults).
 
 const MEDALS = ['', 'df-medal-silver', 'df-medal-rasp'] as const
 
-/** Live ranking: medal / rank, name, score, a progress line under each row. */
+/** Live ranking of the dancers (not watchers): medal / rank, name, score, a progress line under each row. */
 export function LiveBoard({ players, meId, max, compact = false }: { players: readonly RoomPlayer[]; meId?: string; max?: number; compact?: boolean }) {
-  const ranked = rankPlayers(players).slice(0, max)
+  const ranked = rankPlayers(dancersOf(players)).slice(0, max)
   return (
     <ol className={`df-list rm-board${compact ? ' rm-board-compact' : ''}`} aria-label="Leaderboard">
       {ranked.map((p, i) => (

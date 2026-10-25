@@ -2,13 +2,13 @@
 // proxies /api to 127.0.0.1:8000, so VITE_API_BASE is normally unset ('' = same origin).
 
 import { ANALYSIS_SECTION_LABELS, type Analysis, type AnalysisSection, type SectionLabel } from '@shared/analysis'
-import type { ChoreographRequest, LibraryMove, MoveKeyframe, MoveLibraryResponse } from '@shared/moves'
+import type { ChoreographRequest, LibraryMove, MoveKeyframe, MoveLibraryResponse, MoveSource, MoveSourcesResponse } from '@shared/moves'
 import type { Keyframe, Move, Routine } from '@shared/routine'
 import { JOINTS, type JointName, type Pose2D, type Vec2 } from '@shared/skeleton'
 import { isAbortError } from './lib/errors'
 
 export type { Analysis, AnalysisSection, SectionLabel }
-export type { ChoreographRequest, LibraryMove, MoveLibraryResponse, Routine }
+export type { ChoreographRequest, LibraryMove, MoveLibraryResponse, MoveSource, MoveSourcesResponse, Routine }
 
 export interface Health {
   status: string
@@ -169,12 +169,30 @@ export function isLibraryMove(v: unknown): v is LibraryMove {
     isStr(v.startAnchor) &&
     isStr(v.endAnchor) &&
     (v.side === 'L' || v.side === 'R' || v.side === 'both') &&
-    (v.mirrorOf === null || isStr(v.mirrorOf))
+    (v.mirrorOf === null || isStr(v.mirrorOf)) &&
+    (v.source === undefined || v.source === 'library' || v.source === 'aist') &&
+    (v.credit === undefined || v.credit === null || isStr(v.credit)) &&
+    (v.hasMirror === undefined || isBool(v.hasMirror))
   )
 }
 
+const isOptStrOrNull = (v: unknown): boolean => v === undefined || v === null || isStr(v)
+
 export function isMoveLibrary(v: unknown): v is MoveLibraryResponse {
-  return isRecord(v) && isStr(v.version) && Array.isArray(v.moves) && v.moves.every(isLibraryMove)
+  return isRecord(v) && isStr(v.version) && Array.isArray(v.moves) && v.moves.every(isLibraryMove) && isOptStrOrNull(v.attribution)
+}
+
+const isSourceCount = (v: unknown): boolean => isRecord(v) && isNum(v.moves) && isNum(v.baseMoves)
+
+export function isMoveSources(v: unknown): v is MoveSourcesResponse {
+  return (
+    isRecord(v) &&
+    isStr(v.version) &&
+    (v.attribution === null || isStr(v.attribution)) &&
+    (v.clipsError === null || isStr(v.clipsError)) &&
+    isSourceCount(v.library) &&
+    isSourceCount(v.aist)
+  )
 }
 
 function isRoutineKeyframe(v: unknown): v is Keyframe {
@@ -383,9 +401,22 @@ export async function fetchAudio(path: string, signal?: AbortSignal): Promise<Ar
   return res.arrayBuffer()
 }
 
-/** GET /api/moves — every compiled move (incl. mirrored variants) + the library version. */
-export function getMoves(signal?: AbortSignal): Promise<MoveLibraryResponse> {
-  return request('/api/moves', isMoveLibrary, { signal })
+/**
+ * GET /api/moves — the compiled moves (classic L/R variants and real-dancer clips) + the library
+ * version. The clips' mirrored twins `<id>_m` are left out unless `mirrors`; their base clips say
+ * `hasMirror` (routine/library.ts ListedMove / mirrorTwin). `source` lists one source only.
+ */
+export function getMoves(signal?: AbortSignal, opts: { source?: 'library' | 'aist'; mirrors?: boolean } = {}): Promise<MoveLibraryResponse> {
+  const q = new URLSearchParams()
+  if (opts.source) q.set('source', opts.source)
+  if (opts.mirrors) q.set('mirrors', '1')
+  const qs = q.toString()
+  return request(qs ? `/api/moves?${qs}` : '/api/moves', isMoveLibrary, { signal })
+}
+
+/** GET /api/moves/sources — move counts per source (small; for the "Moves from" choice). */
+export function getMoveSources(signal?: AbortSignal): Promise<MoveSourcesResponse> {
+  return request('/api/moves/sources', isMoveSources, { signal })
 }
 
 export interface ChoreographResult {

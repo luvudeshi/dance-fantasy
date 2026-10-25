@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from aist_fixtures import clips_library
 from choreo_fixtures import check_layout, fixture_library, make_analysis
 from fastapi.testclient import TestClient
 from helpers import SHARED_DIR
@@ -603,6 +604,43 @@ def test_choreograph_with_and_without_pins(client: TestClient) -> None:
         json={**body, "pinnedMoves": [{"moveId": "sig_whip", "placement": "verse"}]},
     )
     assert bad.status_code == 400  # validation errors are 400 in this API
+
+
+def test_choreograph_with_pins_and_a_move_source(client: TestClient) -> None:
+    """Both request fields together: real-dancer clips around the pinned signature move, one cache entry per
+    (move source, pins)."""
+    clips = clips_library()
+    app.dependency_overrides[get_move_library] = lambda: clips
+    body = {
+        "analysisId": LAYOUT.id,
+        "seed": 2,
+        "moveSource": "aist",
+        "pinnedMoves": [{"moveId": "sig_whip", "placement": "chorus"}],
+    }
+    r = client.post("/api/choreograph", json=body)
+    assert r.status_code == 200 and r.headers["x-routine-cache"] == "miss"
+    doc = r.json()
+    assert not [e.message for e in ROUTINE_VALIDATOR.iter_errors(doc)]
+    assert doc["meta"]["moveSource"] == "aist" and doc["meta"]["pinnedMoves"] == body["pinnedMoves"]
+    assert doc["meta"]["aistMoves"] > 0
+    assert [m["id"] for m in doc["moves"] if "signatureDance" in m] == ["sig_whip"] * 2
+    expected = generate_routine(LAYOUT, clips, "normal", "standing", 2, move_source="aist", pinned=[pin("sig_whip")])
+    assert doc == expected.to_json_dict()
+    ids = {doc["meta"]["routineId"]}
+    for other in (
+        {**body, "moveSource": "mix"},
+        {**body, "moveSource": "classic"},
+        {k: v for k, v in body.items() if k != "pinnedMoves"},
+        {k: v for k, v in body.items() if k != "moveSource"},  # classic by default
+    ):
+        o = client.post("/api/choreograph", json=other)
+        assert o.status_code == 200 and o.json()["meta"]["moveSource"] == other.get("moveSource", "classic")
+        ids.add(o.json()["meta"]["routineId"])
+    assert len(ids) == 4  # without moveSource = classic, the same routine as asking for classic
+    again = client.post("/api/choreograph", json=body)
+    assert again.headers["x-routine-cache"] == "hit" and again.content == r.content
+    bad = client.post("/api/choreograph", json={**body, "moveSource": "robots"})
+    assert bad.status_code == 400
 
 
 def test_lookup_endpoint_online_only_for_known_songs(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

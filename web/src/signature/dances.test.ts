@@ -159,7 +159,7 @@ describe('session', () => {
   it('sends pinnedMoves only when there are some', async () => {
     const d = deps()
     await prepareGame(req, d, () => undefined, new AbortController().signal)
-    expect(d.choreograph.mock.calls[0][0]).toEqual({ analysisId: analysis.id, difficulty: 'normal', mode: 'standing', seed: 1 })
+    expect(d.choreograph.mock.calls[0][0]).toEqual({ analysisId: analysis.id, difficulty: 'normal', mode: 'standing', seed: 1, moveSource: 'classic' })
     const p = deps()
     await prepareGame({ ...req, pinnedMoves: pinsFor(LOOKUP) }, p, () => undefined, new AbortController().signal)
     expect(p.choreograph.mock.calls[0][0].pinnedMoves).toEqual([{ moveId: 'sig_ymca_arms', placement: 'chorus' }])

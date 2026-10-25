@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent } from 'react'
 import { ensureSession, getProfileName, leftRoom, recordRoomPlayed } from '../account/store'
 import { ApiError } from '../api'
 import { errorMessage } from '../lib/errors'
@@ -30,6 +30,12 @@ export default function RoomPage() {
 function RoomScreen({ code, joining }: { code: string | null; joining: boolean }) {
   const [seat, setSeat] = useState<Seat | null>(() => (code ? loadSeat(code) : null))
   const [farewell, setFarewell] = useState<string | null>(null)
+  const inLobby = code !== null && seat !== null
+  // A hash change keeps the page's scroll (e.g. 60 px down to reach the entry form's button), which would
+  // open the lobby with its title under the sticky bar: every room screen starts at the top.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [inLobby])
   if (code && seat) {
     return (
       <Lobby
@@ -81,6 +87,13 @@ function Entry({ code, joining, notice, onSeated }: { code: string | null; joini
       live = false
     }
   }, [])
+  // A prefilled name is selected while the field has focus, so typing replaces it instead of appending.
+  const nameField = useRef<HTMLInputElement>(null)
+  const typed = useRef(false)
+  useLayoutEffect(() => {
+    const field = nameField.current
+    if (!typed.current && field && document.activeElement === field) field.select()
+  }, [name])
   const [typedCode, setTypedCode] = useState(code ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -146,9 +159,14 @@ function Entry({ code, joining, notice, onSeated }: { code: string | null; joini
           <label className="df-stack rm-field" style={{ '--df-gap': '6px' } as CSSProperties}>
             <span className="df-label">Your dancer name</span>
             <input
+              ref={nameField}
               className="df-field"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                typed.current = true
+                setName(e.target.value)
+              }}
+              onFocus={(e) => e.currentTarget.select()}
               maxLength={24}
               autoComplete="nickname"
               placeholder="e.g. Cinderella"

@@ -136,14 +136,33 @@ Stage 2 endpoints (moves + choreography):
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/api/moves` | `MoveLibraryResponse` (`shared/moves.ts`): every compiled move incl. mirrored variants |
-| POST | `/api/choreograph` (JSON `ChoreographRequest`: `analysisId`, `difficulty`, `mode`, `seed`) | a `routine.json` (`Routine`); 404 if the analysis isn't cached yet |
+| GET | `/api/moves?source=classic\|aist&mirrors=1` | `MoveLibraryResponse` (`shared/moves.ts`): the compiled moves (classic moves with their L/R variants, real-dancer clips); both parameters optional, see below |
+| GET | `/api/moves/sources` | `MoveSourcesResponse`: move counts per source (`library`, `aist`) + the data attribution |
+| POST | `/api/choreograph` (JSON `ChoreographRequest`: `analysisId`, `difficulty`, `mode`, `seed`, `moveSource`, `pinnedMoves`) | a `routine.json` (`Routine`); 404 if the analysis isn't cached yet |
 | GET | `/api/routines/{routineId}` | a previously generated routine (for share links / multiplayer later) |
 
-Generated routines put `routineId`, `generator`, `libraryVersion`, `analysisId` and
-`analysisVersion` in `meta`. The same request always returns the same routine (cached by
-`routineId` = hash of analysis id + versions + difficulty + mode + seed); a new seed gives a
-new routine. Keyframes may carry `root` (rendering-only hip offset, see the schema).
+Generated routines put `routineId`, `generator`, `libraryVersion`, `analysisId`,
+`analysisVersion`, `moveSource` and `aistMoves` (how many moves are real-dancer clips; plus `credit`
+when there are any) in `meta`, and `pinnedMoves` when signature moves were pinned. The same request
+always returns the same routine (cached by `routineId` = hash of analysis id + versions + difficulty +
+mode + seed + move source, + pinned moves when there are any); a new seed gives a new routine. `moveSource` is `classic` (default: the angle-based library), `aist`
+(real-dancer clips from AIST++, library moves only as a fallback and for the closing bow) or `mix`.
+Library moves carry `source` (`library` / `aist`) and `credit`; real-dancer clips have
+`startAnchor` / `endAnchor` `"free"` and mirrored twins `<id>_m`. Keyframes may carry `root` (rendering-only hip offset, see the schema).
+
+`GET /api/moves` payload (Vercel caps a function response at 4.5 MB):
+- By default the real-dancer clips' mirrored twins `<id>_m` are **left out** and each clip that has one
+  carries `hasMirror: true`. The twin is the exact geometric mirror of its clip: id `<id>_m`, name
+  `<name> (mirrored)`, `mirrorOf: "<id>"`, `side` L <-> R (`both` stays), `scoredJoints` with `l_` / `r_`
+  swapped, every keyframe pose `twin[j] = [-clip[mirror(j)][0], clip[mirror(j)][1]]` (`mirror` swaps
+  `l_` / `r_`, `skeleton.json`) and `root = [-x, y]`; every other field is the clip's. Routines always
+  carry the poses of the moves they use, twins included, so only a move browser needs this.
+- `?mirrors=1` lists every move, twins included (about twice the bytes). `?source=classic` (or `library`)
+  / `?source=aist` keeps one source; anything else is 400. The classic moves' own L/R variants (`_L` / `_R`)
+  are always listed.
+- Coordinates are rounded to 3 decimals (0.001 body units); `t` is exact.
+- Big JSON responses (`/api/moves`, `/api/choreograph`, `/api/routines/{id}`) are gzip-encoded for
+  clients that send `Accept-Encoding: gzip` (browsers do): ~2.7 MB -> ~0.54 MB for the default listing.
 
 Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py`):
 
@@ -154,13 +173,14 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
 | GET | `/api/rooms/{code}?chatAfter=<id>` | optional | | with a seat token: `RoomView`, and marks that player seen (404 for a token not in this room, exactly like an unknown room); without one only `{ code, state, playerCount, mode }` (no players, no chat) |
 | POST | `/api/rooms/{code}/routine` | host | `{ routineId, analysisId, title, difficulty, mode }` | `RoomView`; the routine must be one this server generated for that `analysisId` (else 404); lobby or finished only (else 409); back to lobby, scores, ready and crew sync reset |
 | POST | `/api/rooms/{code}/ready` | player | `{ ready: bool }` | `RoomView` |
-| POST | `/api/rooms/{code}/start` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`; lobby or finished only, needs a routine (else 409); resets scores, ready and crew sync |
+| POST | `/api/rooms/{code}/dancing` | player | `{ dancing: bool }` | `RoomView`; `false` = only watching (e.g. the host's big screen), kept across rounds until switched back; lobby or finished only (else 409) |
+| POST | `/api/rooms/{code}/start` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`; lobby or finished only, needs a routine and at least one dancer (else 409); resets scores, ready and crew sync |
 | POST | `/api/rooms/{code}/score` | player | `{ score, combo, maxCombo, accuracy, progress, finished }` | `RoomView`; ignored (no error) unless `playing` |
 | POST | `/api/rooms/{code}/chat` | player | `{ text }` | `RoomView`; 429 after 5 messages in 10 s |
 | POST | `/api/rooms/{code}/leave` | player | none | `{ ok: true }`; the host role passes to the next player, an empty room closes |
 | POST | `/api/rooms/{code}/mode` | host | `{ mode: "versus" \| "crew" }` | `RoomView`; lobby or finished only (else 409); kept across routines and rematches; new rooms are `versus` |
 | POST | `/api/rooms/{code}/beats` | player | `{ beats: [{ beat, score, grade }] }` (0-64) | `RoomView`; per-beat judgements, about once a second; ignored (no error) unless `playing` and you haven't posted `finished: true` |
-| POST | `/api/rooms/{code}/rematch` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`, same routine and mode; finished only (else 409); scores, ready, beats and sync reset |
+| POST | `/api/rooms/{code}/rematch` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`, same routine and mode; finished only, needs at least one dancer (else 409); scores, ready, beats and sync reset |
 | GET | `/api/songs/{analysisId}/heatmap` | none | | `{ analysisId, beats: [{ beat, avgScore, samples }] }` by beat: each room round's average score on the beat (clamped to 0-100), averaged over rounds, so every round weighs the same; `samples` is the number of rounds. The song's hardest moments are the lowest `avgScore` |
 
 Guessing codes: 20 lookups of unknown codes (404 on `GET /api/rooms/{code}` or `/join`) in a minute make
@@ -176,9 +196,10 @@ every lookup from that client answer 429 (with `Retry-After`) until the minute i
   "players": [{ "id": "Zp3k9QxA", "name": "Ana", "isHost": true, "ready": false,
                 "connected": true,        // seen in the last 10 s
                 "score": 0, "combo": 0, "maxCombo": 0, "accuracy": 0, "progress": 0, "finished": false,
-                "beatsWon": 0 }],         // versus: beats where this player had the best score
+                "beatsWon": 0,            // versus: beats where this player had the best score
+                "dancing": true }],       // false: only watching (see "Watchers")
   "leaderId": null,                       // versus: most beatsWon, then score; null on a tie or before any beat
-  "crew": { "teamScore": 0,               // everyone's score + syncBonus
+  "crew": { "teamScore": 0,               // every dancer's score + syncBonus
             "syncBonus": 0, "syncedBeats": 0, "syncStreak": 0, "bestSyncStreak": 0,
             "lastSyncBeat": null },        // beat index of the latest synced beat
   "chat": [{ "id": 12, "playerId": "Zp3k9QxA", "name": "Ana", "text": "ready?", "at": 1761379990000 }] }
@@ -201,7 +222,7 @@ every lookup from that client answer 429 (with `Retry-After`) until the minute i
 - **Names** (1-24 chars) and chat `text` (1-200) are trimmed with inner whitespace collapsed;
   control characters are 400. A taken name gets a suffix (`Ana`, `ana 2`).
 - **State is derived from time.** `countdown` while `serverNow < startAt`, then `playing`, then
-  `finished` once every connected player has posted `finished: true` or 10 minutes after
+  `finished` once every connected dancer has posted `finished: true` or 10 minutes after
   `startAt`; `finished` sticks until the host picks a routine or starts again (a rematch).
   Synced start: start the music at local time `startAt - (serverNow - Date.now() at receipt)`,
   i.e. correct for clock offset using `serverNow`; half the request's round trip is the error.
@@ -216,11 +237,15 @@ every lookup from that client answer 429 (with `Retry-After`) until the minute i
   sent keeps its first judgement, so retrying a failed call is safe. Beats further than the song
   can have reached (8 a second since `startAt`, plus 32) are dropped. Both modes' numbers are
   computed in every room; `mode` says which one to show.
+- **Watchers.** A player with `dancing: false` (set with `POST .../dancing`; everyone joins dancing)
+  stays in `players` and can still chat, and a watching host still picks the song and starts the
+  round, but they never hold up `finished`, their scores and beats are ignored, and they count in
+  neither crew sync, `teamScore` nor `leaderId`. Clients leave them off the live board, podium and results.
 - **Versus.** Each beat goes to the best score on it (ties count for everyone tied; a beat everyone
   scored 0 goes to nobody); `beatsWon` counts them this round. `leaderId` is the player with the
   most beats won, then the higher `score`.
-- **Crew.** A beat is in sync when every *active* dancer (connected and not finished; so not
-  someone who left, dropped out for 10 s, or joined mid-song) judged it `good` or `perfect`.
+- **Crew.** A beat is in sync when every *active* dancer (connected, dancing and not finished; so not
+  a watcher or someone who left, dropped out for 10 s, or joined mid-song) judged it `good` or `perfect`.
   Beats are decided in order once every active dancer has sent that far, or the furthest one is
   16 beats ahead (whoever hasn't sent it then breaks the sync), and never change after that. A
   beat nobody active judged is skipped. Each synced beat adds `25 x min(syncStreak, 8)` to
@@ -353,8 +378,10 @@ accounts routes 401, 403, 404, 409 and 429.
 `POST /api/choreograph` takes an optional `pinnedMoves: [{ moveId, placement: "chorus" | "drop" | "finale" }]`
 (signature move ids, at most 4). Each pinned move starts on the first downbeat of every matching section (no
 labeled chorus: every occurrence of the highest-energy repeated section group); the beam search fills the
-rest. Pinned moves carry `signatureDance: { name, creator? }` in the routine, and `meta.pinnedMoves` echoes the
-request. Without `pinnedMoves` the routine and its `routineId` are exactly what they were before.
+rest from the request's `moveSource` (real-dancer clips around a signature move with `aist` / `mix`; the
+section before a pinned one is choreographed knowing the pin comes next). Pinned moves carry
+`signatureDance: { name, creator? }` in the routine, and `meta.pinnedMoves` echoes the request. Without
+`pinnedMoves` the routine is exactly what it was before, and its `routineId` leaves the pins out.
 
 ```jsonc
 // SignatureLookup. Bundled table first, then SerpApi (SERPAPI_API_KEY) + Gemini (GEMINI_API_KEY) for a known song.

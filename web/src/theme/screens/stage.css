@@ -97,9 +97,9 @@ html:has(.play-stage) .shell-bar {
   text-shadow: 0 0 14px rgb(21 35 56 / 0.95);
 }
 
-/* preview / practice badge + skip */
+/* preview / practice badge + skip (below the key-hint line at top: 68px, which it used to overlap) */
 .df-screen .rehearsal-bar {
-  top: 82px;
+  top: 96px;
   left: 20px;
   gap: 12px;
 }

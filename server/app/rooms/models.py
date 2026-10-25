@@ -58,6 +58,10 @@ class ReadyBody(_Request):
     ready: bool
 
 
+class DancingBody(_Request):
+    dancing: bool  # false: watching only (e.g. the host's big screen)
+
+
 class ScoreBody(_Request):
     score: int = Field(ge=0, le=100_000_000)
     combo: int = Field(ge=0, le=100_000)
@@ -107,10 +111,11 @@ class PlayerView(BaseModel):
     progress: float
     finished: bool
     beatsWon: int  # versus: beats where this player had the best score (ties shared)
+    dancing: bool  # false: watching; not in the round's finish, crew sync, team score or leader
 
 
 class CrewStats(BaseModel):
-    teamScore: int  # everyone's score + syncBonus
+    teamScore: int  # every dancer's score + syncBonus
     syncBonus: int
     syncedBeats: int
     syncStreak: int

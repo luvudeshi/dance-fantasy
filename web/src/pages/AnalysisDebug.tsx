@@ -43,9 +43,19 @@ import { prepareCanvas } from '../lib/canvas'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, playRoutineHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
-import { coachStyle, drawFigure, drawFloor, fitFigureView } from '../render/stickFigure'
+import { coachStyle, drawFigure, drawFloor, fitFigureView, stageRoot } from '../render/stickFigure'
 import { DEMO_LIBRARY, demoRoutine } from '../routine/demo'
 import { routineSummary } from '../routine/library'
+import {
+  AIST_CREDIT,
+  loadMoveSource,
+  MOVE_SOURCES,
+  moveSourceLabel,
+  routineAistMoves,
+  routineMoveSource,
+  saveMoveSource,
+  type MoveSource,
+} from '../routine/moveSource'
 import { poseAtTime } from '../routine/pose'
 
 type Source = { kind: 'library'; file: string } | { kind: 'upload'; file: File }
@@ -106,6 +116,7 @@ export default function AnalysisDebug() {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
   const [mode, setMode] = useState<Mode>('standing')
   const [seed, setSeed] = useState(1)
+  const [moveSource, setMoveSource] = useState<MoveSource>(() => loadMoveSource())
   const [gen, setGen] = useState<Generated | null>(null)
   const [genBusy, setGenBusy] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
@@ -185,7 +196,8 @@ export default function AnalysisDebug() {
       const fv = fitFigureView(preview.width, preview.height, true)
       const current = routine.moves[sample.moveIndex]
       drawFloor(preview.ctx, fv)
-      drawFigure(preview.ctx, sample.pose, sample.root, fv, coachStyle(fv, { highlightJoints: current?.scoredJoints }))
+      const root = stageRoot(sample.root, fv, 0, preview.width)
+      drawFigure(preview.ctx, sample.pose, root, fv, coachStyle(fv, { highlightJoints: current?.scoredJoints }))
     }
     if (nowNextRef.current) {
       const name = (i: number | undefined): string => (routine && i !== undefined && i >= 0 ? routine.moves[i].name : '–')
@@ -319,7 +331,7 @@ export default function AnalysisDebug() {
     setGenBusy(true)
     setGenError(null)
     try {
-      const res = await choreograph({ analysisId: a.id, difficulty, mode, seed: withSeed }, ac.signal)
+      const res = await choreograph({ analysisId: a.id, difficulty, mode, seed: withSeed, moveSource }, ac.signal)
       setGen({ analysisId: a.id, routine: res.routine, demo: false, cached: res.cached })
       const entry = shelfEntryFor(res.routine, a, 'analysis')
       if (entry) rememberRoutine(entry)
@@ -346,7 +358,13 @@ export default function AnalysisDebug() {
    * the same cached routine, so the button regenerates with a new random seed instead.
    */
   const showingCurrent =
-    routine !== null && gen !== null && !gen.demo && routine.difficulty === difficulty && routine.mode === mode && routine.seed === seed
+    routine !== null &&
+    gen !== null &&
+    !gen.demo &&
+    routine.difficulty === difficulty &&
+    routine.mode === mode &&
+    routine.seed === seed &&
+    routineMoveSource(routine) === moveSource
   const onGenerate = (): void => {
     if (showingCurrent) newSeed()
     else void generate()
@@ -619,6 +637,23 @@ export default function AnalysisDebug() {
               <option value="seated">seated</option>
             </select>
           </label>
+          <label title={MOVE_SOURCES.find((m) => m.value === moveSource)?.hint}>
+            Moves from
+            <select
+              value={moveSource}
+              onChange={(e) => {
+                const m = MOVE_SOURCES.find((o) => o.value === e.target.value)?.value ?? 'classic'
+                setMoveSource(m)
+                saveMoveSource(m)
+              }}
+            >
+              {MOVE_SOURCES.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             Seed
             <input
@@ -669,7 +704,14 @@ export default function AnalysisDebug() {
           <dd>{gen && routine ? (gen.demo ? 'demo' : gen.cached === null ? 'n/a' : gen.cached ? 'yes' : 'no') : '–'}</dd>
           <dt>setup</dt>
           <dd>{routine ? `${routine.difficulty} · ${routine.mode} · seed ${routine.seed}` : '–'}</dd>
+          <dt>moves from</dt>
+          <dd>
+            {routine && !gen?.demo
+              ? `${moveSourceLabel(routineMoveSource(routine))} · ${routineAistMoves(routine)} of ${routine.moves.length} by real dancers`
+              : '–'}
+          </dd>
         </dl>
+        {routine && routineAistMoves(routine) > 0 && <p className="hint">{AIST_CREDIT}</p>}
       </div>
 
       {a && (

@@ -7,7 +7,6 @@ import {
   addFriend,
   cleanFriendCode,
   iconLabel,
-  inviteFriend,
   isFriendCode,
   listFriends,
   listPartners,
@@ -15,7 +14,7 @@ import {
   type Friend,
   type Partner,
 } from './client'
-import { ensureSession, useAccount } from './store'
+import { checkRoom, ensureSession, inviteToRoom, useAccount } from './store'
 import './account.css'
 
 // Friends (#/friends): add by friend code, who's online and in which room, invite them to yours,
@@ -58,21 +57,20 @@ export default function FriendsPage() {
     window.setTimeout(() => setToast((t) => (t === msg ? null : t)), 2400)
   }
 
-  const refresh = useCallback(
-    (): Promise<void> =>
-      ensureSession()
-        .then((ok) => (ok ? Promise.all([listFriends(), listPartners()]) : null))
-        .then(
-          (lists) => {
-            if (!lists) return
-            setFriends(lists[0])
-            setPartners(lists[1])
-            setError(null)
-          },
-          (err: unknown) => setError(errorMessage(err)),
-        ),
-    [],
-  )
+  const refresh = useCallback((): Promise<void> => {
+    void checkRoom() // "You are in room X" / "Invite to my room" only while that room is open
+    return ensureSession()
+      .then((ok) => (ok ? Promise.all([listFriends(), listPartners()]) : null))
+      .then(
+        (lists) => {
+          if (!lists) return
+          setFriends(lists[0])
+          setPartners(lists[1])
+          setError(null)
+        },
+        (err: unknown) => setError(errorMessage(err)),
+      )
+  }, [])
 
   const meId = me?.id
   useEffect(() => {
@@ -105,7 +103,7 @@ export default function FriendsPage() {
 
   const invite = async (f: Friend, roomCode: string): Promise<void> => {
     try {
-      await inviteFriend(f.id, roomCode)
+      await inviteToRoom(f.id, roomCode)
       setInvited((s) => new Set(s).add(f.id))
       flash(`Invited ${f.name} to room ${roomCode}.`)
     } catch (err) {
@@ -186,7 +184,7 @@ export default function FriendsPage() {
             )}
           </Panel>
           <div className="df-stack" style={gap('40px')}>
-            <Panel title="Add a friend" kicker="Ask for their 6-letter code" sticker="party">
+            <Panel title="Add a friend" kicker="Ask for their 6-character code" sticker="party">
               <form
                 className="acct-name-row"
                 onSubmit={(e) => {

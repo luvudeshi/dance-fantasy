@@ -7,7 +7,10 @@ import {
   analyzeLibrarySong,
   choreograph,
   getMoves,
+  getMoveSources,
   getRoutine,
+  isLibraryMove,
+  isMoveLibrary,
   isRoutine,
   analyzeUpload,
   ApiError,
@@ -200,6 +203,14 @@ describe('stage 2 api', () => {
     await expect(getMoves()).rejects.toBeInstanceOf(ApiError)
   })
 
+  it('asks for one source or the mirrored twins only when told to', async () => {
+    const f = mockFetch(async () => json(DEMO_LIBRARY))
+    await getMoves(undefined, { source: 'aist' })
+    await getMoves(undefined, { mirrors: true })
+    await getMoves(undefined, { source: 'library', mirrors: true })
+    expect(f.mock.calls.map((c) => c[0])).toEqual(['/api/moves?source=aist', '/api/moves?mirrors=1', '/api/moves?source=library&mirrors=1'])
+  })
+
   it('POSTs a choreograph request as JSON', async () => {
     const f = mockFetch(async () => {
       const res = json(routine)
@@ -219,6 +230,44 @@ describe('stage 2 api', () => {
     await expect(choreograph(req)).resolves.toMatchObject({ cached: null })
     mockFetch(async () => json({ detail: 'analysis not found; analyze the song first' }, 404))
     await expect(choreograph(req)).rejects.toMatchObject({ status: 404, message: 'analysis not found; analyze the song first' })
+  })
+
+  it('sends the move source with a choreograph request', async () => {
+    const f = mockFetch(async () => json(routine))
+    const req = { analysisId: 'a'.repeat(64), difficulty: 'easy' as const, mode: 'standing' as const, seed: 3, moveSource: 'aist' as const }
+    await choreograph(req)
+    expect(JSON.parse(String(f.mock.calls[0][1]?.body))).toEqual(req)
+  })
+
+  it('accepts real-dancer moves (source, credit, attribution) and older servers without them', () => {
+    const move = DEMO_LIBRARY.moves[0]
+    expect(isLibraryMove(move)).toBe(true) // no source / credit: an older server
+    const clip = { ...move, id: 'aist_po_002', source: 'aist', credit: 'Real-dancer move: AIST++ (CC BY 4.0)', startAnchor: 'free', endAnchor: 'free' }
+    expect(isLibraryMove(clip)).toBe(true)
+    expect(isLibraryMove({ ...move, source: 'library', credit: null })).toBe(true)
+    expect(isLibraryMove({ ...move, source: 'robots' })).toBe(false)
+    expect(isLibraryMove({ ...move, credit: 7 })).toBe(false)
+    // A clip whose mirrored twin the listing left out (GET /api/moves without ?mirrors=1).
+    expect(isLibraryMove({ ...clip, hasMirror: true })).toBe(true)
+    expect(isLibraryMove({ ...clip, hasMirror: 'yes' })).toBe(false)
+    expect(isMoveLibrary({ ...DEMO_LIBRARY, moves: [clip], attribution: 'AIST++ (CC BY 4.0)' })).toBe(true)
+    expect(isMoveLibrary({ ...DEMO_LIBRARY, attribution: null })).toBe(true)
+    expect(isMoveLibrary({ ...DEMO_LIBRARY, attribution: 3 })).toBe(false)
+  })
+
+  it('GETs the move sources', async () => {
+    const body = {
+      version: 'abc',
+      attribution: 'credit',
+      clipsError: null,
+      library: { moves: 82, baseMoves: 50 },
+      aist: { moves: 400, baseMoves: 200 },
+    }
+    const f = mockFetch(async () => json(body))
+    await expect(getMoveSources()).resolves.toEqual(body)
+    expect(f.mock.calls[0][0]).toBe('/api/moves/sources')
+    mockFetch(async () => json({ ...body, aist: { moves: 'lots' } }))
+    await expect(getMoveSources()).rejects.toThrow(/Unexpected response/)
   })
 
   it('GETs a routine by id and validates it', async () => {

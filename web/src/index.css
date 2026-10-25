@@ -788,6 +788,20 @@ input[type='search'].search {
   background: rgba(125, 211, 252, 0.14);
 }
 
+.tag.real-dancer {
+  color: #fbcfe8;
+  background: rgba(244, 114, 182, 0.16);
+}
+
+/* Data credit for real-dancer (AIST++) moves: small, but always there. */
+.move-credit {
+  margin: 4px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
