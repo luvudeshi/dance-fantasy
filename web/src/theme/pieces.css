@@ -199,11 +199,11 @@
     inset 3px 3px 0 var(--df-glass);
 }
 .df-medal-rasp {
-  background: var(--df-rasp);
+  background: var(--df-rasp-deep);
   color: var(--df-cut);
   box-shadow:
-    inset -4px -5px 0 var(--df-rasp-deep),
-    inset 3px 3px 0 var(--df-rasp-light);
+    inset -4px -5px 0 var(--df-burg),
+    inset 3px 3px 0 var(--df-rasp);
 }
 .df-medal-sm {
   --df-medal-size: 2.5rem;
