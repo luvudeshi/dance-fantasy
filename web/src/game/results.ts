@@ -3,6 +3,7 @@
 
 import type { Routine } from '@shared/routine'
 import type { LimbName } from '@shared/skeleton'
+import { getDancer, type Dancer } from '../render3d/dancer'
 import { JUDGMENT_STYLE, LIMB_LABEL, worstLimb } from './hud'
 import { DEFAULT_SCORING, type CheckpointResult, type Judgment, type MoveSummary, type ResultsSummary, type ScoringConfig } from './scoring'
 
@@ -40,20 +41,22 @@ export function roundDetails(o: { judging: string; latencySec: number | null; la
   return parts.join(' · ')
 }
 
-/** Storybook rank for a 0..5 star result. */
-export function rankTitle(stars: number): string {
-  if (stars >= 5) return 'Midnight Princess'
-  if (stars >= 4) return 'Belle of the Ball'
+/** Storybook rank for a 0..5 star result, for the chosen dancer (Settings: princess or prince). */
+export function rankTitle(stars: number, dancer: Dancer = getDancer()): string {
+  const prince = dancer === 'prince'
+  if (stars >= 5) return prince ? 'Midnight Prince' : 'Midnight Princess'
+  if (stars >= 4) return prince ? 'Beau of the Ball' : 'Belle of the Ball'
   if (stars >= 3) return 'Courtly Dancer'
   if (stars >= 2) return 'Village Dancer'
   if (stars >= 1) return 'Scullery Twirler'
   return 'Shy Wallflower'
 }
 
-export function rankBlurb(stars: number): string {
-  if (stars >= 4) return 'Your slippers are worn right through. The whole court is talking about you!'
-  if (stars >= 2) return 'A fine night of dancing. One more ball and the prince won’t look away.'
-  return 'Every princess starts somewhere. Shake off the dust and dance again!'
+export function rankBlurb(stars: number, dancer: Dancer = getDancer()): string {
+  const prince = dancer === 'prince'
+  if (stars >= 4) return `Your ${prince ? 'dancing shoes are' : 'slippers are'} worn right through. The whole court is talking about you!`
+  if (stars >= 2) return `A fine night of dancing. One more ball and the ${prince ? 'princess' : 'prince'} won’t look away.`
+  return `Every ${prince ? 'prince' : 'princess'} starts somewhere. Shake off the dust and dance again!`
 }
 
 export interface MoveRow {
