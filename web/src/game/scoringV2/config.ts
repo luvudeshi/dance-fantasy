@@ -23,6 +23,18 @@ export interface V2Config {
   triedFloor: boolean
   triedMatch: number
   triedMinRaw: number
+  /** Late catch-up: a move up to this many beats late still counts (window extends on the late
+   *  side only), scored down linearly from timingRefFactor at timingRefSec to lateMinFactor. */
+  lateBeats: number
+  lateMinFactor: number
+  /** Movement: share of the raw score from how the hero limbs travelled over the pathBeats
+   *  leading into the beat (compared with the coach at pathSamples points, shifted by the
+   *  player's own timing offset); the rest is the pose at the best moment. */
+  pathWeight: number
+  pathBeats: number
+  pathSamples: number
+  /** Extra degrees of slack on the path (its shape matters, not frame-exact precision). */
+  pathSlackDeg: number
   /** Share of a checkpoint's score carried by its hero limbs; the rest can only add points. */
   heroWeight: number
   /** A limb is a hero when its direction change across the move is >= this fraction of the largest. */
@@ -63,6 +75,12 @@ export const DEFAULT_V2: V2Config = {
   triedFloor: false,
   triedMatch: 0.7,
   triedMinRaw: 15,
+  lateBeats: 0.5,
+  lateMinFactor: 0.7,
+  pathWeight: 0.3,
+  pathBeats: 1,
+  pathSamples: 6,
+  pathSlackDeg: 10,
   heroWeight: 0.8,
   heroFraction: 0.4,
   heroMinChangeDeg: 15,
@@ -112,9 +130,17 @@ export function limbScoreV2(errorDeg: number, c: V2Config = DEFAULT_V2): number 
   return 100 * ((c.zeroDeg - errorDeg) / Math.max(1e-6, c.zeroDeg - c.perfectDeg)) ** c.falloffPower
 }
 
-/** 1 on the beat, timingRefFactor at ±timingRefSec (quadratic), never below timingMinFactor. */
-export function timingFactor(offsetSec: number, c: V2Config = DEFAULT_V2): number {
+/**
+ * 1 on the beat, timingRefFactor at ±timingRefSec (quadratic), never below timingMinFactor.
+ * Late catch-up: when the late window (lateSec) reaches past timingRefSec, lateness beyond it
+ * falls linearly from timingRefFactor to lateMinFactor at lateSec instead.
+ */
+export function timingFactor(offsetSec: number, c: V2Config = DEFAULT_V2, lateSec = 0): number {
   if (!Number.isFinite(offsetSec)) return c.timingMinFactor
+  if (offsetSec > c.timingRefSec && lateSec > c.timingRefSec) {
+    const u = Math.min(1, (offsetSec - c.timingRefSec) / (lateSec - c.timingRefSec))
+    return c.timingRefFactor + (c.lateMinFactor - c.timingRefFactor) * u
+  }
   const u = offsetSec / c.timingRefSec
   return Math.max(c.timingMinFactor, 1 - (1 - c.timingRefFactor) * u * u)
 }

@@ -72,6 +72,8 @@ const CASES: Record<string, Case> = {
   mirrored: { name: 'wrong side', skill: 'mirrored' },
   // A hard real-webcam night: ~30° of drift, ±20° jitter, blur dropouts and 150 ms late.
   rough: { name: 'rough webcam, 150 ms late', skill: 'sloppy', lagSec: 0.15, transform: (s) => noisy(s, 20, 0.2) },
+  // Catching up: correct moves, but 300 ms (0.6 beat at 120 bpm) behind.
+  delayed: { name: 'good, 300 ms late', skill: 'good', lagSec: 0.3 },
 }
 
 interface Sim {
@@ -173,6 +175,31 @@ describe.each(Object.entries(ROUTINES))('scoring v2 simulation: %s routine', (mo
     })
   }
 
+  it('scores the movement, not only the pose at the beat', () => {
+    // A "statue" jumps straight to each checkpoint's pose right after the previous beat and holds
+    // it: a perfect pose at every beat but none of the coach's movement in between.
+    const track = buildMotionTrack(routine)
+    const cps = buildCheckpoints(routine, routine.mode)
+    const keeper = new ScoreKeeperV2(cps, DEFAULT_SCORING, { track })
+    const visibility = Object.fromEntries(JOINTS.map((j) => [j, 1])) as Record<JointName, number>
+    let c = 0
+    for (let k = 0; k <= Math.ceil((routine.song.durationSec + 1) * 30); k++) {
+      const t = k / 30
+      while (c < cps.length && cps[c].time < t - 0.05) c++
+      const pose = c < cps.length ? cps[c].target : track.sample(t).pose
+      keeper.addFrame({ songTime: t, pose, visibility, valid: true })
+    }
+    keeper.advanceTo(Number.POSITIVE_INFINITY)
+    const statue = keeper.summary(routine).accuracy
+    const classicStatue = (keeper.shadow as ScoreKeeper).summary(routine).accuracy
+    const perfect = run('perfect').v2.accuracy
+    console.log(`${mode}: pose-only "statue" accuracy  classic ${classicStatue.toFixed(1)}  v2 ${statue.toFixed(1)}  (perfect dancer v2 ${perfect.toFixed(1)})`)
+    expect(classicStatue).toBeGreaterThan(95)
+    expect(statue).toBeLessThan(perfect - 6)
+    expect(statue).toBeLessThan(classicStatue - 6)
+    expect(keeper.results().every((r) => r.v2 === undefined || r.v2.path !== null)).toBe(true)
+  })
+
   it('the motion bonus only ever adds, and never past 100', () => {
     for (const key of ['good', 'sloppy', 'noisy'] as const) {
       for (const r of run(key).results) {
@@ -228,10 +255,28 @@ describe.each(Object.entries(ROUTINES))('Relaxed preset (v2): %s routine', (mode
       expect(goodPlus(rough.frac)).toBeGreaterThan(goodPlus(run('rough', false, seed).frac))
       expect(run('mirrored', true, seed).v2.accuracy).toBeLessThan(run('good', true, seed).v2.accuracy - 15)
     })
+
+    it(`a move 300 ms late still scores, a little lower than on time (seed ${seed})`, () => {
+      const late = run('delayed', true, seed)
+      expect(late.frac.miss).toBeLessThan(0.1)
+      expect(goodPlus(late.frac)).toBeGreaterThanOrEqual(0.8)
+      expect(late.v2.accuracy).toBeLessThan(run('good', true, seed).v2.accuracy)
+      expect(late.results.filter((r) => r.timing === 'late').length / late.results.length).toBeGreaterThanOrEqual(0.6)
+      // Standard v2 catches up too (up to half a beat), just less generously.
+      expect(run('delayed', false, seed).v2.accuracy).toBeLessThan(late.v2.accuracy)
+    })
   }
 })
 
 describe('scoring v2 pieces', () => {
+  it('late catch-up: lateness past 150 ms falls linearly to lateMinFactor at the late edge', () => {
+    expect(timingFactor(0.15, DEFAULT_V2, 0.5)).toBeCloseTo(0.85, 5)
+    expect(timingFactor(0.325, DEFAULT_V2, 0.5)).toBeCloseTo((0.85 + DEFAULT_V2.lateMinFactor) / 2, 5)
+    expect(timingFactor(0.5, DEFAULT_V2, 0.5)).toBeCloseTo(DEFAULT_V2.lateMinFactor, 5)
+    // Early stays quadratic.
+    expect(timingFactor(-0.15, DEFAULT_V2, 0.5)).toBeCloseTo(0.85, 5)
+  })
+
   it('timing factor: full on the beat, ~85% at ±150 ms', () => {
     expect(timingFactor(0)).toBe(1)
     expect(timingFactor(0.15)).toBeCloseTo(0.85, 5)

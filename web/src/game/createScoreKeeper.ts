@@ -68,7 +68,7 @@ export function keeperDebugText(keeper: KeeperLike | null | undefined): string |
   }
   const last = keeper.results().at(-1)
   const tail = last?.v2
-    ? `last     ${last.judgment}${last.timing ? ` (${last.timing})` : ''} ${last.score.toFixed(0)}  raw ${last.v2.raw.toFixed(0)} x${last.v2.timingFactor.toFixed(2)} +dir ${last.v2.bonus.direction.toFixed(1)} +snap ${last.v2.bonus.snap.toFixed(1)}  off ${last.offsetSec === null ? '–' : `${(last.offsetSec * 1000).toFixed(0)} ms`}`
+    ? `last     ${last.judgment}${last.timing ? ` (${last.timing})` : ''} ${last.score.toFixed(0)}  pose ${last.v2.pose.toFixed(0)} path ${last.v2.path === null ? '–' : last.v2.path.toFixed(0)} x${last.v2.timingFactor.toFixed(2)} +dir ${last.v2.bonus.direction.toFixed(1)} +snap ${last.v2.bonus.snap.toFixed(1)}  off ${last.offsetSec === null ? '–' : `${(last.offsetSec * 1000).toFixed(0)} ms`}`
     : ''
   return ['scoring  v2 (shadow: classic)', line('v2', keeper), keeper.shadow ? line('classic', keeper.shadow) : '', tail].filter(Boolean).join('\n')
 }

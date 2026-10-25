@@ -22,7 +22,8 @@ export const JUDGING_PRESETS: readonly { value: JudgingPreset; label: string; hi
 
 /**
  * Relaxed (scoring v2): lower thresholds, a window of half a beat either side, an OKS-style
- * bell-curve falloff instead of a hard zero, gentler timing and the "tried it" OK floor.
+ * bell-curve falloff instead of a hard zero, gentler timing, late catch-up of up to a beat
+ * (scored at least 78%) and the "tried it" OK floor.
  */
 export const RELAXED_SCORING: V2ScoringConfig = {
   ...DEFAULT_SCORING,
@@ -37,6 +38,8 @@ export const RELAXED_SCORING: V2ScoringConfig = {
     windowBeats: 0.5,
     timingRefFactor: 0.92,
     triedFloor: true,
+    lateBeats: 1,
+    lateMinFactor: 0.78,
   },
 }
 
