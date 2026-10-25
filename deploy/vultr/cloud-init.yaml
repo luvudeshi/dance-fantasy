@@ -1,0 +1,39 @@
+#cloud-config
+# Boots the Dance Fantasy analysis worker on a Vultr Cloud Compute instance (see provision.sh):
+# the same FastAPI app as Vercel, kept warm, behind Caddy for automatic HTTPS on WORKER_DOMAIN.
+# provision.sh fills in the __PLACEHOLDERS__ before sending this as the instance's user data.
+package_update: true
+packages: [git, ffmpeg, caddy, curl]
+write_files:
+  - path: /etc/dance-fantasy.env
+    permissions: "0600"
+    content: |
+      BLOB_READ_WRITE_TOKEN=__BLOB_READ_WRITE_TOKEN__
+      NUMBA_CACHE_DIR=/var/cache/dance-fantasy/numba
+  - path: /etc/systemd/system/dance-fantasy-worker.service
+    content: |
+      [Unit]
+      Description=Dance Fantasy analysis worker
+      After=network-online.target
+      [Service]
+      EnvironmentFile=/etc/dance-fantasy.env
+      WorkingDirectory=/opt/dance-fantasy/server
+      ExecStartPre=/root/.local/bin/uv run python -c "from app.audio import warmup; warmup()"
+      ExecStart=/root/.local/bin/uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+  - path: /etc/caddy/Caddyfile
+    content: |
+      __WORKER_DOMAIN__ {
+        reverse_proxy 127.0.0.1:8000
+      }
+runcmd:
+  - mkdir -p /var/cache/dance-fantasy/numba
+  - curl -LsSf https://astral.sh/uv/install.sh | sh
+  - git clone --depth 1 https://github.com/luvudeshi/midnight-ball.git /opt/dance-fantasy
+  - cp -r /opt/dance-fantasy/assets/songs /opt/dance-fantasy/assets/moves /opt/dance-fantasy/server/assets/ || true
+  - cd /opt/dance-fantasy/server && /root/.local/bin/uv sync --frozen --no-dev
+  - systemctl daemon-reload
+  - systemctl enable --now dance-fantasy-worker
+  - systemctl restart caddy

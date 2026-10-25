@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import time
+import urllib.error
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -28,6 +29,7 @@ from app.audio import load_audio
 from app.audio.analysis import ANALYSIS_VERSION, analyze_audio
 from app.config import Settings, get_settings
 from app.library import MEDIA_TYPES, song_artist, song_title
+from app.vultr_worker import forward_analysis, worker_url
 
 router = APIRouter(tags=["analysis"])
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -116,6 +118,14 @@ async def analyze_blob_upload(req: BlobUpload, settings: SettingsDep, refresh: R
         url = blob.upload_url(req.url)
     except blob.NotOurUpload as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    if worker := worker_url():  # the always-warm Vultr worker (app.vultr_worker); off unless configured
+        try:
+            doc = await run_in_threadpool(forward_analysis, worker, req.model_dump(), refresh)
+        except urllib.error.HTTPError as exc:
+            raise HTTPException(exc.code, f"Analysis worker: {exc.reason}") from exc
+        except OSError as exc:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The analysis worker is unreachable.") from exc
+        return Analysis.model_validate(doc)
     try:  # from here on the upload is always deleted, whatever happens
         try:
             if await run_in_threadpool(blob.upload_size, url) > settings.max_upload_bytes:
