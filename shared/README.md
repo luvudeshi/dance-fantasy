@@ -277,7 +277,7 @@ A line's `id` is the sha256 hex of its UTF-8 text, so a client holding only the 
 lines are pre-voiced by `server/scripts/pregen_voice.py`; `GEMINI_TTS_VOICE` picks the voice).
 
 ```ts
-// POST /api/announcer. Always 200 within ~6 s (in-game moments at once): no key, a slow model or a bad reply gives canned lines
+// POST /api/announcer. Always 200 within ~7.5 s (in-game moments at once): no key, a slow model or a bad reply gives canned lines
 // (source "canned"). Identical requests within 30 s get the same answer.
 interface AnnouncerRequest {
   event: 'intro' | 'combo' | 'streak_broken' | 'perfect_run' | 'results'

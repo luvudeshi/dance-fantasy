@@ -41,9 +41,9 @@ export const STREAK_MIN = 5
 export const QUIET_MS = 14_000
 /** How long an in-game moment waits for the server before the local line (the moment is gone soon after). */
 export const IN_GAME_WAIT_MS = 900
-/** Intro and results can wait longer: Muse takes ~2-3 s and the server gives up by ~6 s (the intro is prefetched). */
-export const SCENE_WAIT_MS = 6000
-const REQUEST_TIMEOUT_MS = 7000
+/** Intro and results can wait longer: Muse takes 2-4.5 s and the server gives up by ~7.5 s (the intro is prefetched). */
+export const SCENE_WAIT_MS = 8000
+const REQUEST_TIMEOUT_MS = 9000
 const MAX_LINE = 90
 
 // --- client -------------------------------------------------------------------------------------

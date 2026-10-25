@@ -103,7 +103,13 @@ def _describe(exc: Exception) -> str:
 
 
 def generate_text(
-    system: str, user: str, *, deadline_sec: float, json_mode: bool = False, temperature: float = 0.8
+    system: str,
+    user: str,
+    *,
+    deadline_sec: float,
+    json_mode: bool = False,
+    temperature: float = 0.8,
+    first_share: float = FIRST_SHARE,
 ) -> tuple[str, Provider]:
     """(completion, provider) from the first provider that answers before the deadline."""
     order: list[Provider] = ["gemini", "muse"] if env("AI_PROVIDER") == "gemini" else ["muse", "gemini"]
@@ -111,7 +117,7 @@ def generate_text(
     end = time.monotonic() + deadline_sec
     for i, (provider, key) in enumerate(keyed):
         remaining = end - time.monotonic()
-        budget = remaining * FIRST_SHARE if i < len(keyed) - 1 else remaining
+        budget = remaining * first_share if i < len(keyed) - 1 else remaining
         if budget < MIN_BUDGET_SEC:
             break
         started = time.monotonic()
