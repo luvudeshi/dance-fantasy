@@ -144,6 +144,14 @@ Data formats, coordinate conventions and the HTTP API are documented in
 One Vercel project, two services ([vercel.json](vercel.json)): `web/` (static Vite build) and
 `server/` (FastAPI as one Python function, `/api/*`). Deploy with `vercel deploy` from the repo root.
 
+- **Database:** rooms and accounts need `DATABASE_URL` (Tiger Data / Timescale Postgres), e.g.
+  `postgres://user:pass@host:port/tsdb?sslmode=require`. `sslmode` works like libpq: `require`
+  encrypts without checking the certificate (Tiger Cloud signs with its own CA), `verify-full` also
+  checks it against `DATABASE_CA_CERT` (the PEM chain from the Tiger console; the public roots
+  without it). Without `DATABASE_URL` the rooms and accounts routes answer 503.
+- **Region:** the Tiger database is in AWS us-west-2, so the function runs in Vercel's `pdx1`
+  (Portland) region (`"regions"` in vercel.json): every room poll is a few database round trips.
+
 - **Shared cache:** each function instance has its own temporary disk, so analyses, routines and
   uploaded audio are mirrored to Vercel Blob ([server/app/blob.py](server/app/blob.py)). This is
   on only when `BLOB_READ_WRITE_TOKEN` is set; locally everything stays in `assets/cache/`.

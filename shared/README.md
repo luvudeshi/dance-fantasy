@@ -151,8 +151,8 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
 |---|---|---|---|---|
 | POST | `/api/rooms` | none | `{ name }` | `{ code, playerId, token }`; the creator is the host |
 | POST | `/api/rooms/{code}/join` | none | `{ name }` | `{ playerId, token }`; 409 when 8 players are in |
-| GET | `/api/rooms/{code}?chatAfter=<id>` | optional | | `RoomView`; with a token, marks that player seen |
-| POST | `/api/rooms/{code}/routine` | host | `{ routineId, analysisId, title, difficulty, mode }` | `RoomView`; lobby or finished only (else 409); back to lobby, scores, ready and crew sync reset |
+| GET | `/api/rooms/{code}?chatAfter=<id>` | optional | | with a seat token: `RoomView`, and marks that player seen (401 for a token not in this room); without one only `{ code, state, playerCount, mode }` (no players, no chat) |
+| POST | `/api/rooms/{code}/routine` | host | `{ routineId, analysisId, title, difficulty, mode }` | `RoomView`; the routine must be one this server generated for that `analysisId` (else 404); lobby or finished only (else 409); back to lobby, scores, ready and crew sync reset |
 | POST | `/api/rooms/{code}/ready` | player | `{ ready: bool }` | `RoomView` |
 | POST | `/api/rooms/{code}/start` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`; lobby or finished only, needs a routine (else 409); resets scores, ready and crew sync |
 | POST | `/api/rooms/{code}/score` | player | `{ score, combo, maxCombo, accuracy, progress, finished }` | `RoomView`; ignored (no error) unless `playing` |
@@ -161,7 +161,10 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
 | POST | `/api/rooms/{code}/mode` | host | `{ mode: "versus" \| "crew" }` | `RoomView`; lobby or finished only (else 409); kept across routines and rematches; new rooms are `versus` |
 | POST | `/api/rooms/{code}/beats` | player | `{ beats: [{ beat, score, grade }] }` (0-64) | `RoomView`; per-beat judgements, about once a second; ignored (no error) unless `playing` and you haven't posted `finished: true` |
 | POST | `/api/rooms/{code}/rematch` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`, same routine and mode; finished only (else 409); scores, ready, beats and sync reset |
-| GET | `/api/songs/{analysisId}/heatmap` | none | | `{ analysisId, beats: [{ beat, avgScore, samples }] }` by beat: the average judgement score on each beat across every room and round, i.e. the song's hardest moments (lowest `avgScore`) |
+| GET | `/api/songs/{analysisId}/heatmap` | none | | `{ analysisId, beats: [{ beat, avgScore, samples }] }` by beat: each room round's average score on the beat (clamped to 0-100), averaged over rounds, so every round weighs the same; `samples` is the number of rounds. The song's hardest moments are the lowest `avgScore` |
+
+Guessing codes: 20 lookups of unknown codes (404 on `GET /api/rooms/{code}` or `/join`) in a minute make
+every lookup from that client answer 429 (with `Retry-After`) until the minute is up.
 
 ```jsonc
 // RoomView
@@ -229,17 +232,18 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
   rooms route. Tables are `df_rooms`, `df_players`, `df_chat`, `df_room_beats`, created (and new
   columns added) on first use. Beat judgements outlive their room, for the heatmap. On Postgres
   with the `timescaledb` extension, `df_room_beats` is a hypertable on `round_ms` (the round's
-  `startAt`) and the heatmap reads `df_beat_heat`, a real-time continuous aggregate of score sums
-  per (song, beat, day) refreshed every 15 minutes; elsewhere it reads `df_room_beats` directly.
+  `startAt`) and the heatmap reads `df_round_heat`, a real-time continuous aggregate of clamped
+  score sums per (song, room round, beat) refreshed every 15 minutes; elsewhere it reads
+  `df_room_beats` directly.
 
 AI endpoints (sponsor tracks; server/app/ai, keys in `.env.example`). Meta Muse answers first, Gemini is the
 fallback (`AI_PROVIDER=gemini` swaps them). Prompts and model output are never logged.
 
 | Method | Path | Returns |
 |---|---|---|
-| POST | `/api/announcer` (JSON `AnnouncerRequest`) | `{ lines: string[], items: { id, text }[], source: "muse" \| "gemini" \| "canned" }`: 1-3 lines, each ≤ 90 chars; `items` are the same lines with ids |
+| POST | `/api/announcer` (JSON `AnnouncerRequest`) | `{ lines: string[], items: { id, text }[], source: "muse" \| "gemini" \| "canned" }`: 1-3 lines, each ≤ 90 chars; `items` are the same lines with ids. 429 over 120 requests/min per client |
 | GET | `/api/announcer/voice/{id}` | `audio/wav` (16-bit mono, 24 kHz): the line voiced by the herald (Gemini TTS, cached forever). 404 unless `/api/announcer` gave that line out, 429 over 40 requests/min per client, 503 not cached and no `GEMINI_API_KEY` (or TTS down) |
-| GET | `/api/songs/signature?title=&artist=` | `Signature` (below); 404 without `SERPAPI_API_KEY` + an LLM key (unless cached), 502 search failed, 503 no usable AI answer |
+| GET | `/api/songs/signature?analysisId=` (or `?file=` for a library song) | `Signature` (below), for a song the server knows: title and artist come from its analysis (or the library), never the caller. 404 unknown song, or without `SERPAPI_API_KEY` + an LLM key (unless cached); 502 search failed; 503 no usable AI answer, 2 lookups already running, or the day's 150 lookups used |
 
 A line's `id` is the sha256 hex of its UTF-8 text, so a client holding only the text can compute it
 (web/src/voice). The voice route never takes text: it only voices lines the announcer returned (fixed canned
@@ -263,7 +267,7 @@ interface AnnouncerRequest {
   }
 }
 
-// GET /api/songs/signature. Cached by title + artist (case-insensitive), so a repeat costs no searches.
+// GET /api/songs/signature. Cached per analysis, so a repeat costs no searches.
 interface Signature {
   found: boolean               // false: no well-known dance; summary says so
   summary: string              // 2-3 plain sentences on the signature moves
