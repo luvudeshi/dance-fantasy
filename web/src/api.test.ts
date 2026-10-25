@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Analysis } from '@shared/analysis'
+import type { Routine } from '@shared/routine'
+import routineExample from '@shared/examples/routine.example.json'
+import { DEMO_LIBRARY } from './routine/demo'
 import {
   analyzeLibrarySong,
+  choreograph,
+  getMoves,
+  getRoutine,
+  isRoutine,
   analyzeUpload,
   ApiError,
   apiUrl,
@@ -176,5 +183,55 @@ describe('analysis api', () => {
     expect(f.mock.calls[0][0]).toBe('/api/audio/abc')
     mockFetch(async () => json({ detail: 'unknown audio' }, 404))
     await expect(fetchAudio('/api/audio/nope')).rejects.toMatchObject({ status: 404, message: 'unknown audio' })
+  })
+})
+
+describe('stage 2 api', () => {
+  const routine = routineExample as unknown as Routine
+
+  it('GETs and validates the move library', async () => {
+    const f = mockFetch(async () => json(DEMO_LIBRARY))
+    await expect(getMoves()).resolves.toEqual(DEMO_LIBRARY)
+    expect(f.mock.calls[0][0]).toBe('/api/moves')
+    const bad = { ...DEMO_LIBRARY, moves: [{ ...DEMO_LIBRARY.moves[0], keyframes: [{ t: 0, pose: { elbow: [0, 0] }, root: [0, 0] }] }] }
+    mockFetch(async () => json(bad))
+    await expect(getMoves()).rejects.toThrow(/Unexpected response from \/api\/moves/)
+    mockFetch(async () => json({ ...DEMO_LIBRARY, moves: [{ ...DEMO_LIBRARY.moves[0], side: 'left' }] }))
+    await expect(getMoves()).rejects.toBeInstanceOf(ApiError)
+  })
+
+  it('POSTs a choreograph request as JSON', async () => {
+    const f = mockFetch(async () => {
+      const res = json(routine)
+      res.headers.set('X-Routine-Cache', 'hit')
+      return res
+    })
+    const req = { analysisId: 'a'.repeat(64), difficulty: 'hard' as const, mode: 'seated' as const, seed: 7 }
+    await expect(choreograph(req)).resolves.toEqual({ routine, cached: true })
+    const [url, init] = f.mock.calls[0]
+    expect(url).toBe('/api/choreograph')
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(String(init?.body))).toEqual(req)
+    expect(new Headers(init?.headers).get('Content-Type')).toBe('application/json')
+    mockFetch(async () => new Response(JSON.stringify(routine), { status: 200, headers: { 'X-Routine-Cache': 'miss' } }))
+    await expect(choreograph(req)).resolves.toMatchObject({ cached: false })
+    mockFetch(async () => json(routine))
+    await expect(choreograph(req)).resolves.toMatchObject({ cached: null })
+    mockFetch(async () => json({ detail: 'analysis not found; analyze the song first' }, 404))
+    await expect(choreograph(req)).rejects.toMatchObject({ status: 404, message: 'analysis not found; analyze the song first' })
+  })
+
+  it('GETs a routine by id and validates it', async () => {
+    const f = mockFetch(async () => json(routine))
+    await getRoutine('ab/c')
+    expect(f.mock.calls[0][0]).toBe('/api/routines/ab%2Fc')
+    expect(isRoutine(routine)).toBe(true)
+    expect(isRoutine({ ...routine, version: 2 })).toBe(false)
+    expect(isRoutine({ ...routine, mode: 'lying' })).toBe(false)
+    expect(isRoutine({ ...routine, moves: [{ ...routine.moves[0], keyframes: [] }] })).toBe(false)
+    expect(isRoutine({ ...routine, moves: [{ ...routine.moves[0], scoredJoints: ['tail'] }] })).toBe(false)
+    const withRoot = { ...routine, moves: [{ ...routine.moves[0], keyframes: [{ ...routine.moves[0].keyframes[0], root: [0, 0.3] }] }] }
+    expect(isRoutine(withRoot)).toBe(true)
+    expect(isRoutine({ ...withRoot, moves: [{ ...withRoot.moves[0], keyframes: [{ ...withRoot.moves[0].keyframes[0], root: [0] }] }] })).toBe(false)
   })
 })

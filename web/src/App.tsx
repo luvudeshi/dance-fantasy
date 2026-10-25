@@ -5,11 +5,13 @@ import { errorMessage, isAbortError } from './lib/errors'
 const PoseSpike = lazy(() => import('./pages/PoseSpike'))
 const BeatSpike = lazy(() => import('./pages/BeatSpike'))
 const AnalysisDebug = lazy(() => import('./pages/AnalysisDebug'))
+const MoveGallery = lazy(() => import('./pages/MoveGallery'))
 
 const ROUTES = [
   { hash: '#/pose', label: 'Pose spike' },
   { hash: '#/beats', label: 'Beat spike' },
   { hash: '#/analysis', label: 'Analysis' },
+  { hash: '#/moves', label: 'Moves' },
 ] as const
 type RouteHash = (typeof ROUTES)[number]['hash']
 const DEFAULT_ROUTE: RouteHash = '#/pose'
@@ -111,7 +113,15 @@ export default function App() {
       </header>
       <main>
         <Suspense fallback={<p className="status">Loading…</p>}>
-          {route === '#/beats' ? <BeatSpike /> : route === '#/analysis' ? <AnalysisDebug /> : <PoseSpike />}
+          {route === '#/beats' ? (
+            <BeatSpike />
+          ) : route === '#/analysis' ? (
+            <AnalysisDebug />
+          ) : route === '#/moves' ? (
+            <MoveGallery />
+          ) : (
+            <PoseSpike />
+          )}
         </Suspense>
       </main>
     </div>

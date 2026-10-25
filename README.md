@@ -15,7 +15,7 @@ HackTX 2026 · storybook theme.
 |---|---|---|
 | 0 | Scaffold, shared data contract, pose spike, beat spike | ✅ |
 | 1 | Audio analysis (`/api/analyze`) + debug timeline | ✅ |
-| 2 | Move library + choreography generator | |
+| 2 | Move library (50 moves + mirrors) + choreography generator | ✅ |
 | 3 | Dancer renderer + synced playback | |
 | 4 | Scoring + game loop (**MVP**) | |
 | 5 | Difficulty, seated mode, teach mode | |
@@ -47,7 +47,11 @@ Open **http://localhost:5173**.
 - `#/analysis`: Stage 1 debug timeline. Pick or upload a song to see its BPM, the full
   beat grid (dashed = filled in from the tempo), downbeats, energy, and sections colored
   by repeat group (every chorus shares a color). Play it, or click a section to jump there,
-  and watch the live "Chorus · Bar 13 · beat 4" readout.
+  and watch the live "Chorus · Bar 13 · beat 4" readout. The **Choreography** panel
+  generates a routine (difficulty, standing/seated, seed): moves appear as a timeline row
+  and a stick-figure preview dances along during playback.
+- `#/moves`: the move library. Every move loops on a stick figure (gold limbs are scored);
+  filter by style, difficulty, intensity or seated-friendly.
 
 Without `make`:
 
@@ -81,10 +85,12 @@ web/       Vite + React + TypeScript (strict). MediaPipe PoseLandmarker runs in 
   src/pages/     PoseSpike (Spike 1), BeatSpike (Spike 2)
 server/    Python 3.11 + FastAPI + librosa (uv project)
   app/audio/     decoding, beat grid, downbeats, structure (sections) analysis
+  app/moves/     move library: angle-based definitions → forward kinematics → 17-joint poses
+  app/choreo/    choreographer: beam search over moves, snapped to downbeats, chorus reuse
   app/api/       HTTP routes
   scripts/       make_sample_song.py (synthetic CC0 songs), fetch_example_songs.py
 shared/    The data contract: skeleton, routine.schema.json, TS types, docs
-assets/    songs/ (samples), moves/ (move library), routines/ (cached routines)
+assets/    songs/ (samples), moves/ (move definitions, see moves/README.md), routines/
 scripts/   dev.sh (starts both servers)
 ```
 

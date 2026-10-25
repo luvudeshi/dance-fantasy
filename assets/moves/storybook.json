@@ -1,0 +1,193 @@
+{
+  "notes": "Midnight Ball signatures: princesses, clocks, pumpkins and dragons. Format: assets/moves/README.md.",
+  "defaults": { "styles": ["storybook"] },
+  "moves": [
+    {
+      "id": "curtsy", "name": "Grand Curtsy", "lengthBeats": 4, "intensity": 1, "difficulty": "easy", "styles": ["storybook", "finale"],
+      "side": "R", "mirror": true,
+      "notes": "Right foot slides behind, both knees bend, hands hold the skirt out. A lovely final move.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "shoulders": 35, "elbows": 15, "r_hip": -6, "r_knee": 10 } },
+        { "beat": 2, "angles": { "shoulders": 40, "r_hip": -10, "r_knee": 45, "l_knee": 45, "head_tilt": -8, "torso_lean": -3 } },
+        { "beat": 3, "angles": { "r_knee": 55, "l_knee": 55 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "royal_wave", "name": "Royal Wave", "lengthBeats": 4, "intensity": 1, "difficulty": "easy", "styles": ["storybook", "finale"],
+      "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 37, "r_elbow": 130, "l_shoulder": 15, "l_elbow": -100, "head_tilt": 4 } },
+        { "beat": 2, "angles": { "r_elbow": 162, "head_tilt": -2 } },
+        { "beat": 3, "angles": { "r_elbow": 130, "head_tilt": 4 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "twirl", "name": "Ballroom Twirl", "lengthBeats": 4, "intensity": 3, "difficulty": "normal",
+      "side": "R", "mirror": true,
+      "notes": "One full turn toward the leading side with that hand over the head.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 168, "r_elbow": 45, "l_shoulder": 60, "l_elbow": -40 } },
+        { "beat": 1.25, "angles": { "turn": 0.125 } },
+        { "beat": 1.5, "angles": { "turn": 0.25 } },
+        { "beat": 1.75, "angles": { "turn": 0.375 } },
+        { "beat": 2, "angles": { "turn": 0.5 } },
+        { "beat": 2.25, "angles": { "turn": 0.625 } },
+        { "beat": 2.5, "angles": { "turn": 0.75 } },
+        { "beat": 2.75, "angles": { "turn": 0.875 } },
+        { "beat": 3, "angles": { "turn": 1 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "princess_spin", "name": "Princess Spin", "lengthBeats": 8, "intensity": 4, "difficulty": "hard",
+      "side": "R", "mirror": true,
+      "notes": "Ball-gown arms, spin, ta-da; spin again, finish.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "shoulders": 80, "elbows": 10 } },
+        { "beat": 1.25, "angles": { "turn": 0.125 } },
+        { "beat": 1.5, "angles": { "turn": 0.25 } },
+        { "beat": 1.75, "angles": { "turn": 0.375 } },
+        { "beat": 2, "angles": { "turn": 0.5 } },
+        { "beat": 2.25, "angles": { "turn": 0.625 } },
+        { "beat": 2.5, "angles": { "turn": 0.75 } },
+        { "beat": 2.75, "angles": { "turn": 0.875 } },
+        { "beat": 3, "angles": { "turn": 1 } },
+        { "beat": 4, "angles": { "turn": 0, "shoulders": 155, "elbows": 0 } },
+        { "beat": 5, "angles": { "shoulders": 80, "elbows": 10 } },
+        { "beat": 5.25, "angles": { "turn": 0.125 } },
+        { "beat": 5.5, "angles": { "turn": 0.25 } },
+        { "beat": 5.75, "angles": { "turn": 0.375 } },
+        { "beat": 6, "angles": { "turn": 0.5 } },
+        { "beat": 6.25, "angles": { "turn": 0.625 } },
+        { "beat": 6.5, "angles": { "turn": 0.75 } },
+        { "beat": 6.75, "angles": { "turn": 0.875 } },
+        { "beat": 7, "angles": { "turn": 1 } },
+        { "beat": 8, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "sword_flourish", "name": "Sword Flourish", "lengthBeats": 4, "intensity": 4, "difficulty": "normal",
+      "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "hips": 14, "r_knee": 40, "l_knee": 8, "hip_shift": 0.12, "r_shoulder": 150, "r_elbow": 0, "l_shoulder": 140, "l_elbow": 70 } },
+        { "beat": 2, "angles": { "r_shoulder": -45, "r_elbow": -10, "torso_lean": -6 } },
+        { "beat": 3, "angles": { "r_shoulder": 95, "r_elbow": 0, "torso_lean": 8 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "midnight_clock", "name": "Midnight Clock", "lengthBeats": 8, "intensity": 2, "difficulty": "easy",
+      "side": "R", "mirror": true,
+      "notes": "Both hands at twelve, then the leading arm ticks around the clock face (3, 6, 9, 12) and the clock chimes.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "shoulders": 180 } },
+        { "beat": 2, "angles": { "r_shoulder": 90 } },
+        { "beat": 3, "angles": { "r_shoulder": 0 } },
+        { "beat": 4, "angles": { "r_shoulder": -80 } },
+        { "beat": 4.5, "angles": { "r_shoulder": -135 } },
+        { "beat": 5, "angles": { "r_shoulder": 180 } },
+        { "beat": 6, "angles": { "torso_lean": 12, "head_tilt": 6 } },
+        { "beat": 7, "angles": { "torso_lean": -12, "head_tilt": -6 } },
+        { "beat": 8, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "glass_slipper_kick", "name": "Glass Slipper Kick", "lengthBeats": 2, "intensity": 4, "difficulty": "normal",
+      "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 0.5, "angles": { "r_knee": 80, "r_lift": 30, "l_knee": 15, "shoulders": 80, "elbows": 0 } },
+        { "beat": 1, "angles": { "r_hip": 45, "r_knee": 0, "r_lift": 0, "l_knee": 10, "torso_lean": -12, "shoulders": 100 } },
+        { "beat": 1.5, "angles": { "r_hip": 0, "r_knee": 80, "r_lift": 30, "l_knee": 15, "torso_lean": 0, "shoulders": 80 } },
+        { "beat": 2, "from": "ready" }
+      ]
+    },
+    {
+      "id": "pumpkin_gallop", "name": "Pumpkin Carriage Gallop", "lengthBeats": 4, "intensity": 4, "difficulty": "normal",
+      "styles": ["storybook", "pop"], "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "notes": "Hold the reins and gallop; the leading hand swings the whip overhead.",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 0.5, "angles": { "knees": 15, "shoulders": 6.5, "elbows": -96 } },
+        { "beat": 1, "angles": { "knees": 45, "r_lift": 15, "hip_shift": 0.05 } },
+        { "beat": 1.5, "angles": { "knees": 15, "r_lift": 0, "hip_shift": 0 } },
+        { "beat": 2, "angles": { "knees": 45, "l_lift": 15, "hip_shift": -0.05 } },
+        { "beat": 2.5, "angles": { "knees": 15, "l_lift": 0, "hip_shift": 0, "r_shoulder": 165, "r_elbow": 50 } },
+        { "beat": 3, "angles": { "knees": 45, "r_lift": 15, "hip_shift": 0.05, "r_shoulder": 160, "r_elbow": -30 } },
+        { "beat": 3.5, "angles": { "knees": 15, "r_lift": 0, "hip_shift": 0, "r_shoulder": 165, "r_elbow": 50 } },
+        { "beat": 4, "from": "ready" }
+      ]
+    },
+    {
+      "id": "midnight_panic", "name": "Midnight Panic!", "lengthBeats": 4, "intensity": 5, "difficulty": "normal",
+      "side": "R", "mirror": true,
+      "notes": "The clock strikes twelve: hands on your head, run in place!",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 153, "elbows": 141, "knees": 20 } },
+        { "beat": 1, "angles": { "r_knee": 85, "r_lift": 30, "l_knee": 15, "head_tilt": 10, "torso_lean": -3 } },
+        { "beat": 1.5, "angles": { "knees": 20, "r_lift": 0, "head_tilt": 0, "torso_lean": 0 } },
+        { "beat": 2, "angles": { "l_knee": 85, "l_lift": 30, "r_knee": 15, "head_tilt": -10, "torso_lean": 3 } },
+        { "beat": 2.5, "angles": { "knees": 20, "l_lift": 0, "head_tilt": 0, "torso_lean": 0 } },
+        { "beat": 3, "angles": { "r_knee": 85, "r_lift": 30, "l_knee": 15, "head_tilt": 10, "torso_lean": -3 } },
+        { "beat": 3.5, "angles": { "knees": 20, "r_lift": 0, "head_tilt": 0, "torso_lean": 0 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "fairy_dust", "name": "Fairy Dust", "lengthBeats": 2, "intensity": 2, "difficulty": "easy",
+      "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "r_shoulder": 160, "r_elbow": 30 } },
+        { "beat": 1, "angles": { "r_shoulder": 110, "r_elbow": -25, "head_tilt": 6 } },
+        { "beat": 1.5, "angles": { "r_shoulder": 55, "r_elbow": -30 } },
+        { "beat": 2, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "magic_mirror", "name": "Mirror, Mirror", "lengthBeats": 4, "intensity": 1, "difficulty": "easy",
+      "side": "R", "mirror": true,
+      "notes": "Admire yourself in a hand mirror, fluff your hair, admire again.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 25, "r_elbow": 155, "l_shoulder": 40, "l_elbow": -118, "head_tilt": 10 } },
+        { "beat": 2, "angles": { "l_shoulder": 171, "l_elbow": 75, "head_tilt": -10 } },
+        { "beat": 3, "angles": { "l_shoulder": 40, "l_elbow": -118, "head_tilt": 10 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "dragon_wings", "name": "Dragon Wings", "lengthBeats": 4, "intensity": 4, "difficulty": "easy",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 45, "elbows": 40 } },
+        { "beat": 1, "angles": { "shoulders": 140, "elbows": -45 } },
+        { "beat": 1.5, "angles": { "shoulders": 45, "elbows": 40 } },
+        { "beat": 2, "angles": { "shoulders": 140, "elbows": -45 } },
+        { "beat": 2.5, "angles": { "shoulders": 45, "elbows": 40 } },
+        { "beat": 3, "angles": { "shoulders": 140, "elbows": -45 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "toy_soldier_march", "name": "Toy Soldier March", "lengthBeats": 4, "intensity": 2, "difficulty": "easy",
+      "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_knee": 70, "r_lift": 25, "l_shoulder": 45 } },
+        { "beat": 2, "angles": { "r_knee": 0, "r_lift": 0, "l_knee": 70, "l_lift": 25, "l_shoulder": 0, "r_shoulder": 45 } },
+        { "beat": 3, "angles": { "l_knee": 0, "l_lift": 0, "r_knee": 70, "r_lift": 25, "r_shoulder": 0, "l_shoulder": 45 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    }
+  ]
+}

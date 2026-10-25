@@ -2,9 +2,13 @@
 // proxies /api to 127.0.0.1:8000, so VITE_API_BASE is normally unset ('' = same origin).
 
 import { ANALYSIS_SECTION_LABELS, type Analysis, type AnalysisSection, type SectionLabel } from '@shared/analysis'
+import type { ChoreographRequest, LibraryMove, MoveKeyframe, MoveLibraryResponse } from '@shared/moves'
+import type { Keyframe, Move, Routine } from '@shared/routine'
+import { JOINTS, type JointName, type Pose2D, type Vec2 } from '@shared/skeleton'
 import { isAbortError } from './lib/errors'
 
 export type { Analysis, AnalysisSection, SectionLabel }
+export type { ChoreographRequest, LibraryMove, MoveLibraryResponse, Routine }
 
 export interface Health {
   status: string
@@ -63,6 +67,13 @@ const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFin
 const isStr = (v: unknown): v is string => typeof v === 'string'
 const isNumArray = (v: unknown): v is number[] => Array.isArray(v) && v.every(isNum)
 const isSectionLabel = (v: unknown): v is SectionLabel => ANALYSIS_SECTION_LABELS.some((l) => l === v)
+const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
+const isStrArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(isStr)
+const JOINT_SET: ReadonlySet<string> = new Set(JOINTS)
+const isJoint = (v: unknown): v is JointName => isStr(v) && JOINT_SET.has(v)
+const isDifficulty = (v: unknown): v is Routine['difficulty'] => v === 'easy' || v === 'normal' || v === 'hard'
+const isVec2 = (v: unknown): v is Vec2 => Array.isArray(v) && v.length === 2 && isNum(v[0]) && isNum(v[1])
+const isPose = (v: unknown): v is Pose2D => isRecord(v) && Object.entries(v).every(([k, p]) => JOINT_SET.has(k) && isVec2(p))
 
 function isHealth(v: unknown): v is Health {
   return isRecord(v) && isStr(v.status) && isStr(v.version)
@@ -132,6 +143,85 @@ export function isAnalysis(v: unknown): v is Analysis {
   )
 }
 
+// --- Stage 2: moves + routines (shared/moves.ts, shared/routine.ts) ---
+
+function isMoveKeyframe(v: unknown): v is MoveKeyframe {
+  return isRecord(v) && isNum(v.t) && isPose(v.pose) && isVec2(v.root)
+}
+
+export function isLibraryMove(v: unknown): v is LibraryMove {
+  return (
+    isRecord(v) &&
+    isStr(v.id) &&
+    isStr(v.baseId) &&
+    isStr(v.name) &&
+    isNum(v.lengthBeats) &&
+    isNum(v.intensity) &&
+    isDifficulty(v.difficulty) &&
+    isStrArray(v.bodyParts) &&
+    isBool(v.upperBodyOnly) &&
+    isStrArray(v.styles) &&
+    Array.isArray(v.scoredJoints) &&
+    v.scoredJoints.every(isJoint) &&
+    Array.isArray(v.keyframes) &&
+    v.keyframes.length > 0 &&
+    v.keyframes.every(isMoveKeyframe) &&
+    isStr(v.startAnchor) &&
+    isStr(v.endAnchor) &&
+    (v.side === 'L' || v.side === 'R' || v.side === 'both') &&
+    (v.mirrorOf === null || isStr(v.mirrorOf))
+  )
+}
+
+export function isMoveLibrary(v: unknown): v is MoveLibraryResponse {
+  return isRecord(v) && isStr(v.version) && Array.isArray(v.moves) && v.moves.every(isLibraryMove)
+}
+
+function isRoutineKeyframe(v: unknown): v is Keyframe {
+  return isRecord(v) && isNum(v.t) && isPose(v.pose) && (v.root === undefined || isVec2(v.root))
+}
+
+function isRoutineMove(v: unknown): v is Move {
+  return (
+    isRecord(v) &&
+    isStr(v.id) &&
+    isStr(v.name) &&
+    isNum(v.startBeat) &&
+    isNum(v.lengthBeats) &&
+    isNum(v.startTime) &&
+    isNum(v.endTime) &&
+    isNum(v.intensity) &&
+    Array.isArray(v.scoredJoints) &&
+    v.scoredJoints.every(isJoint) &&
+    Array.isArray(v.keyframes) &&
+    v.keyframes.length > 0 &&
+    v.keyframes.every(isRoutineKeyframe)
+  )
+}
+
+/** Structural check of a routine.json (shared/routine.schema.json). */
+export function isRoutine(v: unknown): v is Routine {
+  if (!isRecord(v)) return false
+  const { song } = v
+  return (
+    v.version === 1 &&
+    isRecord(song) &&
+    isStr(song.title) &&
+    isNum(song.durationSec) &&
+    isNum(song.bpm) &&
+    isNumArray(song.beats) &&
+    isNumArray(song.downbeats) &&
+    Array.isArray(song.sections) &&
+    song.sections.every((s) => isRecord(s) && isNum(s.start) && isNum(s.end) && isStr(s.label) && isNum(s.energy)) &&
+    isDifficulty(v.difficulty) &&
+    (v.mode === 'standing' || v.mode === 'seated') &&
+    isNum(v.seed) &&
+    Array.isArray(v.moves) &&
+    v.moves.every(isRoutineMove) &&
+    (v.meta === undefined || isRecord(v.meta))
+  )
+}
+
 /** FastAPI errors: { detail: string } or, for validation errors, { detail: [{ msg }] }. */
 function detailFrom(body: unknown): string | null {
   if (!isRecord(body)) return null
@@ -147,9 +237,11 @@ function detailFrom(body: unknown): string | null {
 type RequestOptions = Pick<RequestInit, 'method' | 'body' | 'signal'>
 
 /** fetch() that turns network failures into an "unreachable" ApiError (aborts pass through). */
-async function send(path: string, init: RequestOptions, accept: string): Promise<Response> {
+async function send(path: string, init: RequestOptions, accept: string, contentType?: string): Promise<Response> {
+  const headers: Record<string, string> = { Accept: accept }
+  if (contentType) headers['Content-Type'] = contentType
   try {
-    return await fetch(apiUrl(path), { ...init, headers: { Accept: accept } })
+    return await fetch(apiUrl(path), { ...init, headers })
   } catch (err) {
     if (isAbortError(err)) throw err
     throw new ApiError(SERVER_UNREACHABLE_MESSAGE, 0, true, { cause: err })
@@ -178,15 +270,24 @@ function errorFor(res: Response, text: string): ApiError {
   )
 }
 
-async function request<T>(path: string, guard: (v: unknown) => v is T, init: RequestOptions = {}): Promise<T> {
-  const res = await send(path, init, 'application/json')
+async function requestWithResponse<T>(
+  path: string,
+  guard: (v: unknown) => v is T,
+  init: RequestOptions = {},
+  contentType?: string,
+): Promise<{ body: T; res: Response }> {
+  const res = await send(path, init, 'application/json', contentType)
   const text = await res.text()
   if (!res.ok) throw errorFor(res, text)
   const body = parseJson(text)
   if (!guard(body)) {
     throw new ApiError(`Unexpected response from ${path} (does the server match shared/README.md?)`, res.status, false)
   }
-  return body
+  return { body, res }
+}
+
+async function request<T>(path: string, guard: (v: unknown) => v is T, init: RequestOptions = {}): Promise<T> {
+  return (await requestWithResponse(path, guard, init)).body
 }
 
 export function getHealth(signal?: AbortSignal): Promise<Health> {
@@ -247,4 +348,32 @@ export async function fetchAudio(path: string, signal?: AbortSignal): Promise<Ar
   const res = await send(path, { signal }, 'audio/*')
   if (!res.ok) throw errorFor(res, await res.text())
   return res.arrayBuffer()
+}
+
+/** GET /api/moves — every compiled move (incl. mirrored variants) + the library version. */
+export function getMoves(signal?: AbortSignal): Promise<MoveLibraryResponse> {
+  return request('/api/moves', isMoveLibrary, { signal })
+}
+
+export interface ChoreographResult {
+  routine: Routine
+  /** From the X-Routine-Cache header ("hit" / "miss"); null when absent. */
+  cached: boolean | null
+}
+
+/** POST /api/choreograph — a routine for a cached analysis (404 if the analysis isn't cached). */
+export async function choreograph(req: ChoreographRequest, signal?: AbortSignal): Promise<ChoreographResult> {
+  const { body, res } = await requestWithResponse(
+    '/api/choreograph',
+    isRoutine,
+    { method: 'POST', body: JSON.stringify(req), signal },
+    'application/json',
+  )
+  const cache = res.headers.get('X-Routine-Cache')?.toLowerCase()
+  return { routine: body, cached: cache === 'hit' ? true : cache === 'miss' ? false : null }
+}
+
+/** GET /api/routines/{routineId} — a previously generated routine. */
+export function getRoutine(routineId: string, signal?: AbortSignal): Promise<Routine> {
+  return request(`/api/routines/${encodeURIComponent(routineId)}`, isRoutine, { signal })
 }

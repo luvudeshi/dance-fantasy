@@ -61,6 +61,8 @@ class Song(_Strict):
 class Keyframe(_Strict):
     t: float = Field(ge=0, le=1)
     pose: Pose2D
+    # Rendering only: mid-hip displacement from neutral standing (body units, +y down). Scoring ignores it.
+    root: Vec2 | None = None
 
 
 class Move(_Strict):

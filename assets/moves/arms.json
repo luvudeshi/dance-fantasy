@@ -1,0 +1,184 @@
+{
+  "notes": "Arm-led pop moves. Most are seated-friendly (legs never move). Format: assets/moves/README.md.",
+  "defaults": { "styles": ["pop"] },
+  "moves": [
+    {
+      "id": "hello_wave", "name": "Hello Wave", "lengthBeats": 4, "intensity": 1, "difficulty": "easy",
+      "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 135, "r_elbow": 35, "head_tilt": 6 } },
+        { "beat": 2, "angles": { "r_elbow": -10, "head_tilt": 0 } },
+        { "beat": 3, "angles": { "r_elbow": 35, "head_tilt": 6 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "ocean_wave", "name": "Ocean Wave", "lengthBeats": 4, "intensity": 2, "difficulty": "easy",
+      "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "shoulders": 90 } },
+        { "beat": 2, "angles": { "r_shoulder": 112, "r_elbow": -30, "l_shoulder": 72, "l_elbow": 25, "torso_lean": 6 } },
+        { "beat": 3, "angles": { "r_shoulder": 72, "r_elbow": 25, "l_shoulder": 112, "l_elbow": -30, "torso_lean": -6 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "clap_clap", "name": "Clap Clap", "lengthBeats": 1, "intensity": 2, "difficulty": "easy",
+      "startAnchor": "clasp", "endAnchor": "clasp",
+      "keyframes": [
+        { "beat": 0, "from": "clasp" },
+        { "beat": 0.5, "angles": { "shoulders": 15, "elbows": -150 } },
+        { "beat": 1, "from": "clasp" }
+      ]
+    },
+    {
+      "id": "sky_clap", "name": "Sky Clap", "lengthBeats": 2, "intensity": 3, "difficulty": "easy",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 110 } },
+        { "beat": 1, "angles": { "shoulders": 185, "elbows": 40 } },
+        { "beat": 1.5, "angles": { "shoulders": 110, "elbows": 0 } },
+        { "beat": 2, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "fist_pump", "name": "Fist Pump", "lengthBeats": 4, "intensity": 4, "difficulty": "normal",
+      "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "r_shoulder": 40, "r_elbow": 140, "l_shoulder": 40, "l_elbow": -118 } },
+        { "beat": 1, "angles": { "r_shoulder": 172, "r_elbow": 0, "torso_lean": -4 } },
+        { "beat": 2, "angles": { "r_shoulder": 40, "r_elbow": 140, "torso_lean": 0 } },
+        { "beat": 3, "angles": { "r_shoulder": 172, "r_elbow": 0, "torso_lean": -4 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "raise_the_roof", "name": "Raise the Roof", "lengthBeats": 4, "intensity": 4, "difficulty": "easy",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 70, "elbows": 105 } },
+        { "beat": 1, "angles": { "shoulders": 155, "elbows": 25 } },
+        { "beat": 1.5, "angles": { "shoulders": 70, "elbows": 105 } },
+        { "beat": 2, "angles": { "shoulders": 155, "elbows": 25 } },
+        { "beat": 2.5, "angles": { "shoulders": 70, "elbows": 105 } },
+        { "beat": 3, "angles": { "shoulders": 155, "elbows": 25 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "windmill_arms", "name": "Windmill Arms", "lengthBeats": 4, "intensity": 3, "difficulty": "normal",
+      "notes": "Both arms draw big circles: out, up, crossing overhead, crossing in front, down.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 45 } },
+        { "beat": 1, "angles": { "shoulders": 90 } },
+        { "beat": 1.5, "angles": { "shoulders": 135 } },
+        { "beat": 2, "angles": { "shoulders": 180 } },
+        { "beat": 2.5, "angles": { "shoulders": 225 } },
+        { "beat": 3, "angles": { "shoulders": 290 } },
+        { "beat": 3.5, "angles": { "shoulders": 330 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "disco_fever", "name": "Disco Fever", "lengthBeats": 4, "intensity": 3, "difficulty": "easy",
+      "styles": ["disco", "pop"], "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 150, "r_elbow": 0, "l_shoulder": 40, "l_elbow": -118, "hip_shift": 0.12, "l_knee": 20 } },
+        { "beat": 2, "angles": { "r_shoulder": -35, "r_elbow": -25, "hip_shift": -0.12, "l_knee": 0, "r_knee": 20 } },
+        { "beat": 3, "angles": { "r_shoulder": 150, "r_elbow": 0, "hip_shift": 0.12, "l_knee": 20, "r_knee": 0 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "shoulder_shimmy", "name": "Shoulder Shimmy", "lengthBeats": 4, "intensity": 3, "difficulty": "normal",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 20, "elbows": 60, "torso_lean": 7, "head_tilt": -5 } },
+        { "beat": 1, "angles": { "torso_lean": -7, "head_tilt": 5 } },
+        { "beat": 1.5, "angles": { "torso_lean": 7, "head_tilt": -5 } },
+        { "beat": 2, "angles": { "torso_lean": -7, "head_tilt": 5 } },
+        { "beat": 2.5, "angles": { "torso_lean": 7, "head_tilt": -5 } },
+        { "beat": 3, "angles": { "torso_lean": -7, "head_tilt": 5 } },
+        { "beat": 3.5, "angles": { "torso_lean": 7, "head_tilt": -5 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "boxer_jab", "name": "Boxer Jab", "lengthBeats": 1, "intensity": 3, "difficulty": "normal",
+      "side": "R", "mirror": true, "startAnchor": "guard", "endAnchor": "guard",
+      "keyframes": [
+        { "beat": 0, "from": "guard" },
+        { "beat": 0.5, "angles": { "r_shoulder": 92, "r_elbow": 0, "torso_lean": 5 } },
+        { "beat": 1, "from": "guard" }
+      ]
+    },
+    {
+      "id": "punch_combo", "name": "One-Two Uppercut", "lengthBeats": 4, "intensity": 4, "difficulty": "normal",
+      "side": "R", "mirror": true, "startAnchor": "guard", "endAnchor": "guard",
+      "keyframes": [
+        { "beat": 0, "from": "guard" },
+        { "beat": 1, "angles": { "r_shoulder": 92, "r_elbow": 0, "torso_lean": 5 } },
+        { "beat": 2, "from": "guard", "angles": { "l_shoulder": 92, "l_elbow": 0, "torso_lean": -5 } },
+        { "beat": 3, "from": "guard", "angles": { "r_shoulder": 160, "r_elbow": 25, "torso_lean": 3 } },
+        { "beat": 4, "from": "guard" }
+      ]
+    },
+    {
+      "id": "muscle_flex", "name": "Strongman Flex", "lengthBeats": 2, "intensity": 3, "difficulty": "easy",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "shoulders": 90, "elbows": 100 } },
+        { "beat": 2, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "shrug", "name": "Who Knows?", "lengthBeats": 2, "intensity": 1, "difficulty": "easy",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "shoulders": 20, "elbows": 70, "head_tilt": 12 } },
+        { "beat": 2, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "hype_pump", "name": "Hype Pump", "lengthBeats": 4, "intensity": 5, "difficulty": "normal",
+      "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 40, "elbows": 140 } },
+        { "beat": 1, "angles": { "r_shoulder": 172, "r_elbow": 0, "torso_lean": -5 } },
+        { "beat": 1.5, "angles": { "shoulders": 40, "elbows": 140, "torso_lean": 0 } },
+        { "beat": 2, "angles": { "l_shoulder": 172, "l_elbow": 0, "torso_lean": 5 } },
+        { "beat": 2.5, "angles": { "shoulders": 40, "elbows": 140, "torso_lean": 0 } },
+        { "beat": 3, "angles": { "shoulders": 160, "elbows": 0 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "firework_burst", "name": "Firework Burst", "lengthBeats": 4, "intensity": 5, "difficulty": "normal",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 8, "elbows": -98 } },
+        { "beat": 1, "angles": { "shoulders": 150, "elbows": 0 } },
+        { "beat": 1.5, "angles": { "shoulders": 8, "elbows": -98 } },
+        { "beat": 2, "angles": { "shoulders": 100, "elbows": 0 } },
+        { "beat": 2.5, "angles": { "shoulders": 8, "elbows": -98 } },
+        { "beat": 3, "angles": { "shoulders": 168, "elbows": 0, "head_tilt": 0 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "ta_da", "name": "Ta-Da!", "lengthBeats": 1, "intensity": 2, "difficulty": "easy",
+      "endAnchor": "arms_up",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "shoulders": 95 } },
+        { "beat": 1, "from": "arms_up" }
+      ]
+    }
+  ]
+}

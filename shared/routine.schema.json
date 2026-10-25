@@ -104,7 +104,11 @@
       "required": ["t", "pose"],
       "properties": {
         "t": { "description": "Normalized time within the move, 0..1.", "type": "number", "minimum": 0, "maximum": 1 },
-        "pose": { "$ref": "#/$defs/pose" }
+        "pose": { "$ref": "#/$defs/pose" },
+        "root": {
+          "description": "Rendering only: displacement of mid-hip from its neutral standing position, in body units (+x dancer's right, +y down). Keeps feet on the floor in squats, lifts the body in jumps, travels sideways in step-touches. Scoring ignores it. Default [0, 0].",
+          "$ref": "#/$defs/vec2"
+        }
       }
     },
     "move": {

@@ -1,9 +1,21 @@
 // Stage 1 debug page: song analysis (beats, downbeats, onsets, energy, sections) on a
 // zoomable timeline, with audio-clock playback. Every visual is derived per animation
 // frame from SongPlayer.currentTime() (the AudioContext clock), never from timers.
+// Stage 2: a Choreography panel generates a routine (POST /api/choreograph); its moves get
+// a timeline row and a live preview figure driven by poseAtTime(routine, audio time).
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
-import { analyzeLibrarySong, analyzeUpload, ApiError, fetchAudio, listSongs, type Analysis, type SongInfo } from '../api'
+import type { Difficulty, Mode, Routine } from '@shared/routine'
+import {
+  analyzeLibrarySong,
+  analyzeUpload,
+  ApiError,
+  choreograph,
+  fetchAudio,
+  listSongs,
+  type Analysis,
+  type SongInfo,
+} from '../api'
 import { drawTimeline } from '../analysis/drawTimeline'
 import {
   barBeatAt,
@@ -24,8 +36,13 @@ import {
   type TimelineView,
 } from '../analysis/timeline'
 import { SongPlayer } from '../audio/songPlayer'
+import { prepareCanvas } from '../lib/canvas'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { useLatest } from '../lib/useLatest'
+import { coachStyle, drawFigure, drawFloor, fitFigureView } from '../render/stickFigure'
+import { DEMO_LIBRARY, demoRoutine } from '../routine/demo'
+import { routineSummary } from '../routine/library'
+import { poseAtTime } from '../routine/pose'
 
 type Source = { kind: 'library'; file: string } | { kind: 'upload'; file: File }
 
@@ -36,6 +53,17 @@ interface Loaded {
 }
 
 type Transport = 'paused' | 'loading' | 'playing'
+
+interface Generated {
+  analysisId: string
+  routine: Routine
+  /** Built in the browser from the demo library (server endpoint missing). */
+  demo: boolean
+  /** Server cache hit (X-Routine-Cache); null when unknown. */
+  cached: boolean | null
+}
+
+const randomSeed = (): number => Math.floor(Math.random() * 1_000_000)
 
 const FLASH_DECAY_SEC = 0.12
 
@@ -71,6 +99,12 @@ export default function AnalysisDebug() {
   const [zoom, setZoom] = useState(1)
   const [activeSection, setActiveSection] = useState(-1)
   const [player] = useState(() => new SongPlayer())
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const [mode, setMode] = useState<Mode>('standing')
+  const [seed, setSeed] = useState(1)
+  const [gen, setGen] = useState<Generated | null>(null)
+  const [genBusy, setGenBusy] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
 
   const requestRef = useRef<AbortController | null>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -84,6 +118,12 @@ export default function AnalysisDebug() {
   const lastViewRef = useRef<TimelineView | null>(null)
   const activeSectionRef = useRef(-1)
   const autoLoadedRef = useRef(false)
+  const genRequestRef = useRef<AbortController | null>(null)
+  const previewRef = useRef<HTMLCanvasElement>(null)
+  const nowNextRef = useRef<HTMLSpanElement>(null)
+
+  /** The generated routine, only while it belongs to the loaded analysis. */
+  const routine = gen && loaded && gen.analysisId === loaded.analysis.id ? gen.routine : null
 
   // --- view helpers ------------------------------------------------------------------
   const currentView = (): TimelineView | null => {
@@ -105,6 +145,7 @@ export default function AnalysisDebug() {
     const t = player.currentTime()
     const a = loaded?.analysis
     const canvas = canvasRef.current
+    const sample = routine ? poseAtTime(routine, t) : null
     let view = currentView()
     if (a && canvas && view) {
       if (playing) {
@@ -127,9 +168,24 @@ export default function AnalysisDebug() {
         scrollSec: view.scrollSec,
         playhead: t,
         activeSection: idx,
+        moves: routine?.moves,
+        activeMove: sample?.moveIndex ?? -1,
       })
     } else if (canvas) {
       canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
+    }
+
+    // Live preview of the routine (mirrored coach view).
+    const preview = previewRef.current ? prepareCanvas(previewRef.current) : null
+    if (preview && routine && sample) {
+      const fv = fitFigureView(preview.width, preview.height, true)
+      const current = routine.moves[sample.moveIndex]
+      drawFloor(preview.ctx, fv)
+      drawFigure(preview.ctx, sample.pose, sample.root, fv, coachStyle(fv, { highlightJoints: current?.scoredJoints }))
+    }
+    if (nowNextRef.current) {
+      const name = (i: number | undefined): string => (routine && i !== undefined && i >= 0 ? routine.moves[i].name : '–')
+      nowNextRef.current.textContent = routine ? `now: ${name(sample?.moveIndex)} · next: ${name(sample?.nextMoveIndex)}` : ''
     }
 
     const bb = a ? barBeatAt(a, t) : null
@@ -169,6 +225,7 @@ export default function AnalysisDebug() {
     })
     return () => {
       requestRef.current?.abort()
+      genRequestRef.current?.abort()
       cancelAnimationFrame(rafRef.current)
       rafRef.current = 0
       player.dispose() // stops audio + clicks, closes the AudioContext
@@ -197,6 +254,11 @@ export default function AnalysisDebug() {
     resizeRef.current()
   }, [zoom, loaded, resizeRef])
 
+  // A new routine (or none): redraw once; while playing the running loop picks it up.
+  useLayoutEffect(() => {
+    requestFrame()
+  }, [routine, requestFrame])
+
   // --- analysis ------------------------------------------------------------------------
   const analyze = async (source: Source, refresh = false): Promise<void> => {
     player.pause()
@@ -205,6 +267,10 @@ export default function AnalysisDebug() {
     const ac = new AbortController()
     requestRef.current = ac
     setError(null)
+    genRequestRef.current?.abort()
+    genRequestRef.current = null
+    setGenBusy(false)
+    setGenError(null)
     if (loaded && !sameSource(loaded.source, source)) {
       setLoaded(null)
       player.setSong(null)
@@ -236,6 +302,44 @@ export default function AnalysisDebug() {
         setBusy(null)
       }
     }
+  }
+
+  // --- choreography -------------------------------------------------------------------
+  /** POST /api/choreograph. Never touches playback: the frame loop reads the new routine. */
+  const generate = async (withSeed: number = seed): Promise<void> => {
+    const a = loaded?.analysis
+    if (!a) return
+    genRequestRef.current?.abort()
+    const ac = new AbortController()
+    genRequestRef.current = ac
+    setGenBusy(true)
+    setGenError(null)
+    try {
+      const res = await choreograph({ analysisId: a.id, difficulty, mode, seed: withSeed }, ac.signal)
+      setGen({ analysisId: a.id, routine: res.routine, demo: false, cached: res.cached })
+    } catch (err) {
+      if (ac.signal.aborted || isAbortError(err)) return
+      const missingEndpoint = err instanceof ApiError && err.status === 404 && err.message === 'Not Found'
+      setGenError(missingEndpoint ? 'The server has no POST /api/choreograph yet (404).' : friendlyError('Choreography', err))
+    } finally {
+      if (genRequestRef.current === ac) {
+        genRequestRef.current = null
+        setGenBusy(false)
+      }
+    }
+  }
+
+  const newSeed = (): void => {
+    const s = randomSeed()
+    setSeed(s)
+    void generate(s)
+  }
+
+  const applyDemoRoutine = (): void => {
+    const a = loaded?.analysis
+    if (!a) return
+    setGen({ analysisId: a.id, routine: demoRoutine(a, DEMO_LIBRARY, { difficulty, mode, seed }), demo: true, cached: null })
+    setGenError(null)
   }
 
   // --- song list -----------------------------------------------------------------------
@@ -340,6 +444,7 @@ export default function AnalysisDebug() {
   const a = loaded?.analysis
   const uploadName = loaded?.source.kind === 'upload' ? loaded.source.file.name : null
   const section = a && activeSection >= 0 ? a.sections[activeSection] : undefined
+  const summary = routine ? routineSummary(routine) : null
 
   return (
     <section className="page analysis-debug">
@@ -435,6 +540,7 @@ export default function AnalysisDebug() {
 
         <div className="live-view">
           <div ref={pulseRef} className="beat-circle small" />
+          {routine && <canvas ref={previewRef} className="preview-figure" aria-label="Routine preview (mirrored coach view)" />}
           <div>
             <div className="live-section" style={section ? { color: groupColor(section.group) } : undefined}>
               {section ? section.label : '–'}
@@ -443,8 +549,67 @@ export default function AnalysisDebug() {
             <div className="live-barbeat mono">
               <span ref={barBeatRef}>–</span>
             </div>
+            <div className="live-moves">
+              <span ref={nowNextRef} />
+            </div>
           </div>
         </div>
+      </div>
+
+      <div className="panel">
+        <h2>Choreography</h2>
+        <div className="toolbar">
+          <label>
+            Difficulty
+            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty)}>
+              <option value="easy">easy</option>
+              <option value="normal">normal</option>
+              <option value="hard">hard</option>
+            </select>
+          </label>
+          <label>
+            Mode
+            <select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
+              <option value="standing">standing</option>
+              <option value="seated">seated</option>
+            </select>
+          </label>
+          <label>
+            Seed
+            <input
+              type="number"
+              className="seed"
+              step={1}
+              value={seed}
+              onChange={(e) => setSeed(Math.trunc(Number(e.target.value)) || 0)}
+            />
+          </label>
+          <button type="button" disabled={!a || busy !== null} onClick={newSeed} title="Pick a random seed and generate">
+            New seed
+          </button>
+          <button type="button" className="primary" disabled={!a || busy !== null} onClick={() => void generate()}>
+            {genBusy ? 'Generating…' : routine ? 'Regenerate' : 'Generate'}
+          </button>
+          {gen?.demo && routine && <span className="badge fresh">offline demo routine</span>}
+        </div>
+        {genError && (
+          <p className="error">
+            {genError}{' '}
+            <button type="button" className="link" onClick={applyDemoRoutine}>
+              Use an offline demo routine
+            </button>
+          </p>
+        )}
+        <dl className="choreo-stats">
+          <dt>routine</dt>
+          <dd>{summary?.routineId ?? '–'}</dd>
+          <dt>moves</dt>
+          <dd>{summary ? `${summary.moves} (${summary.distinct} distinct)` : '–'}</dd>
+          <dt>cached</dt>
+          <dd>{gen && routine ? (gen.demo ? 'demo' : gen.cached === null ? 'n/a' : gen.cached ? 'yes' : 'no') : '–'}</dd>
+          <dt>setup</dt>
+          <dd>{routine ? `${routine.difficulty} · ${routine.mode} · seed ${routine.seed}` : '–'}</dd>
+        </dl>
       </div>
 
       {a && (

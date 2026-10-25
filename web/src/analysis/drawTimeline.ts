@@ -1,8 +1,12 @@
-// Canvas renderer for the analysis debug timeline. Rows (top to bottom): sections, beat
-// energy, onset envelope, beats, time axis; plus the playhead. All x math in timeline.ts.
+// Canvas renderer for the analysis debug timeline. Rows (top to bottom): sections, routine
+// moves, beat energy, onset envelope, beats, time axis; plus the playhead. All x math in
+// timeline.ts.
 
 import type { Analysis } from '@shared/analysis'
+import type { Move } from '@shared/routine'
 import { prepareCanvas } from '../lib/canvas'
+import { intensityColor } from '../routine/library'
+import { lastStartedIndex } from '../routine/pose'
 import {
   beatIndexAt,
   formatTime,
@@ -16,15 +20,18 @@ import {
 } from './timeline'
 
 /** CSS height the canvas must have (see .analysis-timeline). */
-export const TIMELINE_HEIGHT = 236
+export const TIMELINE_HEIGHT = 268
 
 const ROW = {
   sections: { top: 0, h: 36 },
-  energy: { top: 42, h: 58 },
-  onset: { top: 106, h: 48 },
-  beats: { top: 160, h: 52 },
-  axis: { top: 214, h: 22 },
+  moves: { top: 42, h: 26 },
+  energy: { top: 74, h: 58 },
+  onset: { top: 138, h: 48 },
+  beats: { top: 192, h: 52 },
+  axis: { top: 246, h: 22 },
 } as const
+
+export type TimelineMove = Pick<Move, 'startTime' | 'endTime' | 'name' | 'intensity'>
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
 const BAR_LABEL_EVERY = 4
@@ -38,6 +45,10 @@ export interface TimelineFrame {
   scrollSec: number
   playhead: number
   activeSection: number
+  /** Routine moves in playback order (Moves row); empty/undefined = no routine. */
+  moves?: readonly TimelineMove[]
+  /** Index of the move playing at the playhead, or -1. */
+  activeMove?: number
 }
 
 /** Draws one frame; returns the view used (for hit-testing clicks), or null if hidden. */
@@ -93,6 +104,33 @@ export function drawTimeline(canvas: HTMLCanvasElement, f: TimelineFrame): Timel
     ctx.fillText(`${s.label} · ${s.group}`, Math.max(x0, 0) + 7, top + h / 2 + 2)
     ctx.restore()
   })
+
+  // Moves: blocks spanning their beats, coloured by intensity, a divider at each start.
+  if (f.moves && f.moves.length > 0) {
+    const { top, h } = ROW.moves
+    ctx.font = `600 11px system-ui, -apple-system, sans-serif`
+    ctx.textBaseline = 'middle'
+    for (let i = Math.max(0, lastStartedIndex(f.moves, t0)); i < f.moves.length; i++) {
+      const m = f.moves[i]
+      if (m.startTime > t1) break
+      const x0 = x(m.startTime)
+      const x1 = x(m.endTime)
+      const color = intensityColor(m.intensity)
+      ctx.fillStyle = withAlpha(color, i === f.activeMove ? 0.62 : 0.3)
+      ctx.fillRect(x0, top, x1 - x0, h)
+      ctx.fillStyle = color
+      ctx.fillRect(x0, top, 1.5, h)
+      if (x1 - x0 > 34) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(x0 + 3, top, x1 - x0 - 6, h)
+        ctx.clip()
+        ctx.fillStyle = '#eef0fb'
+        ctx.fillText(m.name, Math.max(x0, 0) + 6, top + h / 2 + 1)
+        ctx.restore()
+      }
+    }
+  }
 
   const beats = a.beats
   const first = Math.max(0, beatIndexAt(beats, t0))
@@ -179,6 +217,7 @@ export function drawTimeline(canvas: HTMLCanvasElement, f: TimelineFrame): Timel
     ctx.fillStyle = 'rgba(143, 151, 191, 0.95)'
     ctx.fillText(text, 5, y + 1)
   }
+  if (!f.moves?.length) rowLabel('MOVES · generate a routine below', ROW.moves.top + 6)
   rowLabel('ENERGY', ROW.energy.top)
   rowLabel('ONSET', ROW.onset.top)
   rowLabel('BEATS', ROW.beats.top + ROW.beats.h - 13) // bottom: bar numbers sit at the top

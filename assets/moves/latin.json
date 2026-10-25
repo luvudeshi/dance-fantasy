@@ -1,0 +1,60 @@
+{
+  "notes": "Latin / party moves: hip action comes from hip_shift with the opposite knee soft. Format: assets/moves/README.md.",
+  "defaults": { "styles": ["latin"] },
+  "moves": [
+    {
+      "id": "salsa_basic", "name": "Salsa Basic", "lengthBeats": 8, "intensity": 3, "difficulty": "normal",
+      "side": "L", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "notes": "1-2-3 (hold) 5-6-7 (hold): forward rock on the left, back rock on the right; arms swing opposite the hips.",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 1, "angles": { "l_knee": 20, "l_lift": 15, "r_knee": 5, "hip_shift": -0.1, "shoulders": 30, "elbows": 100, "torso_lean": 4 } },
+        { "beat": 2, "angles": { "l_knee": 25, "l_lift": 0, "r_knee": 5, "hip_shift": 0.1, "torso_lean": -4 } },
+        { "beat": 3, "angles": { "knees": 15, "hip_shift": 0, "torso_lean": 0 } },
+        { "beat": 4, "angles": { "knees": 20, "hip_shift": -0.05 } },
+        { "beat": 5, "angles": { "r_knee": 25, "r_lift": -10, "l_knee": 5, "hip_shift": 0.1, "torso_lean": -4 } },
+        { "beat": 6, "angles": { "r_knee": 25, "r_lift": 0, "l_knee": 5, "hip_shift": -0.1, "torso_lean": 4 } },
+        { "beat": 7, "angles": { "knees": 15, "hip_shift": 0, "torso_lean": 0 } },
+        { "beat": 8, "from": "ready" }
+      ]
+    },
+    {
+      "id": "merengue_march", "name": "Merengue March", "lengthBeats": 4, "intensity": 2, "difficulty": "easy",
+      "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 1, "angles": { "r_knee": 35, "l_knee": 5, "hip_shift": -0.12, "shoulders": 16, "elbows": -148, "torso_lean": 4 } },
+        { "beat": 2, "angles": { "l_knee": 35, "r_knee": 5, "hip_shift": 0.12, "torso_lean": -4 } },
+        { "beat": 3, "angles": { "r_knee": 35, "l_knee": 5, "hip_shift": -0.12, "torso_lean": 4 } },
+        { "beat": 4, "from": "ready" }
+      ]
+    },
+    {
+      "id": "hip_sway", "name": "Hip Sway", "lengthBeats": 4, "intensity": 1, "difficulty": "easy",
+      "styles": ["latin", "pop"], "side": "R", "mirror": true, "startAnchor": "hands_hips", "endAnchor": "hands_hips",
+      "keyframes": [
+        { "beat": 0, "from": "hands_hips" },
+        { "beat": 1, "angles": { "hip_shift": 0.16, "l_knee": 22, "torso_lean": -4 } },
+        { "beat": 2, "angles": { "hip_shift": -0.16, "l_knee": 0, "r_knee": 22, "torso_lean": 4 } },
+        { "beat": 3, "angles": { "hip_shift": 0.16, "r_knee": 0, "l_knee": 22, "torso_lean": -4 } },
+        { "beat": 4, "from": "hands_hips" }
+      ]
+    },
+    {
+      "id": "macarena", "name": "Macarena Arms", "lengthBeats": 8, "intensity": 2, "difficulty": "easy",
+      "styles": ["latin", "pop"], "side": "R",
+      "notes": "One hand per beat: out, out, opposite shoulder, opposite shoulder, behind the head, behind the head, opposite hip.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 80 } },
+        { "beat": 2, "angles": { "l_shoulder": 80 } },
+        { "beat": 3, "angles": { "r_shoulder": -47, "r_elbow": -88 } },
+        { "beat": 4, "angles": { "l_shoulder": -47, "l_elbow": -88 } },
+        { "beat": 5, "angles": { "r_shoulder": 156, "r_elbow": 112, "head_tilt": -4 } },
+        { "beat": 6, "angles": { "l_shoulder": 156, "l_elbow": 112, "head_tilt": 0 } },
+        { "beat": 7, "angles": { "r_shoulder": -42, "r_elbow": 2, "torso_lean": 4 } },
+        { "beat": 8, "from": "neutral" }
+      ]
+    }
+  ]
+}

@@ -11,6 +11,7 @@ and run `make test` (contract tests fail if they drift).
 | `routine.schema.json` | JSON Schema (draft 2020-12) for `routine.json` |
 | `routine.ts` | TS types for `routine.json` (web) |
 | `analysis.schema.json`, `analysis.ts` | Song analysis returned by the server (Stage 1) |
+| `moves.ts` | Move library + choreograph request types (Stage 2); server side in `server/app/moves/types.py` |
 | `examples/routine.example.json` | Small valid routine used by tests |
 | `../server/app/skeleton.py`, `../server/app/routine.py` | Python side (Pydantic v2) |
 
@@ -125,6 +126,19 @@ and carry a `group` letter: sections with the same letter repeat the same music,
 choreographer reuses their moves. A routine's `song` is derived from an `Analysis` by
 keeping `id, title, artist, durationSec, bpm, beats, downbeats` and each section's
 `start, end, label, energy`.
+
+Stage 2 endpoints (moves + choreography):
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/moves` | `MoveLibraryResponse` (`shared/moves.ts`): every compiled move incl. mirrored variants |
+| POST | `/api/choreograph` (JSON `ChoreographRequest`: `analysisId`, `difficulty`, `mode`, `seed`) | a `routine.json` (`Routine`); 404 if the analysis isn't cached yet |
+| GET | `/api/routines/{routineId}` | a previously generated routine (for share links / multiplayer later) |
+
+Generated routines put `routineId`, `generator`, `libraryVersion`, `analysisId` and
+`analysisVersion` in `meta`. The same request always returns the same routine (cached by
+`routineId` = hash of analysis id + versions + difficulty + mode + seed); a new seed gives a
+new routine. Keyframes may carry `root` (rendering-only hip offset, see the schema).
 
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large).

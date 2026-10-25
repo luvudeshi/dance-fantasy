@@ -1,0 +1,82 @@
+{
+  "notes": "Footwork and jumps (travel / jump / knees). Format: assets/moves/README.md.",
+  "defaults": { "styles": ["pop", "aerobic"] },
+  "moves": [
+    {
+      "id": "step_touch", "name": "Step Touch Clap", "lengthBeats": 4, "intensity": 2, "difficulty": "easy",
+      "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 1, "angles": { "travel": 0.25, "hips": 8, "knees": 15, "shoulders": 40, "elbows": 10 } },
+        { "beat": 2, "angles": { "travel": 0.5, "hips": 0, "r_knee": 12, "l_knee": 32, "shoulders": -6, "elbows": -125 } },
+        { "beat": 3, "angles": { "travel": 0.25, "hips": 8, "knees": 15, "shoulders": 40, "elbows": 10 } },
+        { "beat": 4, "from": "ready" }
+      ]
+    },
+    {
+      "id": "grapevine", "name": "Grapevine", "lengthBeats": 8, "intensity": 3, "difficulty": "normal",
+      "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "notes": "Side, behind, side, tap-clap; then back the other way. Feet stay planted between steps (travel moves the root).",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 1, "angles": { "travel": 0.2, "hips": 6, "knees": 15, "shoulders": 70, "elbows": 0 } },
+        { "beat": 2, "angles": { "travel": 0.685, "hips": -9, "knees": 20, "shoulders": -25, "elbows": -20 } },
+        { "beat": 3, "angles": { "travel": 0.95, "hips": 0, "knees": 15, "shoulders": 70, "elbows": 0 } },
+        { "beat": 4, "angles": { "travel": 1.04, "hips": -3, "l_knee": 32, "r_knee": 12, "shoulders": -6, "elbows": -125 } },
+        { "beat": 5, "angles": { "travel": 0.84, "hips": 3, "knees": 15, "shoulders": 70, "elbows": 0 } },
+        { "beat": 6, "angles": { "travel": 0.465, "hips": -9, "knees": 20, "shoulders": -25, "elbows": -20 } },
+        { "beat": 7, "angles": { "travel": 0.2, "hips": 0, "knees": 15, "shoulders": 70, "elbows": 0 } },
+        { "beat": 8, "from": "ready" }
+      ]
+    },
+    {
+      "id": "jumping_jack", "name": "Jumping Jack", "lengthBeats": 2, "intensity": 5, "difficulty": "normal",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "jump": 0.15, "hips": 10, "knees": 5, "shoulders": 100 } },
+        { "beat": 1, "angles": { "jump": 0, "hips": 16, "knees": 20, "shoulders": 170, "elbows": 10 } },
+        { "beat": 1.5, "angles": { "jump": 0.15, "hips": 8, "knees": 5, "shoulders": 90, "elbows": 0 } },
+        { "beat": 2, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "star_jump", "name": "Superstar Jump", "lengthBeats": 4, "intensity": 5, "difficulty": "normal",
+      "startAnchor": "ready", "endAnchor": "ready",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 1, "angles": { "knees": 80, "shoulders": 25, "elbows": 0, "torso_lean": 0 } },
+        { "beat": 1.5, "angles": { "jump": 0.2, "knees": 10, "hips": 12, "shoulders": 90, "elbows": 0 } },
+        { "beat": 2, "angles": { "jump": 0.4, "knees": 0, "hips": 28, "shoulders": 140 } },
+        { "beat": 2.5, "angles": { "jump": 0.12, "knees": 15, "hips": 14, "shoulders": 100 } },
+        { "beat": 3, "angles": { "jump": 0, "knees": 55, "hips": 12, "shoulders": 60 } },
+        { "beat": 4, "from": "ready" }
+      ]
+    },
+    {
+      "id": "knee_up_clap", "name": "Knee-Up Clap", "lengthBeats": 2, "intensity": 4, "difficulty": "normal",
+      "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 0.5, "angles": { "shoulders": 160, "elbows": 0, "knees": 10 } },
+        { "beat": 1, "angles": { "r_knee": 95, "r_lift": 40, "l_knee": 12, "r_shoulder": 3.5, "r_elbow": -60, "l_shoulder": -20, "l_elbow": -35, "torso_lean": 3 } },
+        { "beat": 1.5, "angles": { "r_knee": 20, "r_lift": 0, "l_knee": 20, "shoulders": 70, "elbows": 0, "torso_lean": 0 } },
+        { "beat": 2, "from": "ready" }
+      ]
+    },
+    {
+      "id": "yeehaw_lasso", "name": "Yeehaw Lasso", "lengthBeats": 4, "intensity": 3, "difficulty": "normal",
+      "styles": ["country", "pop"], "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "notes": "Hand on the hip, spin the lasso over your head while bouncing, then throw it on beat 3.",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 0.5, "angles": { "r_shoulder": 165, "r_elbow": 45, "l_shoulder": 40, "l_elbow": -118, "knees": 10 } },
+        { "beat": 1, "angles": { "r_shoulder": 145, "r_elbow": -35, "knees": 32 } },
+        { "beat": 1.5, "angles": { "r_shoulder": 165, "r_elbow": 45, "knees": 10 } },
+        { "beat": 2, "angles": { "r_shoulder": 145, "r_elbow": -35, "knees": 32 } },
+        { "beat": 2.5, "angles": { "r_shoulder": 165, "r_elbow": 45, "knees": 10 } },
+        { "beat": 3, "angles": { "r_shoulder": 100, "r_elbow": 0, "knees": 25, "r_hip": 8, "torso_lean": 7 } },
+        { "beat": 4, "from": "ready" }
+      ]
+    }
+  ]
+}

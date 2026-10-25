@@ -1,7 +1,7 @@
 // routine.json types for the web app. Hand-written to match shared/routine.schema.json
 // and server/app/routine.py. Change all three together.
 
-import type { JointName, Pose2D } from './skeleton'
+import type { JointName, Pose2D, Vec2 } from './skeleton'
 
 export const ROUTINE_VERSION = 1 as const
 
@@ -37,6 +37,8 @@ export interface Keyframe {
   /** Normalized time within the move, 0..1. */
   t: number
   pose: Pose2D
+  /** Rendering only: mid-hip displacement from neutral standing, body units (+x dancer's right, +y down). Default [0, 0]. Scoring ignores it. */
+  root?: Vec2
 }
 
 export interface Move {

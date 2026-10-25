@@ -1,0 +1,114 @@
+{
+  "notes": "Hip-hop / street moves. Format: assets/moves/README.md.",
+  "defaults": { "styles": ["hiphop"] },
+  "moves": [
+    {
+      "id": "hiphop_bounce", "name": "Hip-Hop Bounce", "lengthBeats": 2, "intensity": 2, "difficulty": "easy",
+      "startAnchor": "ready", "endAnchor": "ready",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 0.5, "angles": { "knees": 5, "shoulders": 35, "elbows": 15 } },
+        { "beat": 1, "angles": { "knees": 45, "shoulders": -25, "elbows": -25, "head_tilt": 5 } },
+        { "beat": 1.5, "angles": { "knees": 5, "shoulders": 35, "elbows": 15, "head_tilt": 0 } },
+        { "beat": 2, "from": "ready" }
+      ]
+    },
+    {
+      "id": "cabbage_patch", "name": "Cabbage Patch", "lengthBeats": 4, "intensity": 3, "difficulty": "normal",
+      "startAnchor": "ready", "endAnchor": "ready",
+      "notes": "Fists together in front of the chest stir a big circle while the knees bounce.",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 0.5, "angles": { "r_shoulder": 50, "r_elbow": -138, "l_shoulder": -25, "l_elbow": -86, "torso_lean": 6, "knees": 15 } },
+        { "beat": 1, "angles": { "r_shoulder": -24, "r_elbow": -137, "l_shoulder": -24, "l_elbow": -137, "torso_lean": 0, "knees": 35 } },
+        { "beat": 1.5, "angles": { "r_shoulder": -25, "r_elbow": -86, "l_shoulder": 50, "l_elbow": -138, "torso_lean": -6, "knees": 15 } },
+        { "beat": 2, "angles": { "r_shoulder": 8, "r_elbow": -92, "l_shoulder": 8, "l_elbow": -92, "torso_lean": 0, "knees": 35 } },
+        { "beat": 2.5, "angles": { "r_shoulder": 50, "r_elbow": -138, "l_shoulder": -25, "l_elbow": -86, "torso_lean": 6, "knees": 15 } },
+        { "beat": 3, "angles": { "r_shoulder": -24, "r_elbow": -137, "l_shoulder": -24, "l_elbow": -137, "torso_lean": 0, "knees": 35 } },
+        { "beat": 3.5, "angles": { "r_shoulder": -25, "r_elbow": -86, "l_shoulder": 50, "l_elbow": -138, "torso_lean": -6, "knees": 15 } },
+        { "beat": 4, "from": "ready" }
+      ]
+    },
+    {
+      "id": "running_man", "name": "Running Man", "lengthBeats": 4, "intensity": 5, "difficulty": "hard",
+      "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 0.5, "angles": { "knees": 30, "shoulders": 20, "elbows": 60 } },
+        { "beat": 1, "angles": { "r_knee": 95, "r_lift": 40, "l_knee": 20, "l_shoulder": 35, "l_elbow": 120, "r_shoulder": -10, "r_elbow": -40, "torso_lean": -3 } },
+        { "beat": 1.5, "angles": { "r_knee": 30, "r_lift": 0, "l_knee": 30, "shoulders": 20, "elbows": 60, "torso_lean": 0 } },
+        { "beat": 2, "angles": { "l_knee": 95, "l_lift": 40, "r_knee": 20, "r_shoulder": 35, "r_elbow": 120, "l_shoulder": -10, "l_elbow": -40, "torso_lean": 3 } },
+        { "beat": 2.5, "angles": { "l_knee": 30, "l_lift": 0, "r_knee": 30, "shoulders": 20, "elbows": 60, "torso_lean": 0 } },
+        { "beat": 3, "angles": { "r_knee": 95, "r_lift": 40, "l_knee": 20, "l_shoulder": 35, "l_elbow": 120, "r_shoulder": -10, "r_elbow": -40, "torso_lean": -3 } },
+        { "beat": 3.5, "angles": { "r_knee": 30, "r_lift": 0, "l_knee": 30, "shoulders": 20, "elbows": 60, "torso_lean": 0 } },
+        { "beat": 4, "from": "ready" }
+      ]
+    },
+    {
+      "id": "dab", "name": "The Dab", "lengthBeats": 2, "intensity": 3, "difficulty": "easy",
+      "styles": ["hiphop", "pop"], "side": "R", "mirror": true,
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 132, "r_elbow": 0, "l_shoulder": -125, "l_elbow": -30, "head_tilt": 12, "torso_lean": 4 } },
+        { "beat": 2, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "speed_bag", "name": "Speed Bag", "lengthBeats": 4, "intensity": 4, "difficulty": "hard",
+      "startAnchor": "guard", "endAnchor": "guard",
+      "notes": "Fists roll around each other in front of the face, one high one low, swapping every half beat.",
+      "keyframes": [
+        { "beat": 0, "from": "guard" },
+        { "beat": 0.5, "angles": { "r_shoulder": -50, "r_elbow": -137, "l_shoulder": -10, "l_elbow": -135 } },
+        { "beat": 1, "angles": { "l_shoulder": -50, "l_elbow": -137, "r_shoulder": -10, "r_elbow": -135, "torso_lean": 3 } },
+        { "beat": 1.5, "angles": { "r_shoulder": -50, "r_elbow": -137, "l_shoulder": -10, "l_elbow": -135, "torso_lean": 0 } },
+        { "beat": 2, "angles": { "l_shoulder": -50, "l_elbow": -137, "r_shoulder": -10, "r_elbow": -135, "torso_lean": -3 } },
+        { "beat": 2.5, "angles": { "r_shoulder": -50, "r_elbow": -137, "l_shoulder": -10, "l_elbow": -135, "torso_lean": 0 } },
+        { "beat": 3, "angles": { "l_shoulder": -50, "l_elbow": -137, "r_shoulder": -10, "r_elbow": -135, "torso_lean": 3 } },
+        { "beat": 3.5, "angles": { "r_shoulder": -50, "r_elbow": -137, "l_shoulder": -10, "l_elbow": -135, "torso_lean": 0 } },
+        { "beat": 4, "from": "guard" }
+      ]
+    },
+    {
+      "id": "dougie", "name": "The Dougie", "lengthBeats": 4, "intensity": 3, "difficulty": "normal",
+      "side": "R", "mirror": true, "startAnchor": "ready", "endAnchor": "ready",
+      "keyframes": [
+        { "beat": 0, "from": "ready" },
+        { "beat": 1, "angles": { "torso_lean": 10, "hip_shift": -0.1, "r_shoulder": 150, "r_elbow": 110, "l_shoulder": 30, "l_elbow": 20, "r_knee": 30, "l_knee": 10, "head_tilt": 6 } },
+        { "beat": 2, "angles": { "torso_lean": -10, "hip_shift": 0.1, "l_shoulder": 150, "l_elbow": 110, "r_shoulder": 30, "r_elbow": 20, "l_knee": 30, "r_knee": 10, "head_tilt": -6 } },
+        { "beat": 3, "angles": { "torso_lean": 10, "hip_shift": -0.1, "r_shoulder": 150, "r_elbow": 110, "l_shoulder": 30, "l_elbow": 20, "r_knee": 30, "l_knee": 10, "head_tilt": 6 } },
+        { "beat": 4, "from": "ready" }
+      ]
+    },
+    {
+      "id": "floss", "name": "The Floss", "lengthBeats": 4, "intensity": 5, "difficulty": "hard",
+      "styles": ["hiphop", "pop"], "side": "R", "mirror": true,
+      "notes": "Straight arms swing together to one side while the hips swing to the other, every half beat.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
+        { "beat": 1, "angles": { "r_shoulder": -40, "l_shoulder": 40, "hip_shift": 0.12, "l_knee": 15, "r_knee": 0, "torso_lean": -4 } },
+        { "beat": 1.5, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
+        { "beat": 2, "angles": { "r_shoulder": -40, "l_shoulder": 40, "hip_shift": 0.12, "l_knee": 15, "r_knee": 0, "torso_lean": -4 } },
+        { "beat": 2.5, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
+        { "beat": 3, "angles": { "r_shoulder": -40, "l_shoulder": 40, "hip_shift": 0.12, "l_knee": 15, "r_knee": 0, "torso_lean": -4 } },
+        { "beat": 3.5, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "body_roll", "name": "Body Roll", "lengthBeats": 4, "intensity": 2, "difficulty": "normal",
+      "styles": ["hiphop", "pop"], "side": "R", "mirror": true,
+      "notes": "The torso rolls side to side and sinks while the hands slide down the body: chest, belly, hips.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 0.5, "angles": { "torso_lean": 4, "hip_shift": -0.05 } },
+        { "beat": 1, "angles": { "torso_lean": 9, "hip_shift": -0.1, "shoulders": -6, "elbows": -125, "head_tilt": -4 } },
+        { "beat": 2, "angles": { "torso_lean": -9, "hip_shift": 0.1, "knees": 20, "shoulders": 8, "elbows": -92, "head_tilt": 4 } },
+        { "beat": 3, "angles": { "torso_lean": 9, "hip_shift": -0.1, "knees": 35, "shoulders": 40, "elbows": -118, "head_tilt": -4 } },
+        { "beat": 3.5, "angles": { "torso_lean": 0, "hip_shift": 0, "knees": 15, "head_tilt": 0 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    }
+  ]
+}
