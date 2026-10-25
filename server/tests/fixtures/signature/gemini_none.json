@@ -1,0 +1,9 @@
+{
+  "candidates": [
+    {
+      "content": { "role": "model", "parts": [{ "text": "```json\n{\"danceName\": null}\n```" }] },
+      "finishReason": "STOP"
+    }
+  ],
+  "modelVersion": "gemini-2.5-flash"
+}

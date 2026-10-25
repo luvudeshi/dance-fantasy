@@ -1,0 +1,22 @@
+{
+  "search_metadata": { "id": "fixture", "status": "Success" },
+  "search_parameters": { "engine": "youtube", "search_query": "Lottery (Renegade) TikTok dance", "api_key": "REDACTED" },
+  "video_results": [
+    {
+      "position_on_page": 1,
+      "title": "Jalaiah Harmon does the Renegade",
+      "link": "https://www.youtube.com/watch?v=EXAMPLE00002",
+      "channel": { "name": "Example Channel", "link": "https://www.youtube.com/@example", "verified": true },
+      "description": "The original creator of the Renegade dance.",
+      "thumbnail": { "static": "https://i.ytimg.com/vi/EXAMPLE00002/hq720.jpg", "rich": "https://i.ytimg.com/an_webp/EXAMPLE00002/mqdefault_6s.webp" }
+    },
+    {
+      "position_on_page": 2,
+      "title": "Renegade dance tutorial (Lottery by K CAMP)",
+      "link": "https://www.youtube.com/watch?v=EXAMPLE00001",
+      "description": "Duplicate of a Google inline video: de-duplicated.",
+      "thumbnail": { "static": "https://i.ytimg.com/vi/EXAMPLE00001/hq720.jpg" }
+    },
+    { "position_on_page": 3, "title": "", "link": "https://www.youtube.com/watch?v=EXAMPLE00003" }
+  ]
+}

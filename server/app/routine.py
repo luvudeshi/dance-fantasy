@@ -65,6 +65,13 @@ class Keyframe(_Strict):
     root: Vec2 | None = None
 
 
+class SignatureDance(_Strict):
+    """A pinned signature move (app.signature): the dance it is inspired by and, when known, who created it."""
+
+    name: str = Field(min_length=1)
+    creator: str | None = None
+
+
 class Move(_Strict):
     id: str = Field(min_length=1)
     name: str
@@ -75,6 +82,7 @@ class Move(_Strict):
     intensity: int = Field(ge=1, le=5)
     scoredJoints: list[JointName]
     keyframes: list[Keyframe] = Field(min_length=1)
+    signatureDance: SignatureDance | None = None
 
     @model_validator(mode="after")
     def _check_order(self) -> Move:

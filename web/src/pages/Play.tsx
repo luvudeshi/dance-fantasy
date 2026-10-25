@@ -10,7 +10,8 @@
 // (src/game/clock.ts). Webcam frames and poses never leave the browser; the optional session
 // log (game/sessionLog.ts) holds numbers only and is saved only when downloaded.
 
-import { useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
+import type { PinnedMoveRequest } from '@shared/moves'
 import type { Difficulty, Mode } from '@shared/routine'
 import { ApiError, listSongs, type SongInfo } from '../api'
 import { recordRound } from '../account/store'
@@ -27,7 +28,6 @@ import { barSeekTarget, effectiveRehearsal, loadRehearsal, REHEARSALS, saveRehea
 import ResultsScreen from '../game/ResultsScreen'
 import { useAnnouncer } from '../announcer/announcer'
 import { HeraldBubble } from '../announcer/Herald'
-import { SignatureCard } from '../signature/SignatureCard'
 import { buildResultsView, roundDetails, type ResultsView } from '../game/results'
 import {
   forgetRoutine,
@@ -46,6 +46,7 @@ import {
   prepareFromRecipe,
   prepareFromRoutine,
   prepareGame,
+  recipeFromRoutine,
   routineFor,
   STEP_LABELS,
   type PreparedGame,
@@ -71,6 +72,10 @@ import { Icon } from '../theme/Icon'
 import type { IconName } from '../theme/icons'
 import { PauseMenu } from '../theme/screens/PauseMenu'
 import { setVoiceDucker, unlockVoice } from '../voice/voice'
+import { signatureEnabled } from '../signature/flag'
+import { withSignatureMultiplier } from '../signature/dances'
+import { SignatureBanner } from '../signature/SignatureBanner'
+import { SignaturePanel } from '../signature/SignaturePanel'
 import './play.css'
 
 const randomSeed = (): number => Math.floor(Math.random() * 1_000_000)
@@ -171,6 +176,9 @@ export default function Play() {
   const [songsError, setSongsError] = useState<string | null>(null)
   const [songsReload, setSongsReload] = useState(0)
   const [choice, setChoice] = useState<SongChoice | null>(null)
+  const [signatureOn] = useState(() => signatureEnabled())
+  const [signaturePins, setSignaturePins] = useState<PinnedMoveRequest[]>([])
+  const songTimeNow = useCallback(() => clock.songTime(), [clock])
   const [difficulty, setDifficulty] = useState<Difficulty>(() => getSettings().difficulty)
   const [mode, setMode] = useState<Mode>(() => getSettings().mode)
   const [seed, setSeed] = useState(randomSeed)
@@ -290,7 +298,7 @@ export default function Play() {
     if (bot) void bot.start()
     const source = bot ?? cam
     if (!source) return null
-    const checkpoints = buildCheckpoints(game.routine, game.routine.mode).filter((cp) => cp.time >= fromT)
+    const checkpoints = withSignatureMultiplier(buildCheckpoints(game.routine, game.routine.mode), game.routine).filter((cp) => cp.time >= fromT)
     const config = scoringFor(judgingRef.current)
     return new GameRun({
       keeper: createScoreKeeper(checkpoints, config, game.track),
@@ -559,7 +567,7 @@ export default function Play() {
   /** Lobby Start: the chosen song + settings. */
   const start = (): void => {
     if (!choice) return
-    const req = { song: choice, difficulty, mode, seed }
+    const req = { song: choice, difficulty, mode, seed, ...(signatureOn && signaturePins.length ? { pinnedMoves: signaturePins } : {}) }
     launch({ load: (deps, on, signal) => prepareGame(req, deps, on, signal), firstStep: 'analyzing', title: choiceTitle(choice), subtitle: setupLabel(req) })
   }
 
@@ -786,7 +794,7 @@ export default function Play() {
     setLearnError(null)
     setLearnBusy(STEP_LABELS.analyzing)
     try {
-      const req = { song: choice, difficulty, mode, seed }
+      const req = { song: choice, difficulty, mode, seed, ...(signatureOn && signaturePins.length ? { pinnedMoves: signaturePins } : {}) }
       const { analysis, routine } = await routineFor(req, apiSessionDeps(clock), ac.signal, (step) => setLearnBusy(STEP_LABELS[step]))
       const id = routine.meta?.routineId
       const entry = shelfEntryFor(routine, analysis, 'play')
@@ -810,7 +818,8 @@ export default function Play() {
     if (!game) return
     const s = randomSeed()
     setSeed(s)
-    const recipe: RoutineRecipe = { analysisId: game.analysis.id, difficulty: game.routine.difficulty, mode: game.routine.mode, seed: s }
+    const pins = recipeFromRoutine(game.routine)?.pinnedMoves
+    const recipe: RoutineRecipe = { analysisId: game.analysis.id, difficulty: game.routine.difficulty, mode: game.routine.mode, seed: s, ...(pins ? { pinnedMoves: pins } : {}) }
     launch({
       load: (deps, on, signal) => prepareFromRecipe(recipe, deps, on, signal, { analysis: game.analysis }),
       firstStep: 'choreographing',
@@ -1038,7 +1047,7 @@ export default function Play() {
               </span>
             )}
           </label>
-          {choice?.kind === 'library' && <SignatureCard className="lobby-signature" song={{ file: choice.file }} title={choiceTitle(choice)} />}
+          {signatureOn && <SignaturePanel choice={choice} onPins={setSignaturePins} />}
         </div>
 
         <div className="lobby-card">
@@ -1349,6 +1358,7 @@ export default function Play() {
               </div>
             </div>
           )}
+          {signatureOn && active && isRunning(phase) && <SignatureBanner routine={active.game.routine} songTime={songTimeNow} />}
           {paused && isRunning(phase) && (
             <PauseMenu onResume={togglePause} onRestart={inRoom ? undefined : restart} onQuit={exitToLobby} onSkip={isRehearsing(phase) ? endRehearsal : undefined} />
           )}
@@ -1396,7 +1406,6 @@ export default function Play() {
               onMenu={() => {
                 window.location.hash = '#/'
               }}
-              aside={<SignatureCard song={{ analysisId: active.game.analysis.id }} title={active.game.analysis.title} />}
               herald={
                 <>
                   <HeraldBubble announcer={announcer} placement="inline" />

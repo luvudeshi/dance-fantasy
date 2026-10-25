@@ -1,4 +1,4 @@
-"""AI endpoints (announcer, signature dance) and app.ai: prompts, reply parsing, fallbacks. No network:
+"""AI endpoints (announcer) and app.ai: prompts, reply parsing, fallbacks. No network:
 providers either have no key or point at a closed local port, so every path runs for real and fails fast."""
 
 from __future__ import annotations
@@ -21,24 +21,17 @@ from app.ai.prompts import (
     announcer_user,
     canned_lines,
     clip,
-    filter_move_ids,
-    move_id_lookup,
     parse_lines,
-    parse_signature,
-    signature_user,
 )
 from app.ai.provider import AIUnavailable, generate_text
 from app.api import announcer as announcer_api
 from app.analysis_store import AnalysisStore
-from app.api import signature as signature_api
-from app.api.signature import KeyMoment, Signature, _cache_path, google_hits, youtube_hits
 from app.config import REPO_ROOT, get_settings
 from app.main import app
 from app.moves.library import load_library
 
 CLOSED_PORT = "http://127.0.0.1:9"  # discard port: nothing listens, so connects are refused at once
 LIBRARY = load_library(REPO_ROOT / "assets" / "moves")
-LOOKUP = move_id_lookup(LIBRARY.moves)
 
 
 @pytest.fixture(autouse=True)
@@ -157,142 +150,6 @@ def test_generate_text_logs_failures_but_never_the_prompt(
         assert secret not in caplog.text
 
 
-# ---- signature dance -----------------------------------------------------------------------------
-
-
-def test_move_ids_are_validated_mapped_and_deduped() -> None:
-    assert "floss_R" in LOOKUP.values()
-    ids = filter_move_ids(["floss_R", "FLOSS_R", "floss", "made_up_move", 7, " dab_R "], LOOKUP)
-    assert ids[0] == "floss_R" and "dab_R" in ids and "made_up_move" not in ids
-    assert len(ids) == len(set(ids)) and all(i in {m.id for m in LIBRARY.moves} for i in ids)
-    assert filter_move_ids("floss_R", LOOKUP) == []
-    assert len(filter_move_ids([m.id for m in LIBRARY.moves], LOOKUP)) == prompts.MAX_MOVE_IDS
-
-
-def test_parse_signature_validates_every_field() -> None:
-    raw = json.dumps({
-        "found": True,
-        "summary": "Arms swing side to side while the hips sway. " * 30,
-        "keyMoments": [{"label": "Chorus floss", "approxTimeSec": 42.04}, {"label": "Bad time", "approxTimeSec": -3},
-                       {"label": ""}, "nope", {"label": "Pose", "approxTimeSec": True}],
-        "suggestedMoveIds": ["floss_R", "nope", "hip_sway_R"],
-    })  # fmt: skip
-    out = parse_signature(f"Here you go: {raw} Enjoy!", LOOKUP)
-    assert out is not None and out["found"] is True
-    assert len(out["summary"]) <= prompts.MAX_SUMMARY
-    assert out["keyMoments"] == [{"label": "Chorus floss", "approxTimeSec": 42.0}, {"label": "Bad time"}, {"label": "Pose"}]
-    assert out["suggestedMoveIds"] == ["floss_R", "hip_sway_R"]
-    assert parse_signature("not json", LOOKUP) is None
-    empty = parse_signature('{"found": true, "summary": ""}', LOOKUP)
-    assert empty == {"found": False, "summary": "", "keyMoments": [], "suggestedMoveIds": []}
-
-
-def test_signature_user_lists_hits_and_base_moves_only() -> None:
-    hits = [prompts.Hit(title="Cupid dance", link="https://x.test/a", snippet="s" * 1000, source="TikTok", thumbnail=None)]
-    text = signature_user("Cupid", "FIFTY FIFTY", hits, LIBRARY.moves)
-    assert "Song: Cupid by FIFTY FIFTY" in text and "1. [TikTok] Cupid dance: " in text
-    assert "floss_R: The Floss Right [hiphop, pop;" in text and "floss_L:" not in text  # mirrors left out
-    assert "s" * 400 not in text  # snippets clipped
-
-
-def test_search_result_parsing_keeps_only_safe_links() -> None:
-    google = {
-        "inline_videos": [{"title": "Cupid challenge", "link": "https://www.tiktok.com/@a/video/1", "platform": "TikTok",
-                           "thumbnail": "https://img.test/1.jpg"}],
-        "organic_results": [{"title": "Cupid dance tutorial", "link": "https://www.example.com/cupid", "snippet": "Steps",
-                             "thumbnail": "data:image/png;base64,AAAA"},
-                            {"title": "Bad", "link": "javascript:alert(1)"}, {"title": "", "link": "https://x.test"}, "junk"],
-    }  # fmt: skip
-    hits = google_hits(google)
-    assert [h["link"] for h in hits] == ["https://www.tiktok.com/@a/video/1", "https://www.example.com/cupid"]
-    assert hits[0]["source"] == "TikTok" and hits[0]["thumbnail"] == "https://img.test/1.jpg"
-    assert hits[1]["source"] == "example.com" and hits[1]["thumbnail"] is None
-    yt = youtube_hits({"video_results": [{"title": "Cupid Dance Tutorial", "link": "https://www.youtube.com/watch?v=1",
-                                          "description": "Learn it", "thumbnail": {"static": "https://i.ytimg.com/1.jpg"}}]})  # fmt: skip
-    assert yt == [prompts.Hit(title="Cupid Dance Tutorial", link="https://www.youtube.com/watch?v=1", snippet="Learn it",
-                              source="YouTube", thumbnail="https://i.ytimg.com/1.jpg")]  # fmt: skip
-    assert google_hits(None) == [] and youtube_hits({"video_results": "nope"}) == []
-
-
-CUPID = "c0" * 32
-
-
-def _cupid() -> None:
-    """A known song: its analysis (title + artist) in the analysis store."""
-    AnalysisStore(get_settings().cache_dir).save(CUPID, {"id": CUPID, "title": "Cupid", "artist": "FIFTY FIFTY"})
-
-
-def test_signature_endpoint_needs_a_known_song_and_keys(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    _cupid()
-    r = client.get("/api/songs/signature", params={"analysisId": CUPID})
-    assert r.status_code == 404 and "SERPAPI_API_KEY" in r.json()["detail"]  # our 404, not /songs/{file}'s
-    monkeypatch.setenv("SERPAPI_API_KEY", "test-key")
-    assert client.get("/api/songs/signature", params={"analysisId": CUPID}).status_code == 404  # no LLM key yet
-    unknown = client.get("/api/songs/signature", params={"analysisId": "d1" * 32})
-    assert unknown.status_code == 404 and "analysis" in unknown.json()["detail"]
-    assert client.get("/api/songs/signature", params={"file": "nope.wav"}).status_code == 404  # not in the library
-    assert client.get("/api/songs/signature").status_code == 400
-    assert client.get("/api/songs/signature", params={"analysisId": "Cupid"}).status_code == 400  # free text is out
-    assert client.get("/api/songs/signature", params={"title": "Cupid"}).status_code == 400
-
-
-def test_signature_endpoint_serves_the_cache_and_rechecks_move_ids(client: TestClient) -> None:
-    _cupid()
-    cached = Signature(
-        found=True, summary="Hands make a heart, then the hips sway.", keyMoments=[KeyMoment(label="Heart hands")],
-        suggestedMoveIds=["hip_sway_R", "removed_move"], sources=[],
-    )  # fmt: skip
-    path = _cache_path(get_settings().cache_dir, CUPID)
-    path.parent.mkdir(parents=True)
-    path.write_text(cached.model_dump_json(exclude_none=True))
-    r = client.get("/api/songs/signature", params={"analysisId": CUPID})  # no keys: cache only
-    assert r.status_code == 200
-    assert r.json() == {"found": True, "summary": cached.summary, "keyMoments": [{"label": "Heart hands"}],
-                        "suggestedMoveIds": ["hip_sway_R"], "sources": []}  # fmt: skip
-    path.write_text("{broken")
-    assert client.get("/api/songs/signature", params={"analysisId": CUPID}).status_code == 404
-
-
-def test_signature_lookups_are_capped(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    _cupid()
-    other = "e2" * 32
-    AnalysisStore(get_settings().cache_dir).save(other, {"id": other, "title": "Gangnam Style", "artist": "PSY"})
-    monkeypatch.setenv("SERPAPI_API_KEY", "test-key")
-    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
-    asked: list[tuple[str, str]] = []
-
-    def fake_look_up(title: str, artist: str, *_: object) -> Signature:
-        asked.append((title, artist))
-        return Signature(found=False, summary="none", keyMoments=[], suggestedMoveIds=[], sources=[])
-
-    monkeypatch.setattr(signature_api, "_look_up", fake_look_up)
-    monkeypatch.setattr(signature_api, "DAILY_CAP", 1)
-    # Lookups in flight are capped: with every slot taken the request waits its turn (503 + Retry-After).
-    for _ in range(signature_api.MAX_CONCURRENT):
-        signature_api._slots.acquire()
-    try:
-        busy = client.get("/api/songs/signature", params={"analysisId": CUPID})
-        assert busy.status_code == 503 and busy.headers["retry-after"] == "5"
-    finally:
-        for _ in range(signature_api.MAX_CONCURRENT):
-            signature_api._slots.release()
-    assert client.get("/api/songs/signature", params={"analysisId": CUPID}).status_code == 200
-    assert client.get("/api/songs/signature", params={"analysisId": CUPID}).status_code == 200  # cached: free
-    capped = client.get("/api/songs/signature", params={"analysisId": other})
-    assert capped.status_code == 503 and "tomorrow" in capped.json()["detail"]
-    assert asked == [("Cupid", "FIFTY FIFTY")]  # title and artist from the analysis, one paid lookup
-
-
 def test_song_files_still_route(client: TestClient) -> None:
     assert client.get("/api/songs").status_code == 200
     assert client.get("/api/songs/nope.wav").status_code == 404
-
-
-def test_signature_paid_lookups_are_capped_per_hour(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(signature_api, "_fresh", signature_api.deque())
-    for _ in range(signature_api.FRESH_PER_HOUR):
-        signature_api.spend_lookup(now=100.0)
-    with pytest.raises(HTTPException) as exc:
-        signature_api.spend_lookup(now=200.0)
-    assert exc.value.status_code == 429
-    signature_api.spend_lookup(now=100.0 + 3600)  # an hour later the window has room again

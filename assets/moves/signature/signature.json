@@ -1,0 +1,102 @@
+{
+  "notes": "Signature dances: simple angle-based approximations of famous viral dances, shown in the game as \"inspired by <dance>\" (never as the exact dance). Same format as assets/moves/README.md, plus two fields per move that app.signature.moves strips before compiling: signatureDance (the dance's name) and songs (the songs it belongs to). Ids start with sig_. Not part of the main library: only pinned into routines by a signature lookup.",
+  "defaults": { "styles": ["signature"], "difficulty": "normal" },
+  "moves": [
+    {
+      "id": "sig_ymca_arms",
+      "name": "YMCA Arms",
+      "signatureDance": "YMCA arms",
+      "songs": ["Y.M.C.A."],
+      "lengthBeats": 8,
+      "intensity": 3,
+      "endAnchor": "arms_up",
+      "notes": "Spell it with your arms, twice: Y (V up), M (hands to the top of the head), C (both arms curve to one side), A (hands meet overhead).",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "shoulders": 155, "elbows": 0 } },
+        { "beat": 2, "angles": { "shoulders": 140, "elbows": 105 } },
+        { "beat": 3, "angles": { "r_shoulder": 165, "r_elbow": 55, "l_shoulder": 55, "l_elbow": 70 } },
+        { "beat": 4, "angles": { "shoulders": 168, "elbows": 28 } },
+        { "beat": 5, "angles": { "shoulders": 155, "elbows": 0 } },
+        { "beat": 6, "angles": { "shoulders": 140, "elbows": 105 } },
+        { "beat": 7, "angles": { "r_shoulder": 165, "r_elbow": 55, "l_shoulder": 55, "l_elbow": 70 } },
+        { "beat": 8, "from": "arms_up" }
+      ]
+    },
+    {
+      "id": "sig_macarena",
+      "name": "Macarena Arms",
+      "signatureDance": "Macarena",
+      "songs": ["Macarena"],
+      "lengthBeats": 8,
+      "intensity": 2,
+      "endAnchor": "hands_hips",
+      "notes": "Right arm out, left arm out, flip both palms, right hand to left shoulder, left hand to right shoulder, right hand behind the head, then hands on hips.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 85 } },
+        { "beat": 2, "angles": { "l_shoulder": 85 } },
+        { "beat": 3, "angles": { "r_shoulder": 100, "r_elbow": 12 } },
+        { "beat": 4, "angles": { "l_shoulder": 100, "l_elbow": 12 } },
+        { "beat": 5, "angles": { "r_shoulder": -30, "r_elbow": -128 } },
+        { "beat": 6, "angles": { "l_shoulder": -30, "l_elbow": -128 } },
+        { "beat": 7, "angles": { "r_shoulder": 150, "r_elbow": 115 } },
+        { "beat": 8, "from": "hands_hips" }
+      ]
+    },
+    {
+      "id": "sig_whip",
+      "name": "The Whip",
+      "signatureDance": "the Whip",
+      "songs": ["Watch Me (Whip/Nae Nae)"],
+      "lengthBeats": 4,
+      "intensity": 3,
+      "notes": "Right fist cocks in front of the chest, then whips out to the side with a lean; twice. Upper body only so seated players get it too.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": -35, "r_elbow": -95, "l_shoulder": 20, "torso_lean": -4 } },
+        { "beat": 2, "angles": { "r_shoulder": 80, "r_elbow": 10, "torso_lean": 8 } },
+        { "beat": 2.5, "angles": { "r_shoulder": 30, "r_elbow": -50, "torso_lean": 2 } },
+        { "beat": 3, "angles": { "r_shoulder": -35, "r_elbow": -95, "torso_lean": -4 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    },
+    {
+      "id": "sig_horse_dance",
+      "name": "Horse Dance Arms",
+      "signatureDance": "the horse dance",
+      "songs": ["Gangnam Style"],
+      "lengthBeats": 4,
+      "intensity": 3,
+      "endAnchor": "clasp",
+      "notes": "Hold the reins (wrists crossed in front), bounce them, then swing the lasso over your head and grab the reins again.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "shoulders": -12, "elbows": -112 } },
+        { "beat": 2, "angles": { "shoulders": 4, "elbows": -128 } },
+        { "beat": 2.5, "angles": { "r_shoulder": 120, "r_elbow": 30 } },
+        { "beat": 3, "angles": { "r_shoulder": 175, "r_elbow": 45 } },
+        { "beat": 3.5, "angles": { "r_shoulder": 215, "r_elbow": 35 } },
+        { "beat": 4, "from": "clasp" }
+      ]
+    },
+    {
+      "id": "sig_floss",
+      "name": "The Floss",
+      "signatureDance": "the floss",
+      "songs": [],
+      "lengthBeats": 4,
+      "intensity": 4,
+      "notes": "Straight arms swing together to one side and back, hips (here: the torso) leaning the other way. The real floss passes the arms in front of and behind the body; a front view can only hint at that.",
+      "keyframes": [
+        { "beat": 0 },
+        { "beat": 1, "angles": { "r_shoulder": 40, "l_shoulder": -30, "torso_lean": -6 } },
+        { "beat": 1.5, "angles": { "r_shoulder": 5, "l_shoulder": 5, "torso_lean": 0 } },
+        { "beat": 2, "angles": { "r_shoulder": -30, "l_shoulder": 40, "torso_lean": 6 } },
+        { "beat": 2.5, "angles": { "r_shoulder": 5, "l_shoulder": 5, "torso_lean": 0 } },
+        { "beat": 3, "angles": { "r_shoulder": 40, "l_shoulder": -30, "torso_lean": -6 } },
+        { "beat": 4, "from": "neutral" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {
+            "text": "{\"danceName\": \"The Renegade\", \"creator\": \"Jalaiah Harmon\", \"year\": 2019, \"confidence\": 0.93, \"links\": [\"https://www.youtube.com/watch?v=EXAMPLE00002\", \"https://www.youtube.com/watch?v=MADEUP\", \"https://www.youtube.com/watch?v=EXAMPLE00001\"]}"
+          }
+        ]
+      },
+      "finishReason": "STOP"
+    }
+  ],
+  "usageMetadata": { "promptTokenCount": 412, "candidatesTokenCount": 61, "totalTokenCount": 473 },
+  "modelVersion": "gemini-2.5-flash"
+}

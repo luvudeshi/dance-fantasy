@@ -59,6 +59,15 @@ export interface Move {
   scoredJoints: JointName[]
   /** Ascending by t. */
   keyframes: Keyframe[]
+  /** Optional: pinned as a song's signature dance (an approximation: show "inspired by <name>"). */
+  signatureDance?: SignatureDance
+}
+
+export interface SignatureDance {
+  /** The dance, e.g. "YMCA arms". */
+  name: string
+  /** Who created it, when known. */
+  creator?: string
 }
 
 export interface Routine {
