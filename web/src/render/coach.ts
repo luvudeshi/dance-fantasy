@@ -7,6 +7,7 @@
 import { JOINTS, type JointName, type LimbName, type Pose2D, type Vec2 } from '@shared/skeleton'
 import type { Ctx2D } from '../pose/draw'
 import { bodyToScreen } from '../pose/normalize'
+import { tryDrawCoach3d } from '../render3d/load'
 import { figureBodyView, headCircle, highlightedLimbs, type FigureView } from './stickFigure'
 
 export type CoachView = FigureView
@@ -464,6 +465,11 @@ export function drawCoach(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachView,
   // 1) Outer glow (one low-res blurred pass for body + accents), then the silhouette: one fill
   //    of the union path, so overlaps never double up. Without a scratch canvas: shadowBlur.
   const layered = glow > 0 && drawGlowLayer(ctx, hasAccent ? [bodyGlow, accentGlow] : [bodyGlow], box, k)
+  // The 3D princess (Settings > dancer3d, WebGL, lazily loaded) replaces the silhouette over the same glow.
+  if (tryDrawCoach3d(ctx, pose, root, view, { theme, pulse, highlightJoints: opts.highlightJoints ?? [], crown: opts.crown !== false })) {
+    ctx.restore()
+    return
+  }
   if (glow > 0 && !layered) {
     ctx.shadowColor = bodyGlow.color
     ctx.shadowBlur = bodyGlow.blur * k

@@ -8,6 +8,7 @@ import type { Ctx2D } from '../pose/draw'
 import { bodyToScreen } from '../pose/normalize'
 import { NEUTRAL_ANKLE_Y } from '../routine/pose'
 import { buildMotionTrack } from '../routine/track'
+import { coach3dActive } from '../render3d/load'
 import { coachThemeFor, createLayer, deviceScale, drawCoach, mixHex, withAlpha, type CoachTheme, type Layer } from './coach'
 import { figureBodyView, type FigureView } from './stickFigure'
 
@@ -237,7 +238,7 @@ export function drawPictogram(ctx: Ctx2D, move: PictogramMove, box: Box, opts: P
   const theme = opts.theme ?? coachThemeFor(null)
   const k = deviceScale(ctx)
   const pad = Math.ceil(Math.min(box.w, box.h) * 0.2) // room for the active glow
-  const key = [box.w, box.h, k, theme.body, theme.glow, theme.accent, opts.mirrored, opts.active === true, opts.label === true, opts.card !== false, move.name, move.scoredJoints.join(',')].join('|')
+  const key = [box.w, box.h, k, theme.body, theme.glow, theme.accent, opts.mirrored, opts.active === true, opts.label === true, opts.card !== false, move.name, move.scoredJoints.join(','), coach3dActive()].join('|')
   let byMove = pictogramCache.get(move.keyframes)
   let layer = byMove?.get(key)
   if (!layer) {
