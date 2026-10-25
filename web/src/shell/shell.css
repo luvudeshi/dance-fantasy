@@ -251,20 +251,20 @@ html[data-reduced-motion] *::after {
 }
 .title-st-castle {
   left: 0;
-  bottom: 12%;
-  width: 40%;
+  bottom: 15%;
+  width: 44%;
   rotate: -4deg;
 }
 .title-st-clock {
-  right: 0;
-  top: 16%;
-  width: 34%;
+  right: 1%;
+  top: 20%;
+  width: 33%;
   rotate: 5deg;
 }
 .title-st-mirror {
-  left: 23%;
+  left: 22%;
   top: 2%;
-  width: 52%;
+  width: 55%;
   rotate: -3deg;
 }
 .title-st-crown {
