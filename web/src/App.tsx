@@ -2,19 +2,21 @@ import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react
 import { getHealth } from './api'
 import { errorMessage, isAbortError } from './lib/errors'
 
+const Play = lazy(() => import('./pages/Play'))
 const PoseSpike = lazy(() => import('./pages/PoseSpike'))
 const BeatSpike = lazy(() => import('./pages/BeatSpike'))
 const AnalysisDebug = lazy(() => import('./pages/AnalysisDebug'))
 const MoveGallery = lazy(() => import('./pages/MoveGallery'))
 
 const ROUTES = [
+  { hash: '#/play', label: '▶ Play' },
   { hash: '#/pose', label: 'Pose spike' },
   { hash: '#/beats', label: 'Beat spike' },
   { hash: '#/analysis', label: 'Analysis' },
   { hash: '#/moves', label: 'Moves' },
 ] as const
 type RouteHash = (typeof ROUTES)[number]['hash']
-const DEFAULT_ROUTE: RouteHash = '#/pose'
+const DEFAULT_ROUTE: RouteHash = '#/play'
 
 const HEALTH_POLL_MS = 5000
 /** While offline, back off 5 -> 10 -> 15 s (fewer 502s in the console); re-check on focus. */
@@ -113,14 +115,16 @@ export default function App() {
       </header>
       <main>
         <Suspense fallback={<p className="status">Loading…</p>}>
-          {route === '#/beats' ? (
+          {route === '#/play' ? (
+            <Play />
+          ) : route === '#/pose' ? (
+            <PoseSpike />
+          ) : route === '#/beats' ? (
             <BeatSpike />
           ) : route === '#/analysis' ? (
             <AnalysisDebug />
-          ) : route === '#/moves' ? (
-            <MoveGallery />
           ) : (
-            <PoseSpike />
+            <MoveGallery />
           )}
         </Suspense>
       </main>

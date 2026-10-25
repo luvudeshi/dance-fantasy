@@ -16,7 +16,7 @@ HackTX 2026 · storybook theme.
 | 0 | Scaffold, shared data contract, pose spike, beat spike | ✅ |
 | 1 | Audio analysis (`/api/analyze`) + debug timeline | ✅ |
 | 2 | Move library (50 moves + mirrors) + choreography generator | ✅ |
-| 3 | Dancer renderer + synced playback | |
+| 3 | Glowing coach, smooth motion, `#/play` with cue strip + audio-clock sync | ✅ |
 | 4 | Scoring + game loop (**MVP**) | |
 | 5 | Difficulty, seated mode, teach mode | |
 | 6 | Remote dance-off | |
@@ -38,7 +38,13 @@ make setup     # first time: Python venv + npm deps + MediaPipe wasm/models (~60
 make dev       # API on :8000 and web on :5173 together; Ctrl-C stops both
 ```
 
-Open **http://localhost:5173**.
+Open **http://localhost:5173**. It starts on **▶ Play**: pick a song, difficulty
+(easy/normal/hard), standing or seated, and press **Start the ball**. The glowing coach
+dances the generated routine in sync with the music, and upcoming moves slide in at the
+bottom with a 3 · 2 · 1 countdown. Keys: Space pause, R restart, M mirror, D debug
+overlay (FPS, latency, sync drift), Esc back to the lobby.
+
+Dev pages:
 
 - `#/pose`: Spike 1. Click **Start camera**, allow access, and you should see your
   skeleton over the video, a normalized "body frame" view, and FPS (green at 24+).
@@ -82,7 +88,10 @@ Stages 0–6.
 ```
 web/       Vite + React + TypeScript (strict). MediaPipe PoseLandmarker runs in the browser.
   src/pose/      webcam, landmarker, MediaPipe → body-frame normalization, skeleton drawing
-  src/pages/     PoseSpike (Spike 1), BeatSpike (Spike 2)
+  src/game/      play screen engine: audio clock, session flow, cue strip, sync meter
+  src/render/    coach silhouette, move pictograms, ballroom stage
+  src/routine/   routine sampling: smooth rigid-limb motion track
+  src/pages/     Play, AnalysisDebug, MoveGallery, PoseSpike, BeatSpike
 server/    Python 3.11 + FastAPI + librosa (uv project)
   app/audio/     decoding, beat grid, downbeats, structure (sections) analysis
   app/moves/     move library: angle-based definitions → forward kinematics → 17-joint poses

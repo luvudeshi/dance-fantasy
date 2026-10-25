@@ -9,6 +9,9 @@ import { prepareCanvas } from '../lib/canvas'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { useLatest } from '../lib/useLatest'
 import { CanvasLoop } from '../render/canvasLoop'
+import { COACH_THEMES, coachThemeFor, drawCoach } from '../render/coach'
+import { drawPictogram } from '../render/pictogram'
+import { drawStage } from '../render/stage'
 import { coachStyle, drawFigure, drawFloor, fitFigureView, LEFT_COLOR, RIGHT_COLOR } from '../render/stickFigure'
 import { DEMO_LIBRARY } from '../routine/demo'
 import { allStyles, filterMoves, intensityColor, libraryStats, NO_FILTERS, type MoveFilters } from '../routine/library'
@@ -18,7 +21,13 @@ interface ViewSettings {
   bpm: number
   mirrored: boolean
   lrColors: boolean
+  /** Draw the Stage 3 coach (glowing silhouette) instead of the stick figure. */
+  coachLook: boolean
+  /** Section label picking the coach theme (coachThemeFor). */
+  theme: string
 }
+
+const THEME_NAMES = Object.keys(COACH_THEMES)
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard']
 const NO_MOVES: LibraryMove[] = []
@@ -31,14 +40,27 @@ function loopU(nowSec: number, move: LibraryMove, bpm: number): number {
 }
 
 /** Draws `move` at fraction `u` into `canvas` (sized by CSS), with beat dots along the top. */
-function drawMove(canvas: HTMLCanvasElement, move: LibraryMove, u: number, s: ViewSettings, beatDots = true): void {
+function drawMove(canvas: HTMLCanvasElement, move: LibraryMove, u: number, s: ViewSettings, beatDots = true, stage = false): void {
   const prepared = prepareCanvas(canvas)
   if (!prepared) return
   const { ctx, width, height } = prepared
   const view = fitFigureView(width, height, s.mirrored)
   const { pose, root } = poseInMove(move.keyframes, u)
-  drawFloor(ctx, view)
-  drawFigure(ctx, pose, root, view, coachStyle(view, { lrColors: s.lrColors, highlightJoints: move.scoredJoints }))
+  if (s.coachLook) {
+    const theme = coachThemeFor(s.theme)
+    // Beat pulse: 1 on each beat of the move, decaying over the beat.
+    const beatPhase = (u * Math.max(1, move.lengthBeats)) % 1
+    const beatPulse = (1 - beatPhase) ** 3
+    if (stage) {
+      drawStage(ctx, { width, height, time: performance.now() / 1000, beatPulse, theme, floor: { x: view.cx, y: view.floorY, scale: view.scale } })
+    } else {
+      drawFloor(ctx, view)
+    }
+    drawCoach(ctx, pose, root, view, { theme, beatPulse, highlightJoints: move.scoredJoints })
+  } else {
+    drawFloor(ctx, view)
+    drawFigure(ctx, pose, root, view, coachStyle(view, { lrColors: s.lrColors, highlightJoints: move.scoredJoints }))
+  }
   if (beatDots) {
     const n = Math.max(1, move.lengthBeats)
     const cur = Math.min(n - 1, Math.floor(u * n))
@@ -128,6 +150,19 @@ function PoseThumb({ move, u, settings, label, onPick, active }: {
   )
 }
 
+/** The move's cue-card pictogram (Stage 3), drawn at its real in-game size. */
+function Pictogram({ move, settings, active, size }: { move: LibraryMove; settings: ViewSettings; active: boolean; size: number }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    const prepared = el ? prepareCanvas(el) : null
+    if (!prepared) return
+    const { ctx, width, height } = prepared
+    drawPictogram(ctx, move, { x: 2, y: 2, w: width - 4, h: height - 4 }, { mirrored: settings.mirrored, theme: coachThemeFor(settings.theme), active, label: size >= 110 })
+  }, [move, settings, active, size])
+  return <canvas ref={ref} style={{ width: size, height: size, display: 'block' }} aria-label={`${move.name} pictogram${active ? ' (active)' : ''}`} />
+}
+
 function MoveDetail({ move, loop, settings, onClose }: {
   move: LibraryMove
   loop: CanvasLoop
@@ -151,7 +186,7 @@ function MoveDetail({ move, loop, settings, onClose }: {
         const u = st.playing ? loopU(now, move, settingsRef.current.bpm) : st.scrub
         uRef.current = u
         if (st.playing && rangeRef.current) rangeRef.current.value = String(u)
-        drawMove(el, move, u, settingsRef.current)
+        drawMove(el, move, u, settingsRef.current, true, true)
       })
     },
     [loop, move, settingsRef, stateRef],
@@ -214,6 +249,14 @@ function MoveDetail({ move, loop, settings, onClose }: {
               <dt>keyframes</dt>
               <dd>{move.keyframes.map((k) => k.t.toFixed(3).replace(/\.?0+$/, '')).join(' · ')}</dd>
             </dl>
+            <div>
+              <div className="hint">Pictogram (90 px, 90 px active, 120 px with label)</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', marginTop: 4 }}>
+                <Pictogram move={move} settings={settings} active={false} size={90} />
+                <Pictogram move={move} settings={settings} active size={90} />
+                <Pictogram move={move} settings={settings} active={false} size={120} />
+              </div>
+            </div>
           </div>
         </div>
         <div className="transport">
@@ -261,10 +304,12 @@ export default function MoveGallery() {
   const [bpm, setBpm] = useState(110)
   const [mirrored, setMirrored] = useState(true)
   const [lrColors, setLrColors] = useState(false)
+  const [coachLook, setCoachLook] = useState(true)
+  const [theme, setTheme] = useState('intro')
   const [openId, setOpenId] = useState<string | null>(null)
   const [loop] = useState(() => new CanvasLoop())
 
-  const settings = useMemo<ViewSettings>(() => ({ bpm, mirrored, lrColors }), [bpm, mirrored, lrColors])
+  const settings = useMemo<ViewSettings>(() => ({ bpm, mirrored, lrColors, coachLook, theme }), [bpm, mirrored, lrColors, coachLook, theme])
   const settingsRef = useLatest(settings)
 
   useEffect(() => () => loop.dispose(), [loop])
@@ -373,16 +418,35 @@ export default function MoveGallery() {
             <input type="checkbox" checked={mirrored} onChange={(e) => setMirrored(e.target.checked)} />
             Mirrored (coach view)
           </label>
-          <label className="check">
-            <input type="checkbox" checked={lrColors} onChange={(e) => setLrColors(e.target.checked)} />
-            L/R colours
+          <label className="check" title="Stage 3 coach renderer (glowing silhouette) instead of the stick figure">
+            <input type="checkbox" checked={coachLook} onChange={(e) => setCoachLook(e.target.checked)} />
+            Coach look
           </label>
-          {lrColors && (
+          {coachLook && (
+            <label>
+              Theme
+              <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+                {THEME_NAMES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {!coachLook && (
+            <label className="check">
+              <input type="checkbox" checked={lrColors} onChange={(e) => setLrColors(e.target.checked)} />
+              L/R colours
+            </label>
+          )}
+          {coachLook && <span className="hint">accent gloves = scored</span>}
+          {!coachLook && lrColors && (
             <span className="hint">
               <span style={{ color: LEFT_COLOR }}>■ dancer's left</span> · <span style={{ color: RIGHT_COLOR }}>■ dancer's right</span> · gold halo = scored
             </span>
           )}
-          {!lrColors && <span className="hint">gold limbs = scored</span>}
+          {!coachLook && !lrColors && <span className="hint">gold limbs = scored</span>}
         </div>
       </div>
 
