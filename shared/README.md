@@ -268,5 +268,75 @@ interface Signature {
 }
 ```
 
+Accounts endpoints (guest accounts, optional login, profiles, friends, history; models in
+`server/app/accounts/models.py`). Auth is the `df_session` cookie; every non-GET request also
+sends the header `X-DF: 1` (403 without it).
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| POST | `/api/session` | none | `Me`; the cookie's account, or a new guest (sets the cookie). Call it once at app start |
+| POST | `/api/account/claim` | `{ username, password }` | `Me` with `isGuest: false`; 409 if this account already has one or the username is taken |
+| POST | `/api/login` | `{ username, password }` | `Me`; this browser switches to that account. 401 wrong username or password, 429 when locked out |
+| POST | `/api/logout` | none | `Me` of a fresh guest (new cookie) |
+| GET | `/api/me` | | `Me` |
+| PATCH | `/api/me` | `{ name?, avatar?, color? }` | `Me` |
+| POST | `/api/me/heartbeat` | none | `{ ok: true }`; marks you online (any authenticated call does too) |
+| GET | `/api/friends` | | `Friend[]`, online first, then by name |
+| POST | `/api/friends` | `{ code }` (a friend code) | `Friend`; mutual right away. 404 unknown code, 400 your own, 409 already friends, 429 after 10 unknown codes in 10 min |
+| DELETE | `/api/friends/{id}` | | `{ ok: true }`; removes both sides; 404 if not friends |
+| POST | `/api/friends/{id}/invite` | `{ roomCode }` | `{ ok: true }`; must be friends (404) and the room live (404); 429 after 20 invites in 10 min. Re-inviting renews the same invite |
+| GET | `/api/me/invites` | | `Invite[]`, newest first: not dismissed and under 10 min old |
+| POST | `/api/me/invites/{id}/dismiss` | none | `{ ok: true }`; 404 unless it was sent to you |
+| POST | `/api/me/rooms` | `{ roomCode, playerToken }` | `{ ok: true }`; records that you played in that room. The token is the one from create/join (401 if it isn't a player of that room, 404 unknown room) |
+| GET | `/api/me/partners` | | `Partner[]`: accounts that recorded a room you recorded, last 30 days, most recent first (max 20) |
+| POST | `/api/me/rounds` | `{ analysisId, songTitle, score, accuracy, maxCombo, stars, mode }` | `{ ok: true }`; `score` and `maxCombo` integers, `accuracy` 0-100, `stars` 0-5 (fractions ok), `mode` `solo`, `party` or `room`; 429 after 120 rounds in an hour |
+| GET | `/api/me/history?tzOffset=<min>` | | `History`: last 20 rounds and totals. `tzOffset` is `new Date().getTimezoneOffset()` (for the day streak), default 0 |
+
+```jsonc
+// Me
+{ "id": "q3V9kZ2xAb1c", "name": "Twirling Pumpkin", "avatar": "pumpkin", "color": "rasp",
+  "friendCode": "K7QX2M", "isGuest": true, "username": null,
+  "stats": { "rounds": 12, "bestScore": 48210, "friends": 3 } }
+// Friend
+{ "id": "...", "name": "Bo", "avatar": "wolf", "color": "blue",
+  "online": true,          // any authenticated call in the last 60 s
+  "inRoom": "KQWX" }       // a room they recorded via /api/me/rooms and are connected to (else null)
+// Partner
+{ "id": "...", "name": "Cy", "avatar": "crown", "color": "gold", "friendCode": "P4RT9Z",
+  "online": false, "isFriend": false, "lastPlayedAt": 1761380000000 }  // add with POST /api/friends { code: friendCode }
+// Invite
+{ "id": 7, "fromId": "...", "fromName": "Ana", "fromAvatar": "slipper", "fromColor": "rasp",
+  "roomCode": "KQWX", "at": 1761380000000 }  // join with POST /api/rooms/{roomCode}/join
+// History
+{ "rounds": [{ "analysisId": "<64 hex>", "songTitle": "Vibe Ace", "score": 48210, "accuracy": 91.5,
+               "maxCombo": 80, "stars": 4.5, "mode": "solo", "at": 1761380000000 }],
+  "totalRounds": 12, "bestScore": 48210, "avgAccuracy": 84.27,
+  "dayStreak": 3 }         // consecutive local days with a round, ending today or yesterday
+```
+
+- **Same origin only.** The cookie is httpOnly, `SameSite=Lax`, `Path=/`, 180 days (renewed by
+  `POST /api/session`), `Secure` over https. Use relative `/api/...` URLs with
+  `credentials: 'same-origin'` (fetch's default): the Vite proxy in dev, one deployment on Vercel.
+  A cross-origin `VITE_API_BASE` never carries the cookie. The other routes here, without a
+  valid session, answer 401 `"No session: call POST /api/session first."`; call it and retry once.
+- **Guests are full accounts.** Everything works without a login; `claim` only adds a username
+  (3-20 of `a-z 0-9 _`, lowercased for you) and a password (8-200 chars, scrypt with a per-user
+  salt) so the same account can log in elsewhere. Claim and login issue a new session token. A
+  login from a guest leaves that guest's data behind (no merge).
+- **Login limits.** 5 wrong passwords per username in 15 min lock that username (429, even with
+  the right password) until the window passes; 50 per client IP in 15 min likewise. New guests:
+  300 per client IP an hour.
+- **Profile values.** `name` follows the room-name rules (1-24 chars, whitespace collapsed, no
+  control characters). `avatar` is one of the sticker icon names in `web/src/theme/icons.ts`
+  (`ICON_NAMES`; guests start on one of the first 28); `color` is one of `rasp`, `gold`, `blue`,
+  `sage`, `burg`, `night`, i.e. the `--df-<color>` design tokens. Anything else is 400.
+- **Friend codes** are 6 characters from `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (no I, L, O, 0, 1);
+  input ignores case, spaces and dashes.
+- **Storage.** Same database as rooms (`df_accounts`, `df_sessions`, `df_friends`, `df_invites`,
+  `df_room_members`, `df_hits`, `df_rounds`, created on first use). On Postgres with the
+  `timescaledb` extension (Tiger Data), `df_rounds` is a hypertable on `at` (epoch ms, 7-day chunks).
+  Like rooms, a Vercel deployment without `DATABASE_URL` answers 503 here.
+
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
-413 (upload too large); the rooms routes add 401, 403, 409, 429 and 503 as above.
+413 (upload too large); the rooms routes add 401, 403, 409, 429 and 503 as above, and the
+accounts routes 401, 403, 404, 409 and 429.
