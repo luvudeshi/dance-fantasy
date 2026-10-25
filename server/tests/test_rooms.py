@@ -8,6 +8,7 @@ API tests use the real clock and fast-forward by moving ``start_at`` back in the
 from __future__ import annotations
 
 import os
+import ssl
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
@@ -20,7 +21,7 @@ from fastapi.testclient import TestClient
 from app.config import get_settings
 from app.main import app
 from app.rooms import store
-from app.rooms.db import Tx, transaction
+from app.rooms.db import Tx, ssl_context_for, transaction
 from app.rooms.models import RoutineChoice, ScoreBody
 
 BACKENDS = ["sqlite"] + (["postgres"] if os.environ.get("DATABASE_URL") else [])
@@ -360,3 +361,13 @@ def test_vercel_without_database_url_is_503(client: TestClient, backend: str, mo
     get_settings.cache_clear()
     r = client.post("/api/rooms", json={"name": "Nobody"})
     assert r.status_code == 503 and "DATABASE_URL" in r.json()["detail"]
+
+
+def test_postgres_tls_verifies_unless_opted_out() -> None:
+    """sslmode=require (Tiger's URL) and no sslmode verify the certificate and host; only no-verify skips it."""
+    for url in ("postgres://u:p@db.example.com:5432/x?sslmode=require", "postgres://u:p@db.example.com/x"):
+        ctx = ssl_context_for(url)
+        assert ctx is not None and ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    off = ssl_context_for("postgres://u:p@db.example.com/x?sslmode=no-verify")
+    assert off is not None and off.verify_mode == ssl.CERT_NONE and not off.check_hostname
+    assert ssl_context_for("postgres://u:p@localhost/x?sslmode=disable") is None
