@@ -16,6 +16,8 @@ import { coachStyle, drawFigure, drawFloor, fitFigureView, LEFT_COLOR, RIGHT_COL
 import { DEMO_LIBRARY } from '../routine/demo'
 import { allStyles, filterMoves, intensityColor, libraryStats, NO_FILTERS, type MoveFilters } from '../routine/library'
 import { poseInMove } from '../routine/pose'
+import { signatureEnabled } from '../signature/flag'
+import { signatureLabel, withSignatureMoves } from '../signature/signature'
 
 interface ViewSettings {
   bpm: number
@@ -94,6 +96,7 @@ function MoveMeta({ move }: { move: LibraryMove }) {
       </div>
       <div className="move-tags">
         {move.upperBodyOnly && <span className="tag seated">seated ok</span>}
+        {signatureLabel(move) && <span className="tag">★ {signatureLabel(move)}</span>}
         {move.styles.map((s) => (
           <span key={s} className="tag">
             {s}
@@ -317,7 +320,7 @@ export default function MoveGallery() {
   useEffect(() => {
     const ac = new AbortController()
     getMoves(ac.signal).then(
-      (lib) => setState({ kind: 'ok', lib, demo: false }),
+      (lib) => void (signatureEnabled() ? withSignatureMoves(lib, ac.signal) : Promise.resolve(lib)).then((l) => setState({ kind: 'ok', lib: l, demo: false }), () => undefined),
       (err: unknown) => {
         if (isAbortError(err)) return
         const message =
