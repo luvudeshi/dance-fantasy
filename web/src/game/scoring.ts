@@ -65,6 +65,24 @@ export const DEFAULT_SCORING: ScoringConfig = {
   limbWeights: DEFAULT_LIMB_WEIGHTS,
 }
 
+/** "Lenient" judging (game/judging.ts): wider window and angles, lower thresholds. */
+export const LENIENT_SCORING: ScoringConfig = {
+  ...DEFAULT_SCORING,
+  windowSec: 0.2,
+  thresholds: { perfect: 85, good: 68, ok: 48 },
+  perfectDeg: 20,
+  zeroDeg: 70,
+}
+
+/** "Strict" judging: tighter window and angles, higher thresholds. */
+export const STRICT_SCORING: ScoringConfig = {
+  ...DEFAULT_SCORING,
+  windowSec: 0.12,
+  thresholds: { perfect: 92, good: 80, ok: 60 },
+  perfectDeg: 12,
+  zeroDeg: 55,
+}
+
 /** Base points per judgment, before the combo multiplier. */
 export const JUDGMENT_POINTS: Readonly<Record<Judgment, number>> = { perfect: 100, good: 70, ok: 40, miss: 0 }
 /** Each checkpoint of the running combo adds this much to the multiplier ... */

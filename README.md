@@ -18,7 +18,7 @@ HackTX 2026 · storybook theme.
 | 2 | Move library (50 moves + mirrors) + choreography generator | ✅ |
 | 3 | Glowing coach, smooth motion, `#/play` with cue strip + audio-clock sync | ✅ |
 | 4 | Calibration, per-beat webcam scoring, HUD, results (**MVP**, tag `mvp`) | ✅ |
-| 5 | Difficulty, seated mode, teach mode | |
+| 5 | Teach mode, judging presets, sound, polish | ✅ |
 | 6 | Remote dance-off | |
 | 7 | SerpApi features | |
 | 8 | Smarter generation (flagged) | |
@@ -57,6 +57,14 @@ with your camera and live feedback but no score, then straight into the real rou
 Routines generated on the Analysis page (or in Play) appear under **Your routines** in the
 lobby; `#/play?routine=<id>` opens one directly. **Regenerate** always rolls a new seed (same
 seed = same routine).
+
+**Learn** (`#/teach`, also "Learn it first" in the lobby and "Practice your hardest move" on
+results): pick any 8-count and loop it at 0.5× / 0.75× / 1× (pitch preserved) with live
+per-limb tips like "left arm late" or "right arm too high". Two good passes suggest the next
+speed; two at full speed earn "Nailed it! ✨".
+
+**Judging** in the lobby: Lenient / Standard / Strict. After a round, **Download session log**
+saves per-beat scores and timing (no video or poses) for tuning. Sound effects toggle with `S`.
 
 No camera (or judging from across the room)? Turn on **Autoplay (bot)** in the lobby.
 Keys: Space pause, R restart, M mirror, C camera window, D debug overlay (FPS, latency,

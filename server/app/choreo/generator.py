@@ -20,10 +20,16 @@ m after move p costs
     + w_rep   * (# of m.baseId among the last rep_window moves of the routine; the mirror partner
                  right after its twin does not count)
     + w_usage * (# of earlier uses of m.baseId in the routine, capped)
+    - w_novel * fit  if m.baseId hasn't been used in the routine yet (variety). fit in [0, 1] fades with
+                 the intensity mismatch, fast for moves hotter than the target (novel_over) so calmer
+                 sections don't use up the chorus moves, slowly for calmer ones (novel_under)
     - w_mirror  if m is the L/R mirror of p
     + w_finisher_mid for finishers (style "finale"), - w_finale for a finisher that ends the routine
     + jitter    per-move noise from (seed, group): different seeds give different routines.
 Transitions, repetition and usage see the whole routine so far, across group boundaries.
+
+1-beat moves: hard places them anywhere; easy/normal only as an identical pair filling a 2-beat slot
+(clap_clap x2 on beats 1-2 or 3-4 of a bar). The repeat pays its static and self-transition cost only.
 """
 
 from __future__ import annotations
@@ -35,7 +41,7 @@ import math
 import threading
 import weakref
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -46,7 +52,8 @@ from app.skeleton import JOINTS
 
 # Bump when output for the same inputs changes (it is part of routine ids).
 # v2: finishers are moves styled "finale" (v1 treated every storybook move as one).
-GENERATOR = "procedural-v2"
+# v3: 1-beat moves as pairs in easy/normal, novelty bonus for not-yet-used moves.
+GENERATOR = "procedural-v3"
 BEATS_PER_BAR = 4
 MODES = ("standing", "seated")
 DIFFICULTY_LEVEL = {"easy": 0, "normal": 1, "hard": 2}
@@ -95,13 +102,17 @@ class ChoreoConfig:
     rep_window: int = 4
     w_usage: float = 0.1
     usage_cap: int = 8
+    w_novel: float = 0.4  # bonus for a baseId the routine hasn't used yet, fading out with the mismatch:
+    novel_over: float = 0.5  # ... gone for moves this much more intense than the target
+    novel_under: float = 1.5  # ... or this much calmer
     w_mirror: float = 0.8
     w_finale: float = 3.0
     w_finisher_mid: float = 0.4  # finishers (bows) are for the end; mild penalty elsewhere
     jitter: float = 0.5  # amplitude of the centered uniform per-move noise, per (seed, group)
     # Per-move cost by length class (1, 2, 4, 8+ beats); inf = not allowed (unless nothing else can tile a bar).
-    length_cost_easy: tuple[float, float, float, float] = (INF, 0.6, 0.0, 0.0)
-    length_cost_normal: tuple[float, float, float, float] = (INF, 0.25, 0.0, 0.05)
+    # Easy/normal place 1-beat moves as identical pairs, so a pair pays the 1-beat cost twice.
+    length_cost_easy: tuple[float, float, float, float] = (0.35, 0.6, 0.0, 0.0)
+    length_cost_normal: tuple[float, float, float, float] = (0.15, 0.25, 0.0, 0.05)
     length_cost_hard: tuple[float, float, float, float] = (0.1, 0.0, 0.0, 0.1)
     min_pool_bases: int = 6  # easy also uses normal moves when fewer distinct easy baseIds are eligible
 
@@ -267,41 +278,51 @@ def _stable_hash(text: str) -> int:
     return int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big")
 
 
+class _Costs(NamedTuple):
+    static: np.ndarray  # (M,) per-placement cost that doesn't depend on the routine so far
+    novel: np.ndarray  # (M,) bonus while the move's baseId is still unused
+
+
 class _Planner:
     """Places moves in playback order; each search sees everything placed so far as context."""
 
     def __init__(self, prep: _Prepared, difficulty: str, mode: str, seed: int, cfg: ChoreoConfig) -> None:
         self.prep, self.cfg, self.seed = prep, cfg, seed
         self.level = DIFFICULTY_LEVEL[difficulty]
+        self.pairs = difficulty != "hard"  # 1-beat moves only as identical pairs on even beats
         self.pool, self.len_cost = _eligible(prep, difficulty, mode, cfg)
         self.trans = cfg.w_trans * (prep.joint_dist + cfg.w_root * prep.root_dist + cfg.w_anchor * prep.anchor_diff)
         self.placed: list[tuple[int, int]] = []  # (move index, start beat)
         self.usage = np.zeros(prep.n_bases)
 
-    def static_cost(self, target: float, salt: str) -> np.ndarray:
+    def static_cost(self, target: float, salt: str) -> _Costs:
         p, cfg = self.prep, self.cfg
         bars = p.length / BEATS_PER_BAR
         dev = np.abs(p.intensity - target)
         rng = np.random.default_rng([self.seed % 2**64, _stable_hash(salt)])
         jitter = (rng.random(len(p.moves)) - 0.5) * cfg.jitter
-        return (
+        static = (
             (cfg.w_int * dev + cfg.w_int2 * dev**2) * bars
             + cfg.w_diff * np.abs(p.level - self.level) * bars
             + cfg.w_finisher_mid * p.finisher
             + self.len_cost
             + jitter
         )
+        over = np.maximum(p.intensity - target, 0.0) / cfg.novel_over
+        under = np.maximum(target - p.intensity, 0.0) / cfg.novel_under
+        return _Costs(static, cfg.w_novel * np.clip(1.0 - over - under, 0.0, 1.0))
 
     def tileable(self, beats: int) -> int:
         """Longest prefix of a partial bar of ``beats`` beats that the pool can fill."""
         lengths = set(self.prep.length[self.pool].tolist())
-        if 1 in lengths:
+        if 1 in lengths and not self.pairs:
             return beats
-        return 2 if beats >= 2 and 2 in lengths else 0
+        return 2 if beats >= 2 and lengths & {1, 2} else 0
 
-    def search(self, total: int, static: np.ndarray, finale: bool) -> list[tuple[int, int]]:
+    def search(self, total: int, costs: _Costs, finale: bool) -> list[tuple[int, int]]:
         """Best (move index, beat offset) sequence tiling ``total`` beats, offset 0 on a downbeat."""
         p, cfg = self.prep, self.cfg
+        static, novel = costs
         n_moves, width, window = len(p.moves), cfg.beam_width, cfg.rep_window
         lens = p.length
         prev0 = self.placed[-1][0] if self.placed else n_moves  # row n_moves = neutral pose
@@ -321,6 +342,10 @@ class _Planner:
                 & (o + lens <= total)
                 & (((BEATS_PER_BAR % lens == 0) & (o % lens == 0)) | ((lens % BEATS_PER_BAR == 0) & (o % 4 == 0)))
             )
+            if self.pairs and o % 2 == 0:  # a 1-beat pair starts on an even beat and must fit
+                allowed &= (lens != 1) | (o + 2 <= total)
+            elif self.pairs:  # odd beats only finish a pair (reached via a 1-beat move only)
+                allowed &= lens == 1
             if not allowed.any():
                 continue
             n_states = len(states)
@@ -337,14 +362,20 @@ class _Planner:
             partner = p.partner[prev]
             rows = np.flatnonzero(partner >= 0)
             rep_m[rows, partner[rows]] -= 1.0  # X_L then X_R is a pair, not a repeat
+            base_cost = np.array([s[0] for s in states])
+            used_m = use[:, p.base]
             cost = (
-                np.array([s[0] for s in states])[:, None]
+                base_cost[:, None]
                 + static[None, :]
                 + self.trans[prev]
                 + cfg.w_rep * rep_m
-                + cfg.w_usage * np.minimum(use[:, p.base], cfg.usage_cap)
+                + cfg.w_usage * np.minimum(used_m, cfg.usage_cap)
+                - novel[None, :] * (used_m == 0)
             )
             cost[rows, partner[rows]] -= cfg.w_mirror
+            if self.pairs and o % 2 == 1:  # finish the pair: the same 1-beat move again (no rep/usage/novelty)
+                cost = np.full_like(cost, INF)
+                cost[np.arange(n_states), prev] = base_cost + static[prev] + self.trans[prev, prev]
             if finale_bonus is not None:
                 cost -= np.where(o + lens == total, finale_bonus, 0.0)[None, :]
             for length in np.unique(lens[allowed]).tolist():
@@ -454,7 +485,7 @@ def generate_routine(
         finale_group = sections[with_bars[-1]].group
 
     rows: dict[int, dict[str, Any]] = {}
-    statics: dict[str, np.ndarray] = {}
+    statics: dict[str, _Costs] = {}
     plans: dict[str, list[tuple[int, int]]] = {}
     variants: dict[tuple[str, int], list[tuple[int, int]]] = {}
     for i in order:

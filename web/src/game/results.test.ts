@@ -9,6 +9,7 @@ import {
   moveRows,
   practiceTip,
   rankTitle,
+  roundDetails,
   scoreBand,
   scoreColor,
   weakestLimb,
@@ -164,5 +165,22 @@ describe('buildResultsView', () => {
   it('finds the move by id when the summary index points elsewhere', () => {
     const v = buildResultsView(summary({ hardestMove: ms(1, 'disco', 40) }), [], routine)
     expect(v.hardest?.moveIndex).toBe(3)
+  })
+})
+
+describe('round details line', () => {
+  it('names the judging and the latency used', () => {
+    expect(roundDetails({ judging: 'Standard', latencySec: 0.1234, latencySource: 'measured', autoplay: false })).toBe(
+      'Judging: Standard · camera latency 123 ms (measured)',
+    )
+    expect(roundDetails({ judging: 'Lenient', latencySec: 0.12, latencySource: 'default', autoplay: false })).toBe(
+      'Judging: Lenient · camera latency 120 ms (default)',
+    )
+    expect(roundDetails({ judging: 'Strict', latencySec: null, autoplay: true })).toBe('Judging: Strict · danced by the bot')
+  })
+
+  it('colours bars with the round\'s own thresholds', () => {
+    expect(scoreColor(86)).toBe(JUDGMENT_STYLE.good.color)
+    expect(scoreColor(86, { perfect: 85, good: 68, ok: 48 })).toBe(JUDGMENT_STYLE.perfect.color)
   })
 })

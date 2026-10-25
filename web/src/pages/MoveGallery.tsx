@@ -1,4 +1,4 @@
-// Stage 2 move gallery (#/moves): every library move looping at a chosen BPM. One shared
+// Move gallery (#/moves): every library move looping at a chosen BPM. One shared
 // requestAnimationFrame loop draws only the cards on screen; click a card for a detail view
 // with a scrubber and per-beat thumbnails.
 
@@ -341,6 +341,9 @@ export default function MoveGallery() {
 
   return (
     <section className="page move-gallery">
+      <h2 className="page-title">
+        Moves <span className="dim">every step the princesses know · click one for a closer look</span>
+      </h2>
       <div className="panel gallery-head">
         <h2 className="analysis-title">
           Move library

@@ -11,7 +11,7 @@
         { "beat": 1, "angles": { "l_knee": 20, "l_lift": 15, "r_knee": 5, "hip_shift": -0.1, "shoulders": 30, "elbows": 100, "torso_lean": 4 } },
         { "beat": 2, "angles": { "l_knee": 25, "l_lift": 0, "r_knee": 5, "hip_shift": 0.1, "torso_lean": -4 } },
         { "beat": 3, "angles": { "knees": 15, "hip_shift": 0, "torso_lean": 0 } },
-        { "beat": 4, "angles": { "knees": 20, "hip_shift": -0.05 } },
+        { "beat": 4, "angles": { "knees": 22, "hip_shift": -0.13, "torso_lean": 4 } },
         { "beat": 5, "angles": { "r_knee": 25, "r_lift": -10, "l_knee": 5, "hip_shift": 0.1, "torso_lean": -4 } },
         { "beat": 6, "angles": { "r_knee": 25, "r_lift": 0, "l_knee": 5, "hip_shift": -0.1, "torso_lean": 4 } },
         { "beat": 7, "angles": { "knees": 15, "hip_shift": 0, "torso_lean": 0 } },

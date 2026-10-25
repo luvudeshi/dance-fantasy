@@ -18,7 +18,7 @@ from jsonschema import Draft202012Validator
 
 from app.config import get_settings
 from app.moves.anchors import ANCHOR_TOLERANCE, ANCHORS, anchor_distance, anchor_pose
-from app.moves.fk import FOREARM, RANGES, SHIN, THIGH, UPPER_ARM, forward_kinematics
+from app.moves.fk import FOREARM, RANGES, SHIN, THIGH, TURN_MIN_WIDTH, UPPER_ARM, forward_kinematics, turn_projection
 from app.moves.library import (
     MoveDefinitionError,
     build_library,
@@ -119,6 +119,30 @@ def test_mirrored_angles_give_the_geometric_mirror() -> None:
         assert abs(mroot[0] + root[0]) < 1e-12 and abs(mroot[1] - root[1]) < 1e-12
 
 
+@pytest.mark.parametrize("turn", [0.2, 0.25, 0.3, 0.7, 0.75, 0.8, -0.25, 1.25])
+def test_side_on_spins_keep_a_readable_width(turn: float) -> None:
+    """A pure side view collapses the figure into a column (legs merged, the raised arm through the head):
+    widths stay >= TURN_MIN_WIDTH of the front view, and sides swap past side-on."""
+    pose, _ = forward_kinematics({"turn": turn, "r_shoulder": 168, "r_elbow": 45, "l_shoulder": 60, "l_elbow": -40})
+    shoulders = pose["r_shoulder"][0] - pose["l_shoulder"][0]
+    hips = pose["r_hip"][0] - pose["l_hip"][0]
+    assert abs(shoulders) == pytest.approx(0.9 * TURN_MIN_WIDTH)
+    assert abs(hips) == pytest.approx(0.44 * TURN_MIN_WIDTH)
+    assert abs(pose["r_ankle"][0] - pose["l_ankle"][0]) >= 0.44 * TURN_MIN_WIDTH - 1e-9  # legs don't merge
+    front = math.cos(2 * math.pi * turn) > 0
+    assert (shoulders > 0) == front and (hips > 0) == front
+
+
+def test_turn_projection_is_a_clamped_rotation() -> None:
+    for i in range(-400, 401):
+        turn = i / 200
+        c, s = turn_projection(turn)
+        assert abs(c) >= TURN_MIN_WIDTH - 1e-12 and c * c + s * s == pytest.approx(1.0)  # bones never stretch
+        assert turn_projection(-turn) == (c, -s)  # mirrored moves stay exact mirrors
+        if abs(math.cos(2 * math.pi * turn)) >= TURN_MIN_WIDTH:
+            assert (c, s) == pytest.approx((math.cos(2 * math.pi * turn), math.sin(2 * math.pi * turn)))
+
+
 def test_fk_rejects_unknown_angles() -> None:
     with pytest.raises(ValueError, match="unknown angle"):
         forward_kinematics({"l_wrist": 10})
@@ -182,6 +206,50 @@ def test_compiled_poses_are_complete_and_well_formed(lib: MoveLibrary) -> None:
             # Feet: on the floor unless jumping, never below it; knees never above the hips' line by much.
             floor = max(kf.pose["l_ankle"][1], kf.pose["r_ankle"][1]) + kf.root[1]
             assert floor <= 1.85 + ROUND_TOL, (m.id, kf.t)
+
+
+def test_no_keyframe_collapses_side_on(lib: MoveLibrary) -> None:
+    """Twirl / princess spin included: shoulders and hips never get narrower than TURN_MIN_WIDTH."""
+    narrow = lambda m: any(dist(k.pose["l_shoulder"], k.pose["r_shoulder"]) < 0.8 for k in m.keyframes)  # noqa: E731
+    spins = {m.baseId for m in lib.moves if narrow(m)}
+    assert spins == {"twirl", "princess_spin"}
+    for m in lib.moves:
+        for kf in m.keyframes:
+            assert dist(kf.pose["l_shoulder"], kf.pose["r_shoulder"]) >= 0.9 * TURN_MIN_WIDTH - ROUND_TOL, (m.id, kf.t)
+            assert dist(kf.pose["l_hip"], kf.pose["r_hip"]) >= 0.44 * TURN_MIN_WIDTH - ROUND_TOL, (m.id, kf.t)
+
+
+def on_beat_poses(m: CompiledMove) -> list[Pose]:
+    return [k.pose for k in m.keyframes if abs(k.t * m.lengthBeats - round(k.t * m.lengthBeats)) < 1e-9]
+
+
+def pose_gap(a: Pose, b: Pose) -> float:
+    return max(dist(a[j], b[j]) for j in JOINTS)
+
+
+def test_signature_poses_land_on_beats(base_moves: list[CompiledMove]) -> None:
+    """Scoring checkpoints are the on-beat keyframes, so a move's biggest shape must be on a beat (boxer_jab's
+    punch used to land between beats: only its guard was ever scored). 1-beat moves repeat in pairs, so they
+    start and end on the same anchor and their beat pose is that anchor (a clap)."""
+    for m in base_moves:
+        if m.lengthBeats == 1:
+            assert m.startAnchor == m.endAnchor, m.id
+            continue
+        start = m.keyframes[0].pose
+        reach_on = max(pose_gap(p, start) for p in on_beat_poses(m))
+        reach_all = max(pose_gap(k.pose, start) for k in m.keyframes)
+        assert reach_on >= 0.5 * reach_all, (m.id, round(reach_on, 2), round(reach_all, 2))
+
+
+def test_consecutive_on_beat_poses_differ(base_moves: list[CompiledMove]) -> None:
+    """Every beat asks for something new: floss, dragon_wings, vogue_frame, raise_the_roof... used to repeat
+    one pose on beats 1-3 (the half-beat moves were never scored). Freezes hold on purpose."""
+    for m in base_moves:
+        if "freeze" in m.styles or m.lengthBeats == 1:
+            continue
+        poses = on_beat_poses(m)
+        for beat, (a, b) in enumerate(zip(poses, poses[1:])):
+            assert pose_gap(a, b) > 0.1, (m.id, f"beats {beat}-{beat + 1}")
 
 
 def test_mirror_pairs_are_exact_geometric_mirrors(lib: MoveLibrary) -> None:

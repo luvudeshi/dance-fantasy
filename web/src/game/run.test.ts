@@ -62,6 +62,17 @@ class FakeKeeper implements KeeperLike {
 }
 
 describe('GameRun', () => {
+  it('reports each judged batch with the combo before it, but not the end-of-song sweep', () => {
+    const src = new FakeSource()
+    const keeper = new FakeKeeper()
+    const seen: Array<[string[], number]> = []
+    const run = new GameRun({ keeper, source: src, isPlaying: () => true, now: () => 0, onResults: (rs, before) => seen.push([rs.map((r) => r.judgment), before]) })
+    run.tick(2.2) // no frames: windows close FRAME_STALL_SEC behind the clock
+    expect(seen).toEqual([[['good'], 0]])
+    run.finish({ moves: [] }, 10)
+    expect(seen).toHaveLength(1)
+  })
+
   it('scores frames only while playing, but always tracks visibility', () => {
     const src = new FakeSource()
     const keeper = new FakeKeeper()

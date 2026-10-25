@@ -41,10 +41,15 @@ interface Props {
   caption?: boolean
   /** Key hints line (default: the game's). */
   keys?: string
+  /** Sound effects on (for the key hints line). */
+  sound?: boolean
   children?: ReactNode
 }
 
 const DEBUG_REFRESH_MS = 250
+
+/** The stage canvas never renders above this devicePixelRatio (full-window 60 fps on 2x/3x screens). */
+export const STAGE_MAX_DPR = 1.5
 
 const ms = (v: number): string => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`
 
@@ -71,7 +76,7 @@ function debugText(o: {
 }
 
 export default function PlayStage(props: Props) {
-  const { clock, active, mirrored, debug, pip, paused, title, subtitle, onTogglePause, onExit, caption, keys, children } = props
+  const { clock, active, mirrored, debug, pip, paused, title, subtitle, onTogglePause, onExit, caption, keys, sound, children } = props
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sectionRef = useRef<HTMLSpanElement>(null)
@@ -106,7 +111,7 @@ export default function PlayStage(props: Props) {
       raf = requestAnimationFrame(tick)
       const t0 = performance.now()
       const view = viewRef.current
-      const prepared = prepareCanvas(canvas)
+      const prepared = prepareCanvas(canvas, STAGE_MAX_DPR)
       let t = 0
       if (active) {
         t = clock.songTime()
@@ -154,7 +159,7 @@ export default function PlayStage(props: Props) {
             }
             drawHud(
               prepared.ctx,
-              { width: prepared.width, height: prepared.height, layout: info.layout, popAnchor: info.popAnchor },
+              { width: prepared.width, height: prepared.height, layout: info.layout, popAnchor: info.popAnchor, popAlign: info.popAlign },
               hv,
               { scorePanel: !active.practice },
             )
@@ -218,7 +223,8 @@ export default function PlayStage(props: Props) {
       {caption && active && <div ref={captionRef} className="play-caption" aria-live="off" />}
       {children}
       <div className="play-keys">
-        {keys ?? `Space pause · R restart · M mirror (${mirrored ? 'on' : 'off'}) · C camera · D debug · Esc lobby`}
+        {keys ??
+          `Space pause · R restart · M mirror (${mirrored ? 'on' : 'off'}) · C camera · S sound (${sound === false ? 'off' : 'on'}) · D debug · Esc lobby`}
       </div>
     </div>
   )

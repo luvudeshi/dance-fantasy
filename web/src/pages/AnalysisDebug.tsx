@@ -1,4 +1,4 @@
-// Stage 1 debug page: song analysis (beats, downbeats, onsets, energy, sections) on a
+// Studio (#/analysis): song analysis (beats, downbeats, onsets, energy, sections) on a
 // zoomable timeline, with audio-clock playback. Every visual is derived per animation
 // frame from SongPlayer.currentTime() (the AudioContext clock), never from timers.
 // Stage 2: a Choreography panel generates a routine (POST /api/choreograph); its moves get
@@ -409,6 +409,7 @@ export default function AnalysisDebug() {
   // --- playback ------------------------------------------------------------------------
   const play = async (from?: number): Promise<void> => {
     setError(null)
+    if (from !== undefined) syncSection(from)
     setTransport('loading')
     try {
       if (await player.play(from)) {
@@ -427,8 +428,20 @@ export default function AnalysisDebug() {
     requestFrame()
   }
 
+  /** The live section label follows a jump right away (not only once audio is running again). */
+  const syncSection = (t: number): void => {
+    const a = loaded?.analysis
+    if (!a) return
+    const idx = sectionIndexAt(a.sections, Math.max(0, t))
+    if (idx !== activeSectionRef.current) {
+      activeSectionRef.current = idx
+      setActiveSection(idx)
+    }
+  }
+
   const seek = (t: number): void => {
     player.seek(t)
+    syncSection(player.currentTime())
     requestFrame()
   }
 
@@ -477,6 +490,9 @@ export default function AnalysisDebug() {
 
   return (
     <section className="page analysis-debug">
+      <h2 className="page-title">
+        Studio <span className="dim">see what the ball hears, then choreograph it</span>
+      </h2>
       <div className="toolbar">
         <label>
           Song

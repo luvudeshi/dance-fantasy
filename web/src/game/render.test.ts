@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { coachThemeFor } from '../render/coach'
 import { stubContext } from '../render/stubCanvas'
 import { NEUTRAL_POSE } from '../routine/pose'
-import { drawCountIn, playLayout, popAnchor } from './render'
+import { figureBodyView } from '../render/stickFigure'
+import { bodyToScreen } from '../pose/normalize'
+import { drawCountIn, playLayout, popAnchor, popFontSize, popPlacement, popTextWidth } from './render'
 
 describe('count-in overlay', () => {
   const L = playLayout(1024, 768, true)
@@ -41,20 +43,45 @@ describe('play layout', () => {
   })
 })
 
-describe('judgment pop anchor', () => {
-  it('sits left of the coach\'s screen-left shoulder, above it, inside the coach area', () => {
+describe('judgment pop placement', () => {
+  it('sits left of the coach\'s head at head height, inside the coach area', () => {
     for (const mirrored of [true, false]) {
       const L = playLayout(1280, 720, mirrored)
-      const [x, y] = popAnchor(NEUTRAL_POSE, [0, 0], L)
+      const { anchor: [x, y], align } = popPlacement(NEUTRAL_POSE, [0, 0], L)
       const shoulderY = L.coach.floorY - (1.85 + 1) * L.coach.scale
+      expect(align).toBe('right')
       expect(x).toBeLessThan(L.coach.cx - 0.45 * L.coach.scale)
       expect(y).toBeLessThan(shoulderY)
       expect(x).toBeGreaterThan(L.coachArea.x)
       expect(y).toBeGreaterThan(L.coachArea.y)
+      expect(popAnchor(NEUTRAL_POSE, [0, 0], L)).toEqual([x, y])
     }
   })
 
-  it('stays on screen on a narrow phone layout and without shoulders', () => {
+  it('never puts pop text over the coach\'s face (projector, laptop, travelling coach)', () => {
+    for (const [w, h] of [[1280, 720], [1920, 1080], [1024, 768]]) {
+      for (const root of [[0, 0], [-1.5, 0], [1.5, 0], [0, -0.4]] as [number, number][]) {
+        const L = playLayout(w, h, true)
+        const { anchor, align } = popPlacement(NEUTRAL_POSE, root, L)
+        const textW = popTextWidth(popFontSize(L.coachArea.h))
+        const [x0, x1] = align === 'right' ? [anchor[0] - textW, anchor[0]] : [anchor[0], anchor[0] + textW]
+        const nose = bodyToScreen(NEUTRAL_POSE.nose ?? [0, -1.45], figureBodyView(L.coach, root))
+        const faceL = nose[0] - 0.3 * L.coach.scale
+        const faceR = nose[0] + 0.3 * L.coach.scale
+        expect(x1 <= faceL || x0 >= faceR, `${w}x${h} root ${root}`).toBe(true)
+        expect(x0).toBeGreaterThanOrEqual(L.coachArea.x)
+        expect(x1).toBeLessThanOrEqual(L.coachArea.x + L.coachArea.w)
+      }
+    }
+  })
+
+  it('flips to the right of the head when the coach is at the left edge', () => {
+    const L = playLayout(1280, 720, true)
+    const far = -(L.coach.cx - 0.5 * L.coach.scale) / L.coach.scale // head near the left edge
+    expect(popPlacement(NEUTRAL_POSE, [far, 0], L).align).toBe('left')
+  })
+
+  it('stays on screen on a narrow phone layout and without a head', () => {
     const L = playLayout(390, 844, true)
     for (const pose of [NEUTRAL_POSE, {}]) {
       const [x, y] = popAnchor(pose, [0, 0], L)

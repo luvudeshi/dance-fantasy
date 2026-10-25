@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { LimbName } from '@shared/skeleton'
 import { stubContext } from '../render/stubCanvas'
 import {
+  COMBO_BREAK_MS,
   COMBO_BUMP_MS,
   COUNT_UP_MS,
   drawHud,
@@ -22,6 +23,7 @@ import {
   tweenAt,
   tweenValue,
   UNSEEN_TOAST,
+  UNSEEN_TOAST_HINT,
   UNSEEN_TOAST_MS,
   worstLimb,
 } from './hud'
@@ -235,7 +237,7 @@ describe('HUD drawing', () => {
     const { ctx, calls } = measuringStub()
     drawHud(ctx, { width: 1280, height: 720, layout: L, popAnchor: [300, 300] }, v)
     const texts = calls.filter((c) => c.name === 'fillText').map((c) => c.args[0])
-    expect(texts).toEqual(expect.arrayContaining(['1,234', 'MISS', 'Watch your left leg', UNSEEN_TOAST, '🤖 AUTOPLAY']))
+    expect(texts).toEqual(expect.arrayContaining(['1,234', 'MISS', 'Watch your left leg', `📷  ${UNSEEN_TOAST}`, UNSEEN_TOAST_HINT, '🤖 AUTOPLAY']))
   })
 
   it('shows the combo from ×2 up', () => {
@@ -249,6 +251,26 @@ describe('HUD drawing', () => {
     drawHud(two.ctx, { width: 1280, height: 720, layout: L, popAnchor: [300, 300] }, hud.view(1000))
     expect(two.calls.some((c) => c.name === 'fillText' && c.args[0] === '×2')).toBe(true)
   })
+
+  it('shows a combo break when a combo of 5+ is lost, then lets it fade', () => {
+    const hud = new Hud({ autoplay: false })
+    hud.push([result('good')], state({ combo: 6 }), 0)
+    hud.push([result('miss')], state({ combo: 0 }), 100)
+    expect(hud.view(150).comboBreak?.combo).toBe(6)
+    const { ctx, calls } = measuringStub()
+    drawHud(ctx, { width: 1280, height: 720, layout: L, popAnchor: [300, 300] }, hud.view(150))
+    const texts = calls.filter((c) => c.name === 'fillText').map((c) => c.args[0])
+    expect(texts).toEqual(expect.arrayContaining(['×6', 'COMBO BREAK']))
+    expect(hud.view(100 + COMBO_BREAK_MS).comboBreak).toBeNull()
+    // A short combo just ends quietly; a new hit clears the flash.
+    const small = new Hud({ autoplay: false })
+    small.push([result('good')], state({ combo: 3 }), 0)
+    small.push([result('miss')], state({ combo: 0 }), 100)
+    expect(small.view(150).comboBreak).toBeNull()
+    hud.push([result('good')], state({ combo: 1 }), 200)
+    expect(hud.view(250).comboBreak).toBeNull()
+  })
+
 })
 
 describe('webcam PIP', () => {

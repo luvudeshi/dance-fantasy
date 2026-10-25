@@ -9,6 +9,7 @@ import {
   prepareFromRoutine,
   prepareGame,
   recipeFromRoutine,
+  routineFor,
   STEP_LABELS,
   type RoutineRecipe,
   type SessionDeps,
@@ -249,5 +250,22 @@ describe('prepareFromRecipe (generate it again / new seed)', () => {
     expect(statuses(states)).toEqual(['choreographing', 'loadingAudio', 'ready'])
     expect(deps.getAnalysis).not.toHaveBeenCalled()
     expect(deps.choreograph).toHaveBeenCalledWith(expect.objectContaining({ seed: 8 }), expect.any(AbortSignal))
+  })
+})
+
+describe('routineFor ("Learn it first")', () => {
+  it('analyzes and choreographs the lobby settings without loading audio', async () => {
+    const deps = mockDeps({ choreograph: vi.fn<SessionDeps['choreograph']>(async () => ({ routine: SAVED })) })
+    const steps: string[] = []
+    const out = await routineFor(REQ, deps, new AbortController().signal, (s) => steps.push(s))
+    expect(out.routine.meta?.routineId).toBe(ROUTINE_ID)
+    expect(deps.choreograph).toHaveBeenCalledWith({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7 }, expect.anything())
+    expect(deps.loadAudio).not.toHaveBeenCalled()
+    expect(steps).toEqual(['analyzing', 'choreographing'])
+  })
+
+  it('rejects with the failing step in the message', async () => {
+    const deps = mockDeps({ choreograph: vi.fn(async () => Promise.reject(new ApiError('boom', 500, false))) })
+    await expect(routineFor(REQ, deps, new AbortController().signal)).rejects.toThrow(/choreograph/i)
   })
 })

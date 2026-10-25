@@ -200,8 +200,18 @@ function knotChannels(knots: readonly Knot[]): Float64Array {
       const apl = Math.abs(pl)
       const cost1 = Math.abs(d1) * (apl + len) * 0.5 + 2 * Math.abs(len - pl)
       const cost2 = Math.abs(d2) * (apl + len) * 0.5 + 2 * Math.abs(-len - pl)
+      // "Keep" leaves the length's sign alone (the bone rotates); "flip" slides it through zero.
+      const keepPos = pl >= 0
+      const dKeep = keepPos ? d1 : d2
+      const dFlip = keepPos ? d2 : d1
       const foreshortened = Math.min(apl, len) <= 0.25 * Math.max(apl, len)
-      if (foreshortened && cost2 < cost1) {
+      // A spin's side-on step (widths clamped, server fk.TURN_MIN_WIDTH): x changes sign, y stays.
+      // Bones nearer horizontal than vertical slide through zero instead of swinging round.
+      const pdx = prevVec[2 + 2 * b]
+      const mirrorStep =
+        dx * pdx < 0 && Math.abs(dy - prevVec[3 + 2 * b]) <= 0.1 * (Math.abs(dx) + Math.abs(pdx)) && Math.abs(dFlip) < Math.abs(dKeep)
+      const flip = (foreshortened && (keepPos ? cost2 < cost1 : cost1 < cost2)) || mirrorStep
+      if (keepPos === flip) {
         y[ia] = pa + d2
         y[ia + 1] = -len
       } else {

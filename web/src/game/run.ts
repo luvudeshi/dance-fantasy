@@ -28,6 +28,8 @@ export interface GameRunOptions {
   /** false while paused / stopped: frames are not scored then. */
   isPlaying: () => boolean
   now?: () => number
+  /** Every batch of finalized checkpoints (SFX), with the combo before the batch. */
+  onResults?: (results: readonly CheckpointResult[], comboBefore: number) => void
 }
 
 /** Seconds past the last checkpoint / song end at which every window has surely closed. */
@@ -54,6 +56,8 @@ export class GameRun {
   private unsubscribe: (() => void) | null
   private done = false
   private lastFrameTime = Number.NEGATIVE_INFINITY
+  private combo = 0
+  private readonly onResults: GameRunOptions['onResults']
 
   constructor(o: GameRunOptions) {
     this.keeper = o.keeper
@@ -61,6 +65,7 @@ export class GameRun {
     this.bot = o.bot ?? null
     this.isPlaying = o.isPlaying
     this.now = o.now ?? (() => performance.now())
+    this.onResults = o.onResults
     this.hud = new Hud({ autoplay: o.source.kind === 'bot' })
     this.hud.watch(this.now())
     this.unsubscribe = o.source.onFrame((f) => this.onFrame(f))
@@ -70,8 +75,14 @@ export class GameRun {
     return this.done
   }
 
-  private emit(results: CheckpointResult[]): void {
-    if (results.length > 0) this.hud.push(results, this.keeper.state, this.now())
+  /** HUD (+ the onResults hook unless `quiet`: the end-of-song sweep makes no sound). */
+  private emit(results: CheckpointResult[], quiet = false): void {
+    if (results.length === 0) return
+    const state = this.keeper.state
+    this.hud.push(results, state, this.now())
+    const before = this.combo
+    this.combo = state.combo
+    if (!quiet) this.onResults?.(results, before)
   }
 
   private onFrame(frame: PlayerFrame): void {
@@ -94,7 +105,7 @@ export class GameRun {
     if (!this.done) {
       const cps = this.keeper.checkpoints
       const lastCp = cps.length > 0 ? cps[cps.length - 1].time : 0
-      this.emit(this.keeper.advanceTo(Math.max(endTime, lastCp) + FINISH_PAD_SEC))
+      this.emit(this.keeper.advanceTo(Math.max(endTime, lastCp) + FINISH_PAD_SEC), true)
       this.done = true
       this.dispose()
     }

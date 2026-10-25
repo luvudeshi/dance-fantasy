@@ -74,28 +74,60 @@ export interface PlayFrameInfo {
   /** 0..1 through the song. */
   progress: number
   layout: PlayLayout
-  /** Screen point beside the coach's (screen-left) shoulder where judgment pops appear. */
+  /** Screen point beside the coach's head where judgment pops appear (see popPlacement). */
   popAnchor: Vec2
+  /** Which way pop text runs from popAnchor. */
+  popAlign: PopPlacement['align']
   /** Move being danced now / up next (-1 = none). */
   moveIndex: number
   nextMoveIndex: number
 }
 
-/**
- * Where judgment pops go: beside the coach's shoulder that is on the screen's left (away from
- * the score panel and the webcam PIP on the right), kept inside the coach area.
- */
-export function popAnchor(pose: Pose2D, root: Vec2, L: Pick<PlayLayout, 'coach' | 'coachArea'>): Vec2 {
+/** Pop text size (px) for a coach area of height `areaH` (drawPops uses the same). */
+export const popFontSize = (areaH: number): number => Math.round(Math.max(26, Math.min(64, areaH * 0.075)))
+
+/** Rough width (px) of the widest pop ("PERFECT!" at its 1.15 overshoot) for a font size. */
+export const popTextWidth = (size: number): number => size * 0.62 * 8 * 1.15
+
+/** Where judgment pops go and which way their text runs from the anchor. */
+export interface PopPlacement {
+  anchor: Vec2
+  /** 'right': the text ends at the anchor (pops left of the face); 'left': it starts there. */
+  align: 'left' | 'right'
+}
+
+/** The coach's head on screen: centre and a radius (face box half-size). */
+function headOnScreen(pose: Pose2D, root: Vec2, L: Pick<PlayLayout, 'coach'>): { c: Vec2; r: number } {
   const bv = figureBodyView(L.coach, root)
   const s = L.coach.scale
-  const pts = [pose.l_shoulder, pose.r_shoulder].filter((p): p is Vec2 => p !== undefined).map((p) => bodyToScreen(p, bv))
-  const sh: Vec2 =
-    pts.length > 0 ? pts.reduce((a, b) => (b[0] < a[0] ? b : a)) : bodyToScreen([0, -1], bv)
+  const pts = [pose.nose, pose.l_ear, pose.r_ear, pose.l_eye, pose.r_eye].filter((p): p is Vec2 => p !== undefined)
+  const body: Vec2 = pts.length > 0 ? [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length] : [0, -1.45]
+  return { c: bodyToScreen(body, bv), r: 0.38 * s }
+}
+
+/**
+ * Judgment pops sit beside the coach's head, never over the face: right-aligned just left of
+ * the face (away from the score panel and webcam PIP on the right), or left-aligned just right
+ * of it when the coach has danced too close to the left edge. Vertically at head height, kept
+ * inside the coach area.
+ */
+export function popPlacement(pose: Pose2D, root: Vec2, L: Pick<PlayLayout, 'coach' | 'coachArea'>): PopPlacement {
   const a = L.coachArea
-  const marginX = Math.min(a.w / 2, Math.max(90, s * 0.9))
-  const x = clamp(sh[0] - s * 1.05, a.x + marginX, a.x + a.w - marginX)
-  const y = clamp(sh[1] - s * 0.25, a.y + 40, a.y + Math.max(40, a.h - 40))
-  return [x, y]
+  const { c, r } = headOnScreen(pose, root, L)
+  const gap = Math.max(14, 0.22 * L.coach.scale)
+  const size = popFontSize(a.h)
+  const textW = popTextWidth(size)
+  const y = clamp(c[1], a.y + size * 0.9, a.y + Math.max(size * 0.9, a.h - size))
+  const leftX = c[0] - r - gap
+  if (leftX - textW >= a.x + 8 || leftX - a.x >= a.x + a.w - (c[0] + r + gap)) {
+    return { anchor: [clamp(leftX, a.x + Math.min(textW, a.w / 2), a.x + a.w), y], align: 'right' }
+  }
+  return { anchor: [clamp(c[0] + r + gap, a.x, a.x + a.w - Math.min(textW, a.w / 2)), y], align: 'left' }
+}
+
+/** popPlacement's anchor (kept for callers that only need the point). */
+export function popAnchor(pose: Pose2D, root: Vec2, L: Pick<PlayLayout, 'coach' | 'coachArea'>): Vec2 {
+  return popPlacement(pose, root, L).anchor
 }
 
 export function renderPlayFrame(ctx: Ctx2D, width: number, height: number, f: PlayFrame): PlayFrameInfo {
@@ -113,12 +145,14 @@ export function renderPlayFrame(ctx: Ctx2D, width: number, height: number, f: Pl
   drawCountIn(ctx, L, timeline, t, theme)
 
   const dur = f.durationSec > 0 ? f.durationSec : routine.song.durationSec
+  const pop = popPlacement(sample.pose, sample.root, L)
   return {
     section: label,
     theme,
     progress: dur > 0 ? clamp(t / dur, 0, 1) : 0,
     layout: L,
-    popAnchor: popAnchor(sample.pose, sample.root, L),
+    popAnchor: pop.anchor,
+    popAlign: pop.align,
     moveIndex: sample.moveIndex,
     nextMoveIndex: sample.nextMoveIndex,
   }
@@ -215,7 +249,7 @@ function drawCueCard(
     roundRect(ctx, x0 + 8, y + h - 6, (w - 16) * c.progress, 3, 1.5)
     ctx.fill()
   }
-  ctx.font = `600 ${Math.round(clamp(h * 0.115, 10, 14))}px system-ui, -apple-system, sans-serif`
+  ctx.font = `600 ${Math.round(clamp(h * 0.12, 12, 16))}px system-ui, -apple-system, sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.fillStyle = c.active ? '#ffffff' : 'rgba(226, 232, 255, 0.72)'
