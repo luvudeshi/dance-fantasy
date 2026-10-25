@@ -93,6 +93,7 @@ Stage 0 endpoints:
 | Method | Path | Returns |
 |---|---|---|
 | GET | `/api/health` | `{ "status": "ok", "version": str }` |
+| GET | `/api/warm` | `{ "ms": int }`: compiles the beat tracker and loads the move library on this instance (the page calls it once on load; instant once warm) |
 | GET | `/api/songs` | `[{ "file": str, "title": str, "sizeBytes": int }]` — audio files in `assets/songs/` |
 | GET | `/api/songs/{file}` | the audio file (for playback) |
 | GET | `/api/spike/beats?song={file}` | `BeatResult` for a file in `assets/songs/` |

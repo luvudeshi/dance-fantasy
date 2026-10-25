@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react'
-import { getHealth } from './api'
+import { apiUrl, getHealth } from './api'
 import { teachHash } from './game/flow'
 import { loadShelf, SHELF_KEY } from './game/routineShelf'
 import { errorMessage, isAbortError } from './lib/errors'
@@ -61,7 +61,10 @@ const DEFAULT_ROUTE: RouteHash = '#/'
 const HEALTH_POLL_MS = 5000
 /** While offline, back off 5 -> 10 -> 15 s (fewer 502s in the console); re-check on focus. */
 const HEALTH_POLL_OFFLINE_MAX_MS = 15000
-const HEALTH_TIMEOUT_MS = 3000
+/** A fresh serverless instance can take several seconds to boot: that is waking up, not offline. */
+const HEALTH_TIMEOUT_MS = 10_000
+/** One missed check could be a cold start; offline is shown after this many in a row. */
+const OFFLINE_AFTER = 2
 
 /** The page for the hash path; a query ("#/play?routine=…") is the page's business. */
 function currentRoute(): RouteHash {
@@ -118,6 +121,9 @@ type Health = { state: 'checking' } | { state: 'ok'; version: string } | { state
 function useServerHealth(): Health {
   const [health, setHealth] = useState<Health>({ state: 'checking' })
   useEffect(() => {
+    // Warm the server while the player is still in the menus: the beat tracker compiles and the move
+    // library loads now, not when they press Start or upload a song. Best effort: a miss just warms later.
+    void fetch(apiUrl('/api/warm')).catch((err: unknown) => console.info('[warm] skipped:', errorMessage(err)))
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let inflight: AbortController | null = null
@@ -130,10 +136,12 @@ function useServerHealth(): Health {
       try {
         const h = await getHealth(ctrl.signal)
         failures = h.status === 'ok' ? 0 : failures + 1
-        if (!cancelled) setHealth(h.status === 'ok' ? { state: 'ok', version: h.version } : { state: 'offline', reason: h.status })
+        if (!cancelled && (h.status === 'ok' || failures >= OFFLINE_AFTER))
+          setHealth(h.status === 'ok' ? { state: 'ok', version: h.version } : { state: 'offline', reason: h.status })
       } catch (err) {
         failures++
-        if (!cancelled) setHealth({ state: 'offline', reason: isAbortError(err) ? 'health check timed out' : errorMessage(err) })
+        if (!cancelled && failures >= OFFLINE_AFTER)
+          setHealth({ state: 'offline', reason: isAbortError(err) ? 'health check timed out' : errorMessage(err) })
       } finally {
         clearTimeout(timeout)
         inflight = null

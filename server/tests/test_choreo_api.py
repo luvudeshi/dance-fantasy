@@ -169,3 +169,14 @@ def test_move_sources(client: TestClient) -> None:
     assert default.headers["x-routine-cache"] == "hit" and default.content == client.post(
         "/api/choreograph", json={"analysisId": ANALYSIS.id, "seed": 3, "moveSource": "classic"}
     ).content
+
+
+def test_warm_compiles_and_loads_once(client: TestClient) -> None:
+    from app.api import choreograph
+
+    choreograph._warm = False
+    first = client.get("/api/warm")
+    assert first.status_code == 200 and first.json()["ms"] >= 0
+    assert choreograph._warm
+    again = client.get("/api/warm").json()["ms"]
+    assert again < 50  # already warm: returns at once

@@ -28,11 +28,14 @@ class RoutineStore:
             raise ValueError("routine id must be 16 lowercase hex characters")
         return self.dir / f"{routine_id}.json"
 
-    def load_bytes(self, routine_id: str) -> bytes | None:
-        """The cached routine JSON, or None if missing or unreadable (it is then regenerated)."""
+    def load_bytes(self, routine_id: str, *, remote: bool = True) -> bytes | None:
+        """The cached routine JSON, or None if missing or unreadable (it is then regenerated).
+
+        ``remote=False`` reads this instance's disk only: regenerating (tens of ms) beats a Blob round trip.
+        """
         path = self.path(routine_id)
         try:
-            data = read_cached(path)
+            data = read_cached(path) if remote else path.read_bytes()
             if not isinstance(json.loads(data), dict):
                 raise ValueError("not a JSON object")
         except FileNotFoundError:
