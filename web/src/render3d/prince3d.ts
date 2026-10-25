@@ -13,7 +13,7 @@ type MatName = 'skin' | 'doublet' | 'trousers' | 'boot' | 'cuff' | 'sash' | 'gol
 function looks(t: CoachTheme): Record<MatName, Look> {
   const ink = '#1d1640'
   const skin = mixHex(t.body, '#ffe0d2', 0.55)
-  const hair = mixHex(t.glow, '#2a1a3e', 0.62)
+  const hair = mixHex(t.glow, '#33204f', 0.55)
   return {
     skin: { base: skin, shade: mixHex(mixHex(skin, t.glow, 0.32), ink, 0.12), spec: 0.32 },
     doublet: { base: mixHex(t.glow, '#ffffff', 0.18), shade: mixHex(t.glow, ink, 0.42), spec: 0.12 },
@@ -53,6 +53,13 @@ export const DOUBLET: ReadonlyArray<readonly [number, number]> = [
 const DEPTH = 0.62
 /** The sash: shoulder to opposite hip across the doublet (centre height, tilt, width; torso units). */
 const SASH = { y: 0.6, tilt: 0.36, width: 0.12 } as const
+
+/** The doublet's [half-width, half-depth] at torso height t (null outside it): what the arms keep clear of. */
+export function doubletSection(t: number): [number, number] | null {
+  if (!(t >= DOUBLET[0][1] && t <= DOUBLET[DOUBLET.length - 1][1])) return null
+  const r = profileRadius(DOUBLET, t)
+  return [r, r * DEPTH]
+}
 
 export function buildPrince(): Body {
   const kit = new Kit()
@@ -228,6 +235,7 @@ export function buildPrince(): Body {
     skin: mats.skin,
     accent: mats.accent,
     crown,
+    section: doubletSection,
     skirt: null,
     mats: Object.values(mats),
     setTheme: (t) => paint(mats, looks(t), t),

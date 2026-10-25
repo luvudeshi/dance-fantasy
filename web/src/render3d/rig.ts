@@ -6,7 +6,7 @@
 import type { JointName, Pose2D, Vec2 } from '@shared/skeleton'
 import { bodyToScreen } from '../pose/normalize'
 import { figureBodyView, headCircle, type FigureView } from '../render/stickFigure'
-import { liftPose, type Vec3 } from './lift'
+import { bodySection, liftPose, type Vec3 } from './lift'
 
 /** A part's frame: origin plus axes scaled to the part's size (columns of its matrix). */
 export interface Basis {
@@ -98,11 +98,11 @@ function perp(d: Vec3, hint: Vec3): [Vec3, Vec3] {
 const UP: Vec3 = [0, 1, 0]
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v))
 
-/** Builds the rig for a body-frame pose at `root` in `view`; `time` (s) animates the gown. */
-export function buildRig(pose: Pose2D, root: Vec2, view: FigureView, time = 0, pulse = 0): Rig {
+/** Builds the rig for a body-frame pose at `root` in `view`; `time` (s) animates the gown; arms clear `section`. */
+export function buildRig(pose: Pose2D, root: Vec2, view: FigureView, time = 0, pulse = 0, section: (t: number) => [number, number] | null = bodySection): Rig {
   const s = view.scale
   const bv = figureBodyView(view, root)
-  const lifted = liftPose(pose)
+  const lifted = liftPose(pose, section)
   const W: Partial<Record<JointName, Vec3>> = {}
   for (const [j, p] of Object.entries(lifted.joints) as Array<[JointName, Vec3]>) {
     const [sx, sy] = bodyToScreen([p[0], p[1]], bv)

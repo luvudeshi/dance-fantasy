@@ -77,8 +77,8 @@ function depthOf(a: Vec2, b: Vec2, len: number): number {
   return l >= len ? 0 : Math.sqrt(len * len - l * l)
 }
 
-/** Lifts a 2D body-frame pose to 3D. Missing joints stay missing. */
-export function liftPose(pose: Pose2D): LiftedPose {
+/** Lifts a 2D body-frame pose to 3D (arms kept clear of the dancer's `section`). Missing joints stay missing. */
+export function liftPose(pose: Pose2D, section: (t: number) => [number, number] | null = bodySection): LiftedPose {
   const yaw = estimateYaw(pose)
   const sin = Math.sin(yaw)
   const cos = Math.cos(yaw)
@@ -125,7 +125,7 @@ export function liftPose(pose: Pose2D): LiftedPose {
     const prior = planted ? hip[2] - knee[2] : knee[2] - hip[2] + 0.1 * cos
     chain(`${side}_knee`, `${side}_ankle`, BONE_LENGTH.shin, () => prior)
   }
-  clearBody(pose, joints, yaw)
+  clearBody(pose, joints, yaw, section)
   return { joints, yaw }
 }
 
@@ -148,7 +148,7 @@ export function bodySection(t: number): [number, number] | null {
  * pass through the torso or the skirt: push elbows and wrists out to the body's front surface (its
  * back, for a dancer facing away), testing the joints and the bones' midpoints.
  */
-function clearBody(pose: Pose2D, joints: Partial<Record<JointName, Vec3>>, yaw: number): void {
+function clearBody(pose: Pose2D, joints: Partial<Record<JointName, Vec3>>, yaw: number, section: (t: number) => [number, number] | null): void {
   const { l_shoulder: ls, r_shoulder: rs, l_hip: lh, r_hip: rh } = pose
   if (!ls || !rs || !lh || !rh) return
   const mh = midOf(lh, rh)
@@ -164,7 +164,7 @@ function clearBody(pose: Pose2D, joints: Partial<Record<JointName, Vec3>>, yaw: 
   const surface = (x: number, y: number, margin: number): number => {
     const t = ((x - mh[0]) * ux + (y - mh[1]) * uy) / l2
     const d = ((x - mh[0]) * -uy + (y - mh[1]) * ux) / Math.sqrt(l2)
-    const sec = bodySection(t)
+    const sec = section(t)
     if (!sec) return Number.NEGATIVE_INFINITY
     const [a, b] = sec
     const w = Math.hypot(a * cos, b * sin)

@@ -314,8 +314,9 @@ export function renderCoach3d(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachV
     return null
   }
   if (f.lost || f.renderer.getContext().isContextLost()) return null
+  syncDancer(f)
   const s = view.scale
-  const rig = buildRig(pose, root, view, performance.now() / 1000, opts.pulse)
+  const rig = buildRig(pose, root, view, performance.now() / 1000, opts.pulse, f.body.section)
   const { box } = rig
   if (!(s > 0) || !Number.isFinite(box.x0) || !Number.isFinite(box.y1)) return null
 
@@ -332,7 +333,6 @@ export function renderCoach3d(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachV
   if (c.width < pw || c.height < ph) f.renderer.setSize(Math.max(c.width, pw), Math.max(c.height, ph), false)
   const H = c.height
 
-  syncDancer(f)
   setTheme(f, opts.theme, opts.pulse)
   const body = f.body
   const hl = highlightedLimbs(opts.highlightJoints)

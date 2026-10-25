@@ -116,6 +116,8 @@ export interface Body {
   accent: ShaderMaterial
   /** Hidden with crown: false. */
   crown: Object3D
+  /** The torso's [half-width, half-depth] at torso height t, for keeping arms clear (default: the princess' bodySection). */
+  section?: (t: number) => [number, number] | null
   /** The princess' gown (vertices from the rig), null for the prince. */
   skirt: { mesh: Mesh; pos: BufferAttribute } | null
   mats: ShaderMaterial[]
