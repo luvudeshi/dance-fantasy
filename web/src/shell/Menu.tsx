@@ -79,7 +79,6 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
     { icon: 'upload', title: 'Studio', meta: 'Bring a song, see its beats', href: '#/analysis' },
     { icon: 'storybook', title: 'Move Book', meta: 'Every step of the ball', href: '#/moves' },
     { icon: 'map', title: 'How to Play', meta: 'The rules of the ball', href: '#/how' },
-    { icon: 'party', title: 'Friends', meta: 'Friend codes, invites, who is dancing', href: '#/friends' },
     { icon: 'gear', title: 'Settings', meta: 'Sound, camera, difficulty', href: '#/settings' },
     { icon: 'quill', title: 'Credits', meta: 'Who made the magic', href: '#/credits' },
   ]
@@ -143,6 +142,9 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
                   <a className="df-btn df-btn-secondary df-btn-sm" href="#/join" data-menu {...sounds}>
                     <Icon name="key" size="xs" cut="none" />
                     Join with a code
+                  </a>
+                  <a className="df-btn df-btn-ghost df-btn-sm" href="#/friends" data-menu {...sounds}>
+                    Friends
                   </a>
                 </div>
               </div>
