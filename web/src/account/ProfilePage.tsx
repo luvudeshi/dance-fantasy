@@ -1,4 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
+import { BadgeShelf } from '../badges/BadgeShelf'
 import { errorMessage } from '../lib/errors'
 import { Button, Corners, Notice, Panel, Title, Token } from '../theme/components'
 import { ICON_NAMES, type IconName } from '../theme/icons'
@@ -216,6 +217,9 @@ export default function ProfilePage() {
                   <dd>{me.stats.friends}</dd>
                 </dl>
               </div>
+              <a className="df-btn df-btn-ghost df-btn-sm acct-link" href="#/hall">
+                Hall of Fame &rsaquo;
+              </a>
             </Panel>
 
             <Panel title="Keep your account" kicker="Optional" sticker="castle">
@@ -231,6 +235,8 @@ export default function ProfilePage() {
               </div>
             </Panel>
           </div>
+
+          <BadgeShelf refreshKey={`${me.id}:${me.stats.rounds}:${me.stats.friends}:${me.username ?? ''}`} />
 
           <Panel title="Recent rounds" kicker="Your last twenty dances" sticker="music-note" className="acct-wide">
             {!history ? (

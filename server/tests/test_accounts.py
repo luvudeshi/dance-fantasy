@@ -23,6 +23,7 @@ from app.accounts.store import DAY, MIN
 from app.config import get_settings
 from app.main import app
 from app.rooms.db import Tx
+from helpers import seed_analysis
 
 BACKENDS = ["sqlite"] + (["postgres"] if os.environ.get("DATABASE_URL") else [])
 H = {"X-DF": "1"}
@@ -43,6 +44,8 @@ def backend(request: pytest.FixtureRequest, tmp_path: Path, monkeypatch: pytest.
     if request.param == "sqlite":
         monkeypatch.delenv("DATABASE_URL", raising=False)
     get_settings.cache_clear()
+    for aid in [ROUND["analysisId"], "c" * 64, *(f"{i}" * 64 for i in range(3))]:  # rounds need a song the server knows
+        seed_analysis(get_settings().cache_dir, str(aid))
     yield str(request.param)
     get_settings.cache_clear()
 
