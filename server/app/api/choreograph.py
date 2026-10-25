@@ -9,14 +9,17 @@ MB, app.api.compress).
 from __future__ import annotations
 
 import json
+import threading
+import time
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi import Path as PathParam
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from app.analysis import ID_PATTERN, Analysis
 from app.analysis_store import AnalysisStore
+from app.audio import warmup
 from app.api.compress import json_response
 from app.choreo import DEFAULT_MOVE_SOURCE, NoEligibleMoves, generate_routine, routine_id
 from app.config import Settings, get_settings
@@ -74,8 +77,32 @@ def _json_response(request: Request, data: bytes, cache: str) -> Response:
 
 
 # Plain `def` endpoints: FastAPI runs them in the threadpool, so disk I/O and generation never block the loop.
+class Warm(BaseModel):
+    ms: int  # time spent warming on this call (0 once this instance is warm)
+
+
+_warm_lock = threading.Lock()
+_warm = False
+
+
+@router.get("/warm")
+def warm(_: LibraryDep) -> Warm:
+    """The page calls this once on load: the move library loads (the dependency) and the beat tracker compiles
+    (numba, ~10-20 s on a fresh instance), so a new song's analysis and the first routine don't pay for it.
+    It runs inside a request, so a serverless instance isn't frozen halfway."""
+    global _warm
+    started = time.monotonic()
+    with _warm_lock:
+        if not _warm:
+            warmup()
+            _warm = True
+    return Warm(ms=round((time.monotonic() - started) * 1000))
+
+
 @router.post("/choreograph")
-def choreograph(req: ChoreographRequest, request: Request, settings: SettingsDep, library: LibraryDep) -> Response:
+def choreograph(
+    req: ChoreographRequest, request: Request, settings: SettingsDep, library: LibraryDep, background: BackgroundTasks
+) -> Response:
     """A routine.json for an analyzed song (404 if the analysis isn't cached yet)."""
     doc = AnalysisStore(settings.cache_dir).load(req.analysisId)
     try:
@@ -97,7 +124,7 @@ def choreograph(req: ChoreographRequest, request: Request, settings: SettingsDep
         pins=pin_key(pinned),
     )
     store = RoutineStore(settings.cache_dir)
-    cached = store.load_bytes(rid)
+    cached = store.load_bytes(rid, remote=False)  # generating is faster than asking Blob
     if cached is not None:
         return _json_response(request, cached, "hit")
     try:
@@ -107,7 +134,7 @@ def choreograph(req: ChoreographRequest, request: Request, settings: SettingsDep
     except NoEligibleMoves as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     data = json.dumps(routine.to_json_dict(), separators=(",", ":")).encode("utf-8")
-    store.save_bytes(rid, data)
+    background.add_task(store.save_bytes, rid, data)  # after the response: rooms and links read it later by id
     return _json_response(request, data, "miss")
 
 
