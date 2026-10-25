@@ -316,6 +316,21 @@ describe('scoring v2 pieces', () => {
     expect(carry.apply(1.15, {}).l_forearm).toBeUndefined()
   })
 
+  it('a signature checkpoint (multiplier 2) scores double', () => {
+    const routine = ROUTINES.standing
+    const [cp] = buildCheckpoints(routine, routine.mode)
+    const pointsFor = (multiplier?: number): number | undefined => {
+      const k = new ScoreKeeperV2([{ ...cp, ...(multiplier ? { multiplier } : {}) }], DEFAULT_SCORING, { shadow: false })
+      k.addFrame({ songTime: cp.time, pose: cp.target, visibility: Object.fromEntries(JOINTS.map((j) => [j, 1])), valid: true })
+      const [r] = k.advanceTo(cp.time + 1)
+      expect(r.judgment).toBe('perfect')
+      return r.points
+    }
+    const single = pointsFor()
+    expect(single).toBeGreaterThan(0)
+    expect(pointsFor(2)).toBe(2 * (single ?? 0))
+  })
+
   it('a frame is unseen only when every hero limb is missing', () => {
     const routine = ROUTINES.standing
     const cps = buildCheckpoints(routine, routine.mode)

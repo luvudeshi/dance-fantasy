@@ -269,7 +269,7 @@ export class ScoreKeeperV2 {
       detail = { raw, pose: best.score, path, timingFactor: factor, bonus, heroes: [...heroes], ...(triedIt ? { tried: true } : {}) }
     }
     const judgment = judge(score, this.config)
-    const points = Math.round(JUDGMENT_POINTS[judgment] * comboMultiplier(this.combo))
+    const points = Math.round(JUDGMENT_POINTS[judgment] * comboMultiplier(this.combo) * (cp.multiplier ?? 1))
     if (judgment === 'miss') {
       this.combo = 0
     } else {
