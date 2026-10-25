@@ -130,6 +130,32 @@
 .df-screen .idot {
   background: var(--df-ground-deep);
 }
+.df-screen .energy-label {
+  margin-right: 0.15em;
+  font-weight: 700;
+  color: var(--df-ink-soft);
+}
+/* Card meta (beats · Energy dots · difficulty) stays on one line: text and dots scale with the card's width. */
+.df-screen .move-card {
+  container-type: inline-size;
+}
+.df-screen .move-card .move-meta {
+  flex-wrap: nowrap;
+  gap: 0 0.4em;
+  font-size: clamp(9px, 5.4cqi, 0.82rem);
+}
+.df-screen .move-card .intensity {
+  align-items: center;
+  gap: 0.15em;
+}
+.df-screen .move-card .idot {
+  width: 0.6em;
+  height: 0.6em;
+}
+.df-screen .move-card .move-meta .diff {
+  text-transform: capitalize;
+  letter-spacing: 0;
+}
 .df-screen .diff {
   font-weight: 800;
 }

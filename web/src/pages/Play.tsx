@@ -1089,23 +1089,6 @@ export default function Play() {
             </div>
           </div>
           <div className="field">
-            <label className="field-label" htmlFor="play-seed">
-              Seed
-            </label>
-            <div className="seed-row">
-              <input
-                id="play-seed"
-                type="number"
-                step={1}
-                value={seed}
-                onChange={(e) => setSeed(Math.trunc(Number(e.target.value)) || 0)}
-              />
-              <button type="button" onClick={() => setSeed(randomSeed())} title="A different routine for the same song">
-                New seed
-              </button>
-            </div>
-          </div>
-          <div className="field">
             <span className="field-label">Before the ball</span>
             <div className="segmented" role="radiogroup" aria-label="Before the ball">
               {REHEARSALS.map((r) => (

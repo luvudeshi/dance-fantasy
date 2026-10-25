@@ -76,9 +76,14 @@ function drawMove(canvas: HTMLCanvasElement, move: LibraryMove, u: number, s: Vi
   }
 }
 
+/** A move's intensity 1..5 as words, chill to cardio (assets/moves/README.md). */
+const ENERGY_WORDS = ['Chill', 'Easy-going', 'Lively', 'Bouncy', 'Cardio'] as const
+const energyWord = (value: number): string => ENERGY_WORDS[Math.min(5, Math.max(1, Math.round(value))) - 1] ?? 'Chill'
+
 function IntensityDots({ value }: { value: number }) {
   return (
-    <span className="intensity" title={`intensity ${value}/5`} aria-label={`intensity ${value} of 5`}>
+    <span className="intensity" title={`Energy ${value}/5: ${energyWord(value)}`} aria-label={`Energy ${value} of 5, ${energyWord(value)}`}>
+      <span className="energy-label">Energy</span>
       {[1, 2, 3, 4, 5].map((i) => (
         <span key={i} className="idot" style={i <= value ? { background: intensityColor(value) } : undefined} />
       ))}
@@ -349,12 +354,7 @@ export default function MoveGallery() {
       <div className="panel gallery-head">
         <h2 className="analysis-title">
           Move library
-          {state.kind === 'ok' && (
-            <>
-              <span className="mono dim">v{state.lib.version}</span>
-              {state.demo && <span className="badge fresh">demo data</span>}
-            </>
-          )}
+          {state.kind === 'ok' && state.demo && <span className="badge fresh">demo data</span>}
         </h2>
         {state.kind === 'ok' && (
           <p className="gallery-stats">
@@ -393,12 +393,12 @@ export default function MoveGallery() {
             </select>
           </label>
           <label>
-            Intensity
+            Energy
             <select value={filters.intensity} onChange={(e) => setFilter('intensity', Number(e.target.value))}>
               <option value={0}>any</option>
               {[1, 2, 3, 4, 5].map((i) => (
                 <option key={i} value={i}>
-                  {i}
+                  {i} · {energyWord(i)}
                 </option>
               ))}
             </select>
