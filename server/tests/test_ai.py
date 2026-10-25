@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
@@ -140,6 +142,35 @@ def test_announcer_falls_back_fast_when_providers_fail(client: TestClient, monke
 
 
 # ---- provider ------------------------------------------------------------------------------------
+
+
+def test_generate_text_retries_a_provider_that_fails_instantly(monkeypatch: pytest.MonkeyPatch) -> None:
+    hits: list[str] = []
+
+    class Flaky(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            self.rfile.read(int(self.headers["Content-Length"]))
+            hits.append(self.path)
+            ok = len(hits) > 1  # the first answer is Muse's flaky 404
+            body = json.dumps({"choices": [{"message": {"content": '{"lines": ["Bravo!"]}'}}]} if ok else {"error": {"code": "model_not_found"}})
+            self.send_response(200 if ok else 404)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+        def log_message(self, *args: object) -> None:
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Flaky)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setenv("MUSE_API_KEY", "test-key")
+        monkeypatch.setenv("MUSE_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        text, provider = generate_text("system", "user", deadline_sec=5.0, json_mode=True)
+        assert provider == "muse" and "Bravo!" in text and len(hits) == 2
+    finally:
+        server.shutdown()
 
 
 def test_generate_text_without_keys_raises() -> None:

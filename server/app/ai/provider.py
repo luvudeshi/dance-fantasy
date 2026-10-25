@@ -31,6 +31,9 @@ GEMINI_BASE = "https://generativelanguage.googleapis.com"
 # With two keys the first provider gets this share of the deadline, so the fallback still has time to answer.
 FIRST_SHARE = 0.6
 MIN_BUDGET_SEC = 0.2  # not worth starting a call with less time than this
+# Muse sometimes answers HTTP 404 model_not_found in ~0.1 s (flaky upstream routing): an HTTP error this fast is
+# retried once on the same provider.
+FAST_FAIL_SEC = 1.0
 KEY_ENV: dict[Provider, str] = {"muse": "MUSE_API_KEY", "gemini": "GEMINI_API_KEY"}
 
 
@@ -115,7 +118,9 @@ def generate_text(
     order: list[Provider] = ["gemini", "muse"] if env("AI_PROVIDER") == "gemini" else ["muse", "gemini"]
     keyed = [(p, key) for p in order if (key := env(KEY_ENV[p]))]
     end = time.monotonic() + deadline_sec
-    for i, (provider, key) in enumerate(keyed):
+    i, retried = 0, False
+    while i < len(keyed):
+        provider, key = keyed[i]
         remaining = end - time.monotonic()
         budget = remaining * first_share if i < len(keyed) - 1 else remaining
         if budget < MIN_BUDGET_SEC:
@@ -126,6 +131,10 @@ def generate_text(
         except (OSError, http.client.HTTPException, ValueError, LookupError, TypeError) as exc:  # net, HTTP, JSON, shape
             ms = (time.monotonic() - started) * 1000
             log.warning("ai.call provider=%s ok=false ms=%.0f error=%s", provider, ms, _describe(exc))
+            if not retried and isinstance(exc, urllib.error.HTTPError) and ms < FAST_FAIL_SEC * 1000:
+                retried = True  # same provider, once more
+            else:
+                i += 1
             continue
         log.info("ai.call provider=%s ok=true ms=%.0f", provider, (time.monotonic() - started) * 1000)
         return text, provider
