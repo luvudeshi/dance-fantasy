@@ -12,8 +12,10 @@ in an online ballroom with friends on their own phones.
 [![Google Gemini](https://img.shields.io/badge/Google-Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-google-gemini-three-jobs)
 [![SerpApi](https://img.shields.io/badge/SerpApi-Search-2F9E44?style=for-the-badge)](#-serpapi-search-results-that-change-the-game)
 [![Tiger Data](https://img.shields.io/badge/Tiger_Data-TimescaleDB-F5A623?style=for-the-badge)](#-tiger-data-the-memory-of-the-ball)
-[![Cursor](https://img.shields.io/badge/Built_with-Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](#-ai-tools-used)
-[![Grok](https://img.shields.io/badge/Built_with-Grok-111111?style=for-the-badge&logo=x&logoColor=white)](#-ai-tools-used)
+[![Vultr](https://img.shields.io/badge/Vultr-Analysis_worker-007BFC?style=for-the-badge&logo=vultr&logoColor=white)](#%EF%B8%8F-vultr-an-always-warm-analysis-worker)
+[![.tech](https://img.shields.io/badge/.tech-DanceFantasy.tech-0B0B45?style=for-the-badge)](#-tech-domain-dancefantasytech)
+[![Cursor](https://img.shields.io/badge/Built_with-Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](#-cursor-and-grok-how-we-built-it)
+[![Grok](https://img.shields.io/badge/Built_with-Grok-111111?style=for-the-badge&logo=x&logoColor=white)](#-cursor-and-grok-how-we-built-it)
 
 ### 🏆 Sponsor tracks at a glance
 
@@ -23,7 +25,9 @@ in an online ballroom with friends on their own phones.
 | ✨ | **Google Gemini** | The herald's expressive voice, turns a viral dance into playable moves, backup writer |
 | 🔎 | **SerpApi** | Finds the song's viral dance online; those moves get pinned to the chorus and score **2x** |
 | 🐯 | **Tiger Data** | Hypertables + continuous aggregates: ballrooms, friends, history, "hardest moments", Hall of Fame |
-| 🤖 | **Cursor · Grok** | AI tools we built the project with (see [AI tools used](#-ai-tools-used)) |
+| ☁️ | **Vultr** | An always-warm song-analysis worker on Vultr Cloud Compute, so uploads skip serverless cold starts |
+| 🌐 | **.tech domain** | The game lives at [DanceFantasy.tech](https://dancefantasy.tech) |
+| 🤖 | **Cursor · Grok** | AI coding, automations and workflows we used to build the game |
 
 ![A round in progress: the 3D prince dances the routine, the Royal Herald cheers a 25-beat streak, and the next moves slide in at the bottom](docs/screenshots/game.jpg)
 
@@ -112,6 +116,24 @@ moments", the beats that trip up dancers across every ballroom. A second continu
 up each dancer's score per day for the Hall of Fame's top dancers of the week. It also keeps the paid AI and search
 calls within daily and per-visitor limits.
 
+### ☁️ Vultr: an always-warm analysis worker
+Analyzing a new song is the one heavy job in the game: librosa's beat tracker compiles itself to machine
+code on first use, which costs a fresh serverless instance 20-30 seconds. We built a **Vultr Cloud
+Compute** worker for it: the same FastAPI app on an instance in Dallas that stays warm, so an upload is
+analyzed in about a second.
+`deploy/vultr/provision.sh` creates the instance through the Vultr API, and `cloud-init.yaml` installs the
+server, the numba cache and Caddy for HTTPS. With `ANALYSIS_WORKER_URL` set, the Vercel API hands each
+uploaded song to the worker (`server/app/vultr_worker.py`); the worker reads it from the shared Blob store
+and caches the analysis where every instance sees it.
+
+### 🌐 .tech domain: DanceFantasy.tech
+The ball has its own address: **[DanceFantasy.tech](https://dancefantasy.tech)** (and `www.`), served over
+HTTPS by our Vercel deployment.
+
+### 🤖 Cursor and Grok: how we built it
+We used **Cursor** for AI-assisted coding, and **Grok** automations and workflows during development,
+alongside Claude Code's parallel agents that built and reviewed features on separate branches.
+
 ### 🧰 Also built with
 **MediaPipe** (Google) for in-browser pose tracking · **librosa** for beat and structure analysis ·
 **three.js** for the 3D dancers · **React + TypeScript + Vite** · **FastAPI (Python)** ·
@@ -167,7 +189,7 @@ lines and ballrooms use a local database. Technical docs: [shared/README.md](sha
 - **Claude Code** (Anthropic) helped us scaffold and write the code, including parallel agents that
   built and reviewed features on separate branches.
 - **Cursor** for AI-assisted coding alongside Claude Code.
-- **Grok** bot automations helped us build the project.
+- **Grok** automations and workflows during development.
 - **Meta Muse**, **Google Gemini** and **SerpApi** power features in the game, as described above.
 - **MediaPipe** (Google) for pose tracking.
 
