@@ -141,6 +141,50 @@ export default function FriendsPage() {
         {error && <Notice inline tone="error" message={error} />}
 
         <div className="acct-panels">
+          <Panel
+            title={`Your friends${friends ? ` (${friends.length})` : ''}`}
+            kicker={room ? `You are in room ${room}` : 'Online friends first'}
+            sticker="crown"
+          >
+            {!friends ? (
+              <p className="df-note acct-note">Calling the court…</p>
+            ) : friends.length === 0 ? (
+              <p className="df-note acct-note">No friends yet. Trade codes with someone and add theirs.</p>
+            ) : (
+              <ul className="df-list">
+                {friends.map((f) => (
+                  <li key={f.id} className={`df-item acct-friend${f.online ? '' : ' is-away'}`}>
+                    <Avatar icon={f.avatar} color={f.color} size="sm" label={iconLabel(f.avatar)} />
+                    <span className="df-item-body">
+                      <span className="df-item-title">{f.name}</span>
+                      <span className="df-item-meta">
+                        <OnlineDot online={f.online} /> {presence(f)}
+                      </span>
+                    </span>
+                    <span className="acct-friend-actions">
+                      {room && f.inRoom !== room ? (
+                        <Button size="sm" onClick={() => void invite(f, room)} disabled={invited.has(f.id)}>
+                          {invited.has(f.id) ? 'Invited' : 'Invite to my room'}
+                        </Button>
+                      ) : f.inRoom && f.inRoom !== room ? (
+                        <a className="df-btn df-btn-secondary df-btn-sm" href={joinHash(f.inRoom)}>
+                          Join {f.inRoom}
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="df-btn df-btn-ghost df-btn-sm acct-remove"
+                        onClick={() => setRemoving(f)}
+                        aria-label={`Remove ${f.name}`}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
           <div className="df-stack" style={gap('40px')}>
             <Panel title="Add a friend" kicker="Ask for their 6-letter code" sticker="party">
               <form
@@ -213,50 +257,6 @@ export default function FriendsPage() {
             </Panel>
           </div>
 
-          <Panel
-            title={`Your friends${friends ? ` (${friends.length})` : ''}`}
-            kicker={room ? `You are in room ${room}` : 'Online friends first'}
-            sticker="crown"
-          >
-            {!friends ? (
-              <p className="df-note acct-note">Calling the court…</p>
-            ) : friends.length === 0 ? (
-              <p className="df-note acct-note">No friends yet. Trade codes with someone and add them on the left.</p>
-            ) : (
-              <ul className="df-list">
-                {friends.map((f) => (
-                  <li key={f.id} className={`df-item acct-friend${f.online ? '' : ' is-away'}`}>
-                    <Avatar icon={f.avatar} color={f.color} size="sm" label={iconLabel(f.avatar)} />
-                    <span className="df-item-body">
-                      <span className="df-item-title">{f.name}</span>
-                      <span className="df-item-meta">
-                        <OnlineDot online={f.online} /> {presence(f)}
-                      </span>
-                    </span>
-                    <span className="acct-friend-actions">
-                      {room && f.inRoom !== room ? (
-                        <Button size="sm" onClick={() => void invite(f, room)} disabled={invited.has(f.id)}>
-                          {invited.has(f.id) ? 'Invited' : 'Invite to my room'}
-                        </Button>
-                      ) : f.inRoom && f.inRoom !== room ? (
-                        <a className="df-btn df-btn-secondary df-btn-sm" href={joinHash(f.inRoom)}>
-                          Join {f.inRoom}
-                        </a>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="df-btn df-btn-ghost df-btn-sm acct-remove"
-                        onClick={() => setRemoving(f)}
-                        aria-label={`Remove ${f.name}`}
-                      >
-                        Remove
-                      </button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
         </div>
       </div>
 

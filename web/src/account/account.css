@@ -122,6 +122,14 @@
 .acct-name-row > .df-label {
   grid-column: 1 / -1;
 }
+@media (max-width: 480px) {
+  .acct-name-row {
+    grid-template-columns: 1fr;
+  }
+  .acct-name-row > .df-btn {
+    justify-self: start;
+  }
+}
 .acct-fieldset {
   display: flex;
   flex-direction: column;
@@ -140,8 +148,8 @@
 }
 .acct-swatch {
   display: block;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: var(--acct-c);
   box-shadow: var(--df-shadow-lift);
