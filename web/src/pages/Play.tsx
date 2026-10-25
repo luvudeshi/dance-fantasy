@@ -61,6 +61,7 @@ import { songTimeAtFromClock, WebcamPoseSource } from '../game/webcamSource'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
+import { createReelSession, reelEnabled, ReelLauncher } from '../reel'
 import { finishRoomRound, inRoomRound, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
 import RoomLeaderboard from '../rooms/RoomLeaderboard'
 import { getSettings } from '../settings'
@@ -202,6 +203,7 @@ export default function Play() {
   const [autoSfx, setAutoSfx] = useState(false)
   const [sfx] = useState(() => new Sfx(() => clock.context))
   const announcer = useAnnouncer()
+  const [reel] = useState(() => createReelSession(reelEnabled())) // combo cam, ?reel=1
   /** "Learn it first": the step label while the routine is generated, then an error if any. */
   const [learnBusy, setLearnBusy] = useState<string | null>(null)
   const [learnError, setLearnError] = useState<string | null>(null)
@@ -291,6 +293,7 @@ export default function Play() {
       bot,
       isPlaying: () => clock.playing,
       onResults: (rs, comboBefore) => {
+        reel?.feed(rs)
         if (!isRehearsing(phaseRef.current)) announcer.onResults(rs, comboBefore)
         if (!soundOnRef.current) return
         for (const name of judgmentSfx(rs, comboBefore)) sfx.play(name)
@@ -319,6 +322,7 @@ export default function Play() {
     camRef.current = null
     cam?.offError()
     cam?.source.stop()
+    void reel?.clear()
     clock.dispose()
   })
   useEffect(() => () => unmountRef.current(), [unmountRef])
@@ -374,6 +378,7 @@ export default function Play() {
     })
     sfx.cancelScheduled()
     if (soundOnRef.current) sfx.play('fanfare')
+    void reel?.finish()
     if (run.source.kind === 'bot') run.source.stop()
     stopCamera()
     dispatch({ type: 'finished' })
@@ -446,6 +451,7 @@ export default function Play() {
     if (!run) return
     const preset = judgingRef.current
     roundMetaRef.current = { preset, config: scoringFor(preset), calibration: auto ? null : (calRef.current ?? loadCalibration()), auto }
+    if (!practice) reel?.begin(game, cam?.source.video.srcObject, () => clock.songTime(), roundMetaRef.current.calibration?.latencySec ?? 0)
     setActive({ game, monitor: new SyncMonitor(game.routine.song.beats), run, practice })
     setPrepared(null)
     setPaused(false)
@@ -1380,6 +1386,7 @@ export default function Play() {
               }
             />
           )}
+          {phase === 'results' && reel && <ReelLauncher session={reel} />}
         </PlayStage>
       )}
     </section>
