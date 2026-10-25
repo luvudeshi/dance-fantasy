@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
+import { AnnouncerToggles } from '../announcer/Herald'
 import { DEFAULT_CALIBRATION, loadCalibration, saveCalibration, type Calibration } from '../game/calibration'
 import { JUDGING_PRESETS, loadJudging, saveJudging, type JudgingPreset } from '../game/judging'
 import { loadSfxEnabled, saveSfxEnabled } from '../game/sfx'
@@ -24,6 +25,7 @@ const DEV_PAGES = [
   { href: '#/pose', label: 'Pose spike' },
   { href: '#/beats', label: 'Beat spike' },
   { href: '#/ui', label: 'UI kit' },
+  { href: '#/ai', label: 'AI preview' },
 ] as const
 
 const gap = (px: number): CSSProperties => ({ '--df-gap': `${px}px` }) as CSSProperties
@@ -92,6 +94,10 @@ export default function SettingsPage() {
                 Play a chime
               </Button>
             </div>
+          </Panel>
+
+          <Panel title="The herald" kicker="A voice at the ball" sticker="crown">
+            <AnnouncerToggles />
           </Panel>
 
           <Panel title="Camera" kicker="The magic mirror" sticker="mirror-cam">

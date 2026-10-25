@@ -7,6 +7,7 @@
 // which count-in cues to schedule from a start position. The Sfx class only plays them.
 
 import { defaultStorage, readJson, writeJson, type StorageLike } from '../lib/storage'
+import { getSettings } from '../settings'
 import type { CountdownPlan } from './cues'
 import type { CheckpointResult, Judgment } from './scoring'
 
@@ -158,6 +159,7 @@ export class Sfx {
     const out = this.output()
     if (!out) return []
     const { ctx, gain: bus } = out
+    bus.gain.value = SFX_VOLUME * getSettings().sfxVolume
     const t0 = Math.max(ctx.currentTime, when ?? ctx.currentTime)
     const started: OscillatorNode[] = []
     for (const n of SFX_NOTES[name]) {

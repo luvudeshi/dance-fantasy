@@ -19,11 +19,13 @@ const SettingsPage = lazy(() => import('./shell/SettingsPage'))
 const HowToPlay = lazy(() => import('./shell/HowToPlay'))
 const Credits = lazy(() => import('./shell/Credits'))
 const StyleGuide = lazy(() => import('./theme/StyleGuide'))
+const RoomPage = lazy(() => import('./rooms/RoomPage'))
+const AiPreview = lazy(() => import('./announcer/AiPreview'))
 
 /**
  * Every page. `shell`: a full-page Dance Fantasy screen (else the legacy .app column);
  * `bar`: the sticky header shows (with `title` beside the brand); `esc`: Esc goes back to the menu.
- * Dev pages (#/pose, #/beats, #/ui) are linked from Settings > Developer.
+ * Dev pages (#/pose, #/beats, #/ui, #/ai) are linked from Settings > Developer.
  */
 const ROUTES = [
   { hash: '#/', shell: true, bar: false, esc: false },
@@ -37,6 +39,9 @@ const ROUTES = [
   { hash: '#/pose', shell: false, bar: true, esc: false, title: 'Pose spike' },
   { hash: '#/beats', shell: false, bar: true, esc: false, title: 'Beat spike' },
   { hash: '#/ui', shell: true, bar: false, esc: true },
+  { hash: '#/room', shell: true, bar: true, esc: false },
+  { hash: '#/join', shell: true, bar: true, esc: false },
+  { hash: '#/ai', shell: true, bar: false, esc: true },
 ] as const
 type RouteHash = (typeof ROUTES)[number]['hash']
 const DEFAULT_ROUTE: RouteHash = '#/'
@@ -186,6 +191,10 @@ export default function App() {
         <Credits />
       ) : route === '#/ui' ? (
         <StyleGuide />
+      ) : route === '#/room' || route === '#/join' ? (
+        <RoomPage />
+      ) : route === '#/ai' ? (
+        <AiPreview />
       ) : route === '#/analysis' ? (
         <AnalysisDebug />
       ) : (

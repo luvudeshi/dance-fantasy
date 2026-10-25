@@ -23,6 +23,9 @@ import PlayStage, { type ActiveGame } from '../game/PlayStage'
 import type { PoseSource } from '../game/poseSource'
 import { barSeekTarget, effectiveRehearsal, loadRehearsal, REHEARSALS, saveRehearsal, type Rehearsal } from '../game/rehearsal'
 import ResultsScreen from '../game/ResultsScreen'
+import { useAnnouncer } from '../announcer/announcer'
+import { HeraldBubble } from '../announcer/Herald'
+import { SignatureCard } from '../signature/SignatureCard'
 import { buildResultsView, roundDetails, type ResultsView } from '../game/results'
 import {
   forgetRoutine,
@@ -57,6 +60,9 @@ import { songTimeAtFromClock, WebcamPoseSource } from '../game/webcamSource'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
+import { finishRoomRound, inRoomRound, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
+import RoomLeaderboard from '../rooms/RoomLeaderboard'
+import { getSettings } from '../settings'
 import { Corners } from '../theme/components'
 import { Icon } from '../theme/Icon'
 import type { IconName } from '../theme/icons'
@@ -159,8 +165,8 @@ export default function Play() {
   const [songsError, setSongsError] = useState<string | null>(null)
   const [songsReload, setSongsReload] = useState(0)
   const [choice, setChoice] = useState<SongChoice | null>(null)
-  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
-  const [mode, setMode] = useState<Mode>('standing')
+  const [difficulty, setDifficulty] = useState<Difficulty>(() => getSettings().difficulty)
+  const [mode, setMode] = useState<Mode>(() => getSettings().mode)
   const [seed, setSeed] = useState(randomSeed)
   const [autoplay, setAutoplay] = useState(false)
   const [skipCal, setSkipCal] = useState(false)
@@ -185,15 +191,16 @@ export default function Play() {
   const [camSource, setCamSource] = useState<WebcamPoseSource | null>(null)
   const [camError, setCamError] = useState<string | null>(null)
   const [paused, setPaused] = useState(false)
-  const [mirrored, setMirrored] = useState(true)
-  const [pip, setPip] = useState(true)
-  const [debug, setDebug] = useState(false)
+  const [mirrored, setMirrored] = useState(() => getSettings().mirror)
+  const [pip, setPip] = useState(() => getSettings().cameraWindow)
+  const [debug, setDebug] = useState(() => getSettings().debugOverlay)
   /** Lobby: judging strictness (remembered on this device). */
   const [judging, setJudging] = useState<JudgingPreset>(() => loadJudging())
   /** Sound effects for camera games (remembered); autoplay runs use autoSfx (off until S). */
   const [sfxOn, setSfxOn] = useState(() => loadSfxEnabled())
   const [autoSfx, setAutoSfx] = useState(false)
   const [sfx] = useState(() => new Sfx(() => clock.context))
+  const announcer = useAnnouncer()
   /** "Learn it first": the step label while the routine is generated, then an error if any. */
   const [learnBusy, setLearnBusy] = useState<string | null>(null)
   const [learnError, setLearnError] = useState<string | null>(null)
@@ -221,6 +228,10 @@ export default function Play() {
   const soundOn = autoplay ? autoSfx : sfxOn
   const soundOnRef = useLatest(soundOn)
   const judgingRef = useLatest(judging)
+  useRoomReporter(active?.game.routine.meta?.routineId, () => {
+    const a = activeRef.current
+    return a?.run && phaseRef.current === 'game' ? { keeper: a.run.keeper, songTime: clock.songTime(), durationSec: a.game.durationSec } : null
+  })
 
   // --- pose sources ----------------------------------------------------------------------
   const stopCamera = (): void => {
@@ -279,6 +290,7 @@ export default function Play() {
       bot,
       isPlaying: () => clock.playing,
       onResults: (rs, comboBefore) => {
+        if (!isRehearsing(phaseRef.current)) announcer.onResults(rs, comboBefore)
         if (!soundOnRef.current) return
         for (const name of judgmentSfx(rs, comboBefore)) sfx.play(name)
       },
@@ -333,11 +345,13 @@ export default function Play() {
     const run = a?.run
     if (!a || !run || phaseRef.current !== 'game') return
     const summary = run.finish(a.game.routine, a.game.durationSec)
+    finishRoomRound(a.game.routine.meta?.routineId, summary)
     console.log(a.monitor.summary())
     const results = run.keeper.results()
     const auto = run.source.kind === 'bot'
     const meta: RoundMeta = roundMetaRef.current ?? { preset: 'standard', config: scoringFor('standard'), calibration: null, auto }
     setResults(buildResultsView(summary, results, a.game.routine, meta.config.thresholds))
+    announcer.results(summary)
     setRound({
       details: roundDetails({
         judging: judgingLabel(meta.preset),
@@ -435,6 +449,7 @@ export default function Play() {
     setPrepared(null)
     setPaused(false)
     dispatch({ type: 'ready', practice })
+    if (!practice) announcer.intro({ songTitle: game.analysis.title, difficulty: game.routine.difficulty })
     clock.play(-game.timeline.countdown.preRollSec, game.timeline.countInClicks)
     armCountdown(game)
   }
@@ -459,6 +474,7 @@ export default function Play() {
         return // camError is on screen
       }
     }
+    await waitForRoomStart(game.routine.meta?.routineId)
     if (tokenRef.current === token) begin(game)
   }
 
@@ -487,7 +503,7 @@ export default function Play() {
     setLinked(null) // a waiting deep link is superseded by whatever starts now
     const auto = autoplay
     playAutoRef.current = auto
-    const reh = effectiveRehearsal(rehearsal, auto)
+    const reh = inRoomRound() ? 'none' : effectiveRehearsal(rehearsal, auto)
     setRunRehearsal(reh)
     practiceNextRef.current = reh === 'practice'
     setPending({ title: l.title, subtitle: l.subtitle })
@@ -507,7 +523,7 @@ export default function Play() {
       if (!game || sessionRef.current !== ac) return
       setPrepared(game)
       shelve(game)
-      const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal, calibrated: calRef.current !== null })
+      const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal || inRoomRound(), calibrated: calRef.current !== null })
       dispatch({ type: 'prepared', calibrate, rehearsal: reh })
       if (reh === 'watch') beginPreview(game)
       else if (!calibrate) void warmup(game)
@@ -660,6 +676,7 @@ export default function Play() {
   const playAgain = (): void => {
     const game = active?.game
     if (!game) return
+    announcer.hush()
     clock.unlock()
     tokenRef.current++
     disposeRun()
@@ -699,6 +716,7 @@ export default function Play() {
     if (clock.playing) {
       clock.pause()
       sfx.cancelScheduled()
+      announcer.hush()
       setPaused(true)
     } else {
       clock.resume()
@@ -775,6 +793,7 @@ export default function Play() {
   }
 
   const exitToLobby = (): void => {
+    announcer.hush()
     sessionRef.current?.abort()
     sessionRef.current = null
     tokenRef.current++
@@ -992,6 +1011,11 @@ export default function Play() {
               </span>
             )}
           </label>
+          {choice && (
+            <div style={{ marginTop: 20 }}>
+              <SignatureCard title={choiceTitle(choice)} />
+            </div>
+          )}
         </div>
 
         <div className="lobby-card">
@@ -1195,6 +1219,8 @@ export default function Play() {
           keys={stageKeys}
           sound={soundOn}
         >
+          <RoomLeaderboard routineId={routine?.meta?.routineId} />
+          <HeraldBubble announcer={announcer} />
           {session.status === 'loading' && (
             <div className="play-overlay">
               <div className="play-card loading">
@@ -1344,6 +1370,7 @@ export default function Play() {
               onMenu={() => {
                 window.location.hash = '#/'
               }}
+              aside={<SignatureCard title={active.game.analysis.title} artist={active.game.analysis.artist} />}
             />
           )}
         </PlayStage>
