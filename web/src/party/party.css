@@ -60,8 +60,14 @@
 .party-count.is-full {
   color: var(--df-sage-deep);
 }
-.party-form .df-segmented {
-  align-self: flex-start;
+.party-count-pick {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.party-count-pick .df-segment > span {
+  min-width: 3.2rem;
+  justify-content: center;
 }
 .party-dancers {
   list-style: none;
@@ -94,6 +100,9 @@
   min-height: 2.75rem;
   padding: 8px 12px;
   font-size: 1.05rem;
+}
+.party-dancer-body .df-label {
+  display: block;
 }
 .party-where {
   font-weight: 600;
@@ -185,6 +194,11 @@
   rotate: 12deg;
   opacity: 0.9;
   pointer-events: none;
+}
+@media (max-width: 720px) {
+  .party-deco {
+    display: none;
+  }
 }
 
 /* ---------- in game ---------- */
@@ -296,7 +310,8 @@
 .party-hud-mirror {
   position: absolute;
   right: 16px;
-  bottom: max(150px, 18vh);
+  /* just above the cue strip (game/render.ts playLayout: card clamp(64, 14vh, 124) + 62 px padding) */
+  bottom: calc(clamp(64px, 14vh, 124px) + 74px);
   width: clamp(220px, 27vw, 400px);
   padding: 8px;
   border-radius: var(--df-r-lg);
@@ -313,10 +328,14 @@
     flex-wrap: wrap;
     gap: 10px;
   }
+  .party-columns {
+    flex-wrap: nowrap;
+  }
   .party-column {
     width: auto;
-    flex: 1 1 140px;
-    padding: 6px 10px 10px 6px;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 8px 10px;
   }
   .party-column .df-token {
     display: none;
@@ -332,7 +351,6 @@
   }
   .party-hud-mirror {
     width: 46vw;
-    bottom: max(120px, 17vh);
     right: 8px;
   }
 }
@@ -422,6 +440,7 @@
 }
 .party-award {
   display: inline-flex;
+  white-space: nowrap;
   gap: 6px;
   align-items: baseline;
   padding: 3px 10px;
@@ -455,5 +474,16 @@
   }
   .party-award span {
     display: none;
+  }
+  .party-title-row .df-token {
+    display: none;
+  }
+  .party-results-head .df-ribbon-wrap {
+    max-width: 100%;
+  }
+  .party-results-head .df-ribbon {
+    white-space: normal;
+    text-align: center;
+    font-size: 1.1rem;
   }
 }

@@ -108,16 +108,26 @@ function drawPartyMirror(
     ctx.textBaseline = 'middle'
     ctx.fillText(o.emptyText, w / 2, h / 2)
   }
-  for (const f of o.figures) {
+  const heads = o.figures.map((f) => f.points.nose ?? f.points.l_shoulder)
+  o.figures.forEach((f, i) => {
     const c = colorOf(f.player)
     drawSkeleton(ctx, f.points, { visibility: f.visibility, color: c.hex, outlineColor: NIGHT_DEEP, lineWidth: Math.max(3, unit * 0.42), minVisibility: 0.5 })
-    const head = f.points.nose ?? f.points.l_shoulder
-    if (!head) continue
+    const head = heads[i]
+    if (!head) return
     const topY = Math.max(unit * 1.2, head[1] - unit * 2.2)
     drawLabel(ctx, displayName(f.player), head[0], topY, c.hex, c.on, Math.round(unit * 0.85))
     const call = f.view?.callout
-    if (call) drawCallout(ctx, call.label, head[0], Math.max(unit * 3.4, topY - unit * 1.4), c.hex, Math.round(unit * 1.9), call.age)
-  }
+    if (!call) return
+    // as wide as the gap to the nearest neighbour allows, so side-by-side callouts never overlap
+    let room = w
+    heads.forEach((h2, k) => {
+      if (h2 && k !== i) room = Math.min(room, Math.abs(h2[0] - head[0]))
+    })
+    ctx.font = `italic 800 100px ${STORY_FONT}`
+    const at100 = ctx.measureText(call.label).width * 1.15 // + the cut-out stroke
+    const size = Math.min(unit * 1.9, (room * 0.95 * 100) / Math.max(1, at100))
+    if (size >= 9) drawCallout(ctx, call.label, head[0], Math.max(size * 1.4, topY - unit * 1.2), c.hex, Math.round(size), call.age)
+  })
 }
 
 export default function PartyMirror({ tracker, players, video, run, emptyText, label }: Props) {

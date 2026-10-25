@@ -13,7 +13,7 @@ import './party.css'
 
 const COUNTS = Array.from({ length: MAX_PARTY - MIN_PARTY + 1 }, (_, i) => {
   const n = MIN_PARTY + i
-  return { value: String(n), label: `${n} dancers` }
+  return { value: String(n), label: String(n) }
 })
 
 const DIFFICULTY = [
@@ -180,7 +180,12 @@ export default function PartySetup(p: Props) {
             </Title>
             <p className="df-lede">Up to four dancers, one mirror. Each of you is followed in your own colour and scored on your own.</p>
 
-            <Segmented label="Number of dancers" value={String(players.length)} options={COUNTS} onChange={(v) => p.onCount(Number(v))} />
+            <div className="party-count-pick">
+              <span className="df-label" aria-hidden="true">
+                Dancers
+              </span>
+              <Segmented label="Number of dancers" value={String(players.length)} options={COUNTS} onChange={(v) => p.onCount(Number(v))} />
+            </div>
 
             <ol className="party-dancers">
               {players.map((pl) => (
