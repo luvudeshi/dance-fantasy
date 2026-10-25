@@ -75,8 +75,9 @@ def test_fixed_canned_lines_have_stable_known_ids() -> None:
     assert line_id("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"  # sha256, as the web hashes it
 
 
-def test_canned_bank_has_a_dozen_lines_per_event() -> None:
+def test_canned_bank_has_a_dozen_lines_per_event_and_no_mishearable_phrases() -> None:
     assert all(len(bank) >= 12 for bank in CANNED.values())
+    assert not any("hear ye" in t.lower() for bank in CANNED.values() for t in bank)
 
 
 def test_announcer_returns_ids_and_remembers_the_lines_it_gave_out(client: TestClient, cache_dir: Path) -> None:

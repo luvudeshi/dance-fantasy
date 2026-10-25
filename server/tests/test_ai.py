@@ -101,9 +101,10 @@ def test_canned_lines_skip_templates_needing_missing_fields() -> None:
 
 
 def test_parse_lines_tolerates_fences_and_cleans_up() -> None:
-    raw = '```json\n{"lines": ["  \\"Hear ye!\\"  ", 42, "", "' + "a " * 80 + '", "four", "five"]}\n```'
+    raw = '```json\n{"lines": ["  \\"Bravo!\\"  ", 42, "", "Hear ye, hear-ye!", "' + "a " * 80 + '", "four", "five"]}\n```'
     lines = parse_lines(raw)
-    assert lines[0] == "Hear ye!" and len(lines) == 3
+    assert lines[0] == "Bravo!" and len(lines) == 3
+    assert not any("hear" in line.lower() for line in lines)  # "hear ye" is dropped: voiced, it sounds rude
     assert all(len(line) <= MAX_LINE for line in lines)
     assert parse_lines("no json here") == [] and parse_lines('{"lines": "nope"}') == [] and parse_lines("{oops}") == []
 
