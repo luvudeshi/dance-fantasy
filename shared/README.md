@@ -152,12 +152,16 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
 | POST | `/api/rooms` | none | `{ name }` | `{ code, playerId, token }`; the creator is the host |
 | POST | `/api/rooms/{code}/join` | none | `{ name }` | `{ playerId, token }`; 409 when 8 players are in |
 | GET | `/api/rooms/{code}?chatAfter=<id>` | optional | | `RoomView`; with a token, marks that player seen |
-| POST | `/api/rooms/{code}/routine` | host | `{ routineId, analysisId, title, difficulty, mode }` | `RoomView`; lobby or finished only (else 409); back to lobby, scores and ready reset |
+| POST | `/api/rooms/{code}/routine` | host | `{ routineId, analysisId, title, difficulty, mode }` | `RoomView`; lobby or finished only (else 409); back to lobby, scores, ready and crew sync reset |
 | POST | `/api/rooms/{code}/ready` | player | `{ ready: bool }` | `RoomView` |
-| POST | `/api/rooms/{code}/start` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`; lobby or finished only, needs a routine (else 409); resets scores and ready |
+| POST | `/api/rooms/{code}/start` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`; lobby or finished only, needs a routine (else 409); resets scores, ready and crew sync |
 | POST | `/api/rooms/{code}/score` | player | `{ score, combo, maxCombo, accuracy, progress, finished }` | `RoomView`; ignored (no error) unless `playing` |
 | POST | `/api/rooms/{code}/chat` | player | `{ text }` | `RoomView`; 429 after 5 messages in 10 s |
 | POST | `/api/rooms/{code}/leave` | player | none | `{ ok: true }`; the host role passes to the next player, an empty room closes |
+| POST | `/api/rooms/{code}/mode` | host | `{ mode: "versus" \| "crew" }` | `RoomView`; lobby or finished only (else 409); kept across routines and rematches; new rooms are `versus` |
+| POST | `/api/rooms/{code}/beats` | player | `{ beats: [{ beat, score, grade }] }` (0-64) | `RoomView`; per-beat judgements, about once a second; ignored (no error) unless `playing` and you haven't posted `finished: true` |
+| POST | `/api/rooms/{code}/rematch` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`, same routine and mode; finished only (else 409); scores, ready, beats and sync reset |
+| GET | `/api/songs/{analysisId}/heatmap` | none | | `{ analysisId, beats: [{ beat, avgScore, samples }] }` by beat: the average judgement score on each beat across every room and round, i.e. the song's hardest moments (lowest `avgScore`) |
 
 ```jsonc
 // RoomView
@@ -165,9 +169,15 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
   "hostId": "Zp3k9QxA", "serverNow": 1761380000000, // epoch ms
   "startAt": null,                        // epoch ms once started, else null
   "routine": null,                        // or { routineId, analysisId, title, difficulty, mode }
+  "mode": "versus",                       // versus | crew (the room's; routine.mode is standing | seated)
   "players": [{ "id": "Zp3k9QxA", "name": "Ana", "isHost": true, "ready": false,
                 "connected": true,        // seen in the last 10 s
-                "score": 0, "combo": 0, "maxCombo": 0, "accuracy": 0, "progress": 0, "finished": false }],
+                "score": 0, "combo": 0, "maxCombo": 0, "accuracy": 0, "progress": 0, "finished": false,
+                "beatsWon": 0 }],         // versus: beats where this player had the best score
+  "leaderId": null,                       // versus: most beatsWon, then score; null on a tie or before any beat
+  "crew": { "teamScore": 0,               // everyone's score + syncBonus
+            "syncBonus": 0, "syncedBeats": 0, "syncStreak": 0, "bestSyncStreak": 0,
+            "lastSyncBeat": null },        // beat index of the latest synced beat
   "chat": [{ "id": 12, "playerId": "Zp3k9QxA", "name": "Ana", "text": "ready?", "at": 1761379990000 }] }
 ```
 
@@ -193,6 +203,22 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
   like the results screen), `progress` 0-1 through the song; post about once a second while
   playing and once with `finished: true` at the end (it never goes back to false). Someone who
   joins mid-song sits it out (`finished: true`, score 0) and plays the next one.
+- **Beats.** `beat` is the routine's beat/checkpoint index (an integer 0-20000, the same numbering
+  on every dancer's device), `score` 0-100, `grade` `perfect | good | ok | miss`. Send each
+  judgement once it is final, batched about once a second (at most 64 per call), and the last
+  batch *before* the `finished: true` score. Idempotent per player and beat: a beat you already
+  sent keeps its first judgement, so retrying a failed call is safe. Beats further than the song
+  can have reached (8 a second since `startAt`, plus 32) are dropped. Both modes' numbers are
+  computed in every room; `mode` says which one to show.
+- **Versus.** Each beat goes to the best score on it (ties count for everyone tied; a beat everyone
+  scored 0 goes to nobody); `beatsWon` counts them this round. `leaderId` is the player with the
+  most beats won, then the higher `score`.
+- **Crew.** A beat is in sync when every *active* dancer (connected and not finished; so not
+  someone who left, dropped out for 10 s, or joined mid-song) judged it `good` or `perfect`.
+  Beats are decided in order once every active dancer has sent that far, or the furthest one is
+  16 beats ahead (whoever hasn't sent it then breaks the sync), and never change after that. A
+  beat nobody active judged is skipped. Each synced beat adds `25 x min(syncStreak, 8)` to
+  `syncBonus` (so a long streak is worth 200 a beat); any other beat resets `syncStreak`.
 - **Chat.** Without `chatAfter`, the latest 50 messages; with it, up to 50 messages with
   `id > chatAfter`, oldest first, so pass the last `id` you have and you never miss one. Rooms
   keep their last 200 messages.
@@ -200,7 +226,11 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
 - **Storage.** Postgres when `DATABASE_URL` is set (Tiger Data on Vercel; TLS is verified unless
   the URL says `sslmode=disable`, or `sslmode=no-verify`); otherwise SQLite at
   `<cache_dir>/rooms.sqlite3`. A Vercel deployment without `DATABASE_URL` answers 503 on every
-  rooms route. Tables are `df_rooms`, `df_players`, `df_chat`, created on first use.
+  rooms route. Tables are `df_rooms`, `df_players`, `df_chat`, `df_room_beats`, created (and new
+  columns added) on first use. Beat judgements outlive their room, for the heatmap. On Postgres
+  with the `timescaledb` extension, `df_room_beats` is a hypertable on `round_ms` (the round's
+  `startAt`) and the heatmap reads `df_beat_heat`, a real-time continuous aggregate of score sums
+  per (song, beat, day) refreshed every 15 minutes; elsewhere it reads `df_room_beats` directly.
 
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large); the rooms routes add 401, 403, 409, 429 and 503 as above.
