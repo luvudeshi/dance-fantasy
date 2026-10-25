@@ -80,7 +80,6 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
     { icon: 'storybook', title: 'Move Book', meta: 'Every step of the ball', href: '#/moves' },
     { icon: 'map', title: 'How to Play', meta: 'The rules of the ball', href: '#/how' },
     { icon: 'gear', title: 'Settings', meta: 'Sound, camera, difficulty', href: '#/settings' },
-    { icon: 'quill', title: 'Credits', meta: 'Who made the magic', href: '#/credits' },
   ]
 
   return (

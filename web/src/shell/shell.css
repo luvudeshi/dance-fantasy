@@ -222,6 +222,10 @@ html[data-reduced-motion] *::after {
 .title-grid > li:nth-child(even) .title-item {
   rotate: 0.5deg;
 }
+/* An odd tile count leaves one tile alone on the last row: let it span the row. */
+.title-grid > li:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .title-foot {
   display: flex;
   flex-wrap: wrap;
