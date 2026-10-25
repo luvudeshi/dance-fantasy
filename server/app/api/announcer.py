@@ -28,6 +28,7 @@ from app.ai.prompts import (
     parse_lines,
 )
 from app.ai.provider import AIUnavailable, configured, env, generate_text
+from app.accounts.store import spend
 from app.ai.voice import VoiceUnavailable, cached_wav, known_text, remember, synthesize, voice_name
 from app.api.limits import client_ip
 from app.config import Settings, get_settings
@@ -133,6 +134,9 @@ LINES_RATE_LIMIT = 120
 RATE_WINDOW_SEC = 60.0
 MAX_TRACKED_CLIENTS = 4096
 VOICE_MAX_AGE_SEC = 24 * 3600
+# Fresh TTS calls per rolling 24 h, all instances (counted in the database): lines carry the caller's name,
+# song and score, so new ids are free to mint. Cached lines don't count; past it the page uses its own voice.
+VOICE_DAILY_CAP = 1000
 # ponytail: per-instance sliding window keyed by client IP; a shared limiter (Blob/KV) if abuse spans instances.
 _hits: dict[str, deque[float]] = {}
 _line_hits: dict[str, deque[float]] = {}
@@ -173,6 +177,9 @@ async def announcer_voice(lid: str, request: Request, settings: SettingsDep) -> 
             # Re-check: a request for the same line may have voiced it while this one waited for a slot.
             wav = await asyncio.to_thread(cached_wav, settings.cache_dir, lid, voice)
             if wav is None:
+                now_ms = int(time.time() * 1000)
+                if not await asyncio.to_thread(spend, "voice-day", (VOICE_DAILY_CAP, 86_400_000), now_ms):
+                    raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The announcer voice is resting until tomorrow.")
                 try:
                     wav = await asyncio.to_thread(synthesize, settings.cache_dir, lid, text, voice)
                 except VoiceUnavailable as exc:

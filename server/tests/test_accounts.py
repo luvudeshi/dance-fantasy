@@ -199,16 +199,16 @@ def test_wrong_password_is_rate_limited(backend: str, monkeypatch: pytest.Monkey
     assert locked.status_code == 429  # even the right password waits out the lock
     assert c.post("/api/login", json={"username": "nobody", "password": "whatever1"}, headers=H).status_code == 401
 
-    # per IP-ish key, across usernames
+    # per client IP, across usernames; off Vercel a forwarded-for header is no way around it
     monkeypatch.setattr(store, "LOGIN_IP_LIMIT", (3, 15 * MIN))
     named(browser(), "carla")
-    d = browser()
-    ip = {**H, "X-Forwarded-For": "203.0.113.9, 10.0.0.1"}
+    d = TestClient(app, client=("203.0.113.9", 1))
     for user in ("u_one", "u_two", "u_three"):
-        assert d.post("/api/login", json={"username": user, "password": "whatever1"}, headers=ip).status_code == 401
-    assert d.post("/api/login", json={"username": "carla", "password": "correct horse"}, headers=ip).status_code == 429
-    other_ip = {**H, "X-Forwarded-For": "198.51.100.7"}
-    r = d.post("/api/login", json={"username": "carla", "password": "correct horse"}, headers=other_ip)
+        assert d.post("/api/login", json={"username": user, "password": "whatever1"}, headers=H).status_code == 401
+    spoofed = {**H, "X-Forwarded-For": "198.51.100.7", "X-Real-IP": "198.51.100.7"}
+    assert d.post("/api/login", json={"username": "carla", "password": "correct horse"}, headers=spoofed).status_code == 429
+    other = TestClient(app, client=("198.51.100.7", 1))
+    r = other.post("/api/login", json={"username": "carla", "password": "correct horse"}, headers=H)
     assert r.status_code == 200
 
 

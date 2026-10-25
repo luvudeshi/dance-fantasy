@@ -11,7 +11,7 @@ from typing import Annotated, Any, Literal
 from urllib.parse import quote
 
 import anyio
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,10 +19,11 @@ from starlette.concurrency import run_in_threadpool
 from vercel.blob import BlobNotFoundError
 
 from app import blob
+from app.accounts.store import spend
 from app.analysis import ID_PATTERN, Analysis
 from app.analysis_store import AnalysisStore, audio_extension, sha256_bytes, sha256_file
 from app.api.deps import bad_audio_is_400, hash_upload, read_upload, song_path, upload_display_name
-from app.api.limits import ANALYSIS_SLOTS, UploadTooLarge
+from app.api.limits import ANALYSIS_SLOTS, UploadTooLarge, client_ip
 from app.audio import load_audio
 from app.audio.analysis import ANALYSIS_VERSION, analyze_audio
 from app.config import Settings, get_settings
@@ -86,10 +87,17 @@ def _require_blob() -> None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Blob uploads are not enabled on this server.")
 
 
+# Upload tokens per client IP per hour, all instances (a venue NAT shares one IP): the store is public, so
+# without it anyone could use it as free file hosting.
+BLOB_UPLOADS_PER_HOUR = 60
+
+
 @router.post("/blob/upload")
-def blob_upload_token(req: BlobTokenRequest, settings: SettingsDep) -> dict[str, str]:
+def blob_upload_token(req: BlobTokenRequest, request: Request, settings: SettingsDep) -> dict[str, str]:
     """Deployments: a short-lived token for uploading one song from the browser straight to Blob."""
     _require_blob()
+    if not spend(f"blob-upload:{client_ip(request)}", (BLOB_UPLOADS_PER_HOUR, 3_600_000), int(time.time() * 1000)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many uploads this hour; try again later.")
     try:
         token = blob.client_token(req.payload.pathname, settings.max_upload_bytes)
     except blob.NotOurUpload as exc:

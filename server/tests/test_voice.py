@@ -160,6 +160,23 @@ def test_voice_requests_are_rate_limited_per_client(client: TestClient, cache_di
     assert client.get(f"/api/announcer/voice/{lid}").status_code == 200
 
 
+def test_fresh_voicing_has_a_daily_cap(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
+    monkeypatch.setattr(announcer_api, "VOICE_DAILY_CAP", 1)
+    made: list[str] = []
+
+    def fake_synthesize(cache_dir: Path, lid: str, text: str, voice: str) -> bytes:
+        made.append(lid)
+        return pcm_to_wav(b"\x01\x00" * 2400)
+
+    monkeypatch.setattr(announcer_api, "synthesize", fake_synthesize)
+    first, second = list(CANNED_BY_ID)[:2]
+    assert client.get(f"/api/announcer/voice/{first}").status_code == 200
+    r = client.get(f"/api/announcer/voice/{second}")
+    assert r.status_code == 503 and "tomorrow" in r.json()["detail"]
+    assert made == [first]
+
+
 def test_rate_limiter_forgets_quiet_clients(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(announcer_api, "MAX_TRACKED_CLIENTS", 3)
     for i in range(5):
