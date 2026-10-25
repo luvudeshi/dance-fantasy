@@ -489,7 +489,7 @@ export default function AnalysisDebug() {
   const summary = routine ? routineSummary(routine) : null
 
   return (
-    <section className="page analysis-debug">
+    <section className="page analysis-debug df-screen">
       <h2 className="page-title">
         Studio <span className="dim">see what the ball hears, then choreograph it</span>
       </h2>

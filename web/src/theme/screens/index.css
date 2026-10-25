@@ -1,0 +1,10 @@
+/* Dance Fantasy screen skins: the existing pages (Play lobby, stage, calibration, results, Teach, Studio,
+   Move Book) restyled in the sticker look by cascade. Imported once from main.tsx after the theme. Each rule
+   starts with .df-screen (the page root), so it outranks the page stylesheets that load later in lazy chunks. */
+@import './legacy.css';
+@import './lobby.css';
+@import './stage.css';
+@import './results.css';
+@import './calibration.css';
+@import './teach.css';
+@import './studio.css';

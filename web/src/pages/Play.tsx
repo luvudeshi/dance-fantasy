@@ -57,6 +57,10 @@ import { songTimeAtFromClock, WebcamPoseSource } from '../game/webcamSource'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
+import { Corners } from '../theme/components'
+import { Icon } from '../theme/Icon'
+import type { IconName } from '../theme/icons'
+import { PauseMenu } from '../theme/screens/PauseMenu'
 import './play.css'
 
 const randomSeed = (): number => Math.floor(Math.random() * 1_000_000)
@@ -76,9 +80,9 @@ const MODES: readonly { value: Mode; label: string }[] = [
 ]
 
 const START_LABEL: Readonly<Record<Rehearsal, string>> = {
-  none: '▶ Start the ball',
-  watch: '▶ Watch, then dance',
-  practice: '▶ Practice, then dance',
+  none: 'Start the ball',
+  watch: 'Watch, then dance',
+  practice: 'Practice, then dance',
 }
 
 function formatBytes(n: number): string {
@@ -109,10 +113,10 @@ const notifyShelf = (): void => {
   window.dispatchEvent(new StorageEvent('storage', { key: SHELF_KEY }))
 }
 
-const HOW_TO_PLAY: readonly { icon: string; title: string; text: string }[] = [
-  { icon: '🪞', title: 'Step back', text: 'Head to toe in the camera (or sit, in Seated mode).' },
-  { icon: '✨', title: 'Mirror the dancer', text: 'Copy the glowing coach; the cards below show what’s next.' },
-  { icon: '⭐', title: 'Hit the beat', text: 'Land each pose on the beat for PERFECT and keep the combo.' },
+const HOW_TO_PLAY: readonly { icon: IconName; title: string; text: string }[] = [
+  { icon: 'mirror-cam', title: 'Step back', text: 'Head to toe in the camera (or sit, in Seated mode).' },
+  { icon: 'dance-shoe', title: 'Mirror the dancer', text: 'Copy the glowing coach; the cards below show what’s next.' },
+  { icon: 'music-note', title: 'Hit the beat', text: 'Land each pose on the beat for PERFECT and keep the combo.' },
 ]
 
 const KEY_HINTS: readonly [string, string][] = [
@@ -886,12 +890,14 @@ export default function Play() {
     ) : null
 
   return (
-    <section className="play-lobby">
+    <section className="play-lobby df-screen">
+      <Corners />
+      <div className="df-twinkles" aria-hidden="true" />
       {/* inert while the stage covers it: no tabbing into hidden lobby controls. */}
       <div inert={onStage}>
       <div className="lobby-hero">
         <p className="lobby-kicker">The Twelve Dancing Princesses</p>
-        <h2 className="lobby-title">The Midnight Ball</h2>
+        <h2 className="lobby-title">Dance Fantasy</h2>
         <p className="lobby-sub">
           Every night the princesses slip away to dance until their slippers wear through. Pick a song, follow the glowing
           dancer like a mirror, and keep up until the clock strikes the final beat.
@@ -900,7 +906,7 @@ export default function Play() {
           {HOW_TO_PLAY.map((h, i) => (
             <li key={h.title}>
               <span className="how-icon" aria-hidden="true">
-                {h.icon}
+                <Icon name={h.icon} size="sm" cut="sm" />
               </span>
               <span>
                 <strong>
@@ -961,7 +967,7 @@ export default function Play() {
                   onClick={() => setChoice({ kind: 'library', file: s.file, title: s.title })}
                 >
                   <span className="song-note" aria-hidden="true">
-                    ♪
+                    <Icon name="music-note" size={36} cut="sm" />
                   </span>
                   <span className="song-name">{s.title}</span>
                   <span className="song-size">{formatBytes(s.sizeBytes)}</span>
@@ -972,7 +978,7 @@ export default function Play() {
           <label className={`upload-tile${choice?.kind === 'upload' ? ' selected' : ''}`}>
             <input type="file" accept="audio/*" onChange={onUpload} />
             <span className="upload-icon" aria-hidden="true">
-              ⬆
+              <Icon name="upload" size={40} cut="sm" />
             </span>
             {choice?.kind === 'upload' ? (
               <span>
@@ -1100,6 +1106,7 @@ export default function Play() {
             </label>
           </div>
           <button type="button" className="start-button" disabled={!choice} onClick={start}>
+            <Icon name="sparkles" size="xs" cut="none" />
             {START_LABEL[effectiveRehearsal(rehearsal, autoplay)]}
           </button>
           <button
@@ -1109,7 +1116,11 @@ export default function Play() {
             onClick={() => void learnFirst()}
             title="Step through this routine move by move, at your own pace"
           >
-            {learnBusy ?? '🎓 Learn it first'}
+            {learnBusy ?? (
+              <>
+                <Icon name="storybook" size="xs" cut="none" /> Learn it first
+              </>
+            )}
           </button>
           {learnError && <p className="error">{learnError}</p>}
           <p className="hint lobby-privacy">
@@ -1128,7 +1139,10 @@ export default function Play() {
       {shelf.length > 0 && (
         <div className="lobby-card shelf-card">
           <h3>
-            <span className="step">♛</span> Your routines
+            <span className="step">
+              <Icon name="crown" size={30} cut="none" />
+            </span>{' '}
+            Your routines
           </h3>
           <ul className="shelf-list">
             {shelf.map((e) => (
@@ -1147,7 +1161,7 @@ export default function Play() {
                   ▶ Play
                 </button>
                 <button type="button" onClick={() => openTeach(e.routineId)} title="Learn it move by move">
-                  🎓 Learn
+                  <Icon name="storybook" size="xs" cut="none" /> Learn
                 </button>
                 <button
                   type="button"
@@ -1284,25 +1298,7 @@ export default function Play() {
             </div>
           )}
           {paused && isRunning(phase) && (
-            <div className="play-overlay dim-bg">
-              <div className="play-card">
-                <h2>Paused</h2>
-                <p className="dim">The music waits for you. Press Space to dance on.</p>
-                <div className="play-card-actions">
-                  <button type="button" className="primary" onClick={togglePause}>
-                    ▶ Resume
-                  </button>
-                  <button type="button" onClick={restart}>
-                    Restart
-                  </button>
-                  {isRehearsing(phase) && (
-                    <button type="button" onClick={endRehearsal}>
-                      Skip → I’m ready
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+            <PauseMenu onResume={togglePause} onRestart={restart} onQuit={exitToLobby} onSkip={isRehearsing(phase) ? endRehearsal : undefined} />
           )}
           {phase === 'ready' && active && (
             <div className="play-overlay dim-bg">
@@ -1344,6 +1340,10 @@ export default function Play() {
               onLobby={exitToLobby}
               onPracticeHardest={practiceHardest}
               onDownloadLog={roundLog ? () => downloadSessionLog(roundLog) : undefined}
+              onLearn={isRoutineId(shownId) ? () => openTeach(shownId) : undefined}
+              onMenu={() => {
+                window.location.hash = '#/'
+              }}
             />
           )}
         </PlayStage>

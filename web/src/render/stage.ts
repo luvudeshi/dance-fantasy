@@ -94,11 +94,11 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
   const fy = Math.min(h, Math.max(h * 0.5, L.floorY))
   const m = Math.min(w, h)
 
-  // Sky: deep midnight blue to a violet horizon.
+  // Sky: Dance Fantasy night glass (#152338 -> #263a55).
   const sky = ctx.createLinearGradient(0, 0, 0, fy)
-  sky.addColorStop(0, '#050820')
-  sky.addColorStop(0.55, '#0c1036')
-  sky.addColorStop(1, '#22175a')
+  sky.addColorStop(0, '#0d1726')
+  sky.addColorStop(0.55, '#152338')
+  sky.addColorStop(1, '#263a55')
   ctx.fillStyle = sky
   ctx.fillRect(0, 0, w, fy)
 
@@ -106,7 +106,7 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
   const mx = w * 0.84
   const my = h * 0.17
   const mr = m * 0.065
-  ctx.fillStyle = '#edf0ff'
+  ctx.fillStyle = '#f2db94'
   ctx.beginPath()
   ctx.arc(mx, my, mr, 0, Math.PI * 2)
   ctx.fill()
@@ -115,8 +115,8 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
   ctx.arc(mx - mr * 0.42, my - mr * 0.22, mr * 0.9, 0, Math.PI * 2)
   ctx.fill()
   const halo = ctx.createRadialGradient(mx, my, mr * 0.6, mx, my, mr * 4.5)
-  halo.addColorStop(0, 'rgba(200, 212, 255, 0.2)')
-  halo.addColorStop(1, 'rgba(200, 212, 255, 0)')
+  halo.addColorStop(0, 'rgba(242, 219, 148, 0.22)')
+  halo.addColorStop(1, 'rgba(242, 219, 148, 0)')
   ctx.fillStyle = halo
   ctx.fillRect(mx - mr * 5, my - mr * 5, mr * 10, mr * 10)
 
@@ -124,8 +124,8 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
   const cx = L.floorX
   const cr = m * 0.2
   const cy = Math.max(cr * 1.15, fy - L.scale * 3.35 - cr * 0.2)
-  ctx.strokeStyle = 'rgba(190, 200, 255, 0.07)'
-  ctx.fillStyle = 'rgba(190, 200, 255, 0.025)'
+  ctx.strokeStyle = 'rgba(219, 179, 94, 0.1)'
+  ctx.fillStyle = 'rgba(219, 179, 94, 0.03)'
   ctx.lineWidth = Math.max(1, m * 0.006)
   ctx.beginPath()
   ctx.arc(cx, cy, cr, 0, Math.PI * 2)
@@ -156,12 +156,12 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
 
   // Ballroom floor: violet sheen at the horizon fading to black, faint perspective seams.
   const floor = ctx.createLinearGradient(0, fy, 0, h)
-  floor.addColorStop(0, '#2a1d66')
-  floor.addColorStop(0.35, '#140f3a')
-  floor.addColorStop(1, '#07061a')
+  floor.addColorStop(0, '#34496a')
+  floor.addColorStop(0.35, '#1a2a42')
+  floor.addColorStop(1, '#0b1320')
   ctx.fillStyle = floor
   ctx.fillRect(0, fy, w, h - fy)
-  ctx.strokeStyle = 'rgba(170, 160, 255, 0.07)'
+  ctx.strokeStyle = 'rgba(163, 195, 216, 0.08)'
   ctx.lineWidth = 1
   for (let i = -8; i <= 8; i++) {
     ctx.beginPath()
@@ -170,9 +170,9 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
     ctx.stroke()
   }
   const line = ctx.createLinearGradient(0, 0, w, 0)
-  line.addColorStop(0, 'rgba(190, 180, 255, 0)')
-  line.addColorStop(0.5, 'rgba(210, 200, 255, 0.45)')
-  line.addColorStop(1, 'rgba(190, 180, 255, 0)')
+  line.addColorStop(0, 'rgba(242, 219, 148, 0)')
+  line.addColorStop(0.5, 'rgba(242, 219, 148, 0.5)')
+  line.addColorStop(1, 'rgba(242, 219, 148, 0)')
   ctx.fillStyle = line
   ctx.fillRect(0, fy - 0.5, w, 1.5)
 
@@ -182,9 +182,9 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
     const x0 = side === 0 ? 0 : w
     const dir = side === 0 ? 1 : -1
     const g = ctx.createLinearGradient(x0, 0, x0 + dir * curtainW * 1.6, 0)
-    g.addColorStop(0, '#1d0b3a')
-    g.addColorStop(0.7, '#2c1258')
-    g.addColorStop(1, 'rgba(44, 18, 88, 0)')
+    g.addColorStop(0, '#3a1220')
+    g.addColorStop(0.7, '#6e2338')
+    g.addColorStop(1, 'rgba(110, 35, 56, 0)')
     ctx.fillStyle = g
     ctx.beginPath()
     ctx.moveTo(x0, 0)
@@ -197,7 +197,7 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
   const vh = Math.max(8, h * 0.045)
   const n = Math.max(5, Math.round(w / (vh * 3.2)))
   const sw = w / n
-  ctx.fillStyle = '#1a0a36'
+  ctx.fillStyle = '#4a1626'
   ctx.beginPath()
   ctx.moveTo(0, 0)
   ctx.lineTo(w, 0)
@@ -205,7 +205,7 @@ function drawStatic(ctx: Ctx2D, w: number, h: number, L: StageLayout): void {
   for (let i = n - 1; i >= 0; i--) ctx.quadraticCurveTo(i * sw + sw / 2, vh * 1.55, i * sw, vh * 0.55)
   ctx.closePath()
   ctx.fill()
-  ctx.strokeStyle = 'rgba(255, 207, 102, 0.28)'
+  ctx.strokeStyle = 'rgba(219, 179, 94, 0.6)'
   ctx.lineWidth = Math.max(1, m * 0.003)
   ctx.beginPath()
   ctx.moveTo(w, vh * 0.55)
