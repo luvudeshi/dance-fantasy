@@ -37,7 +37,7 @@ const ROUTES = [
   { hash: '#/', shell: true, bar: false, esc: false },
   { hash: '#/play', shell: false, bar: true, esc: false, title: 'The Ballroom' },
   { hash: '#/teach', shell: false, bar: true, esc: false, title: 'Dance lesson' },
-  { hash: '#/analysis', shell: false, bar: true, esc: false, title: 'Studio' },
+  { hash: '#/analysis', shell: false, bar: true, esc: false },
   { hash: '#/moves', shell: false, bar: true, esc: false },
   { hash: '#/settings', shell: true, bar: true, esc: true },
   { hash: '#/how', shell: true, bar: true, esc: true },
