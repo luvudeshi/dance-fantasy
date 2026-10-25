@@ -4,7 +4,7 @@ import { iconLabel, type AccountColor } from '../account/client'
 import { errorMessage } from '../lib/errors'
 import { Card } from '../theme/components'
 import type { IconName } from '../theme/icons'
-import { getSongBoard, placementLine, type SongBoard } from './client'
+import { getBoardSongs, getSongBoard, placementLine, type BoardSong, type SongBoard } from './client'
 import './leaderboard.css'
 
 // The compact Hall of Fame card for one song (top 5 + your rank): the lobby's selected song and the results
@@ -137,4 +137,22 @@ export function SongLeaderboard({
       )}
     </Card>
   )
+}
+
+/**
+ * The lobby's card for the selected library song. The song isn't analyzed yet, so its analysisId (the
+ * file's sha256) comes from GET /api/leaderboard/songs, matched by title (library songs are listed first).
+ */
+export function LobbySongBoard({ title }: { title: string | undefined }) {
+  const [songs, setSongs] = useState<BoardSong[] | null>(null)
+  useEffect(() => {
+    const ctrl = new AbortController()
+    getBoardSongs(ctrl.signal).then(setSongs, (err: unknown) => {
+      // ponytail: no list means no card; the lobby works without it
+      if (!ctrl.signal.aborted) console.warn('[hall] song list failed', err)
+    })
+    return () => ctrl.abort()
+  }, [])
+  const song = songs?.find((s) => s.title === title)
+  return song ? <SongLeaderboard analysisId={song.analysisId} title={song.title} /> : null
 }

@@ -217,6 +217,9 @@ export default function ProfilePage() {
                   <dd>{me.stats.friends}</dd>
                 </dl>
               </div>
+              <a className="df-btn df-btn-ghost df-btn-sm acct-link" href="#/hall">
+                Hall of Fame &rsaquo;
+              </a>
             </Panel>
 
             <Panel title="Keep your account" kicker="Optional" sticker="castle">
