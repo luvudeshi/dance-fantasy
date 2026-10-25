@@ -130,12 +130,21 @@
   opacity: 0.85;
 }
 
-/* phone: below the stage's top badges (autoplay, score), smaller */
+/* phone: below the stage's top badges (autoplay, score + its star row), clear of the combo on the right, and
+   short enough to end above the judgment text */
 @media (max-width: 600px) {
   .mb-sig-banner {
-    top: 132px;
-    padding: 6px 12px;
-    font-size: 0.85rem;
+    top: 142px;
+    max-width: calc(100% - 140px);
+    gap: 2px 8px;
+    padding: 3px 12px;
+    font-size: 0.75rem;
+    line-height: 1.2;
+  }
+
+  .mb-sig-banner-badge {
+    font-size: 0.7rem;
+    padding: 1px 6px;
   }
 }
 
