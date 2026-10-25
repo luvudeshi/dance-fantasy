@@ -110,7 +110,7 @@ export default function HallOfFame() {
   // the board for another song or tab counts as loading
   const board = loaded && loaded.song.analysisId === song && loaded.scope === scope ? loaded : null
   const current = songs?.find((s) => s.analysisId === song)
-  const title = board?.song.title ?? current?.title ?? 'Pick a song'
+  const title = board?.song.title ?? current?.title ?? (song ? 'This song' : 'Pick a song')
   const podium = board?.entries.filter((e) => e.rank <= 3) ?? []
   const rest = board?.entries.filter((e) => e.rank > 3) ?? []
   const you = board?.you
@@ -131,10 +131,11 @@ export default function HallOfFame() {
               id="lb-song"
               className="df-field"
               value={song ?? ''}
-              disabled={!songs?.length}
+              disabled={!songs?.length && !song}
               onChange={(e) => pick(e.target.value)}
             >
               {!songs?.length && <option value="">{songs ? 'No songs yet' : 'Leafing through the songbook…'}</option>}
+              {songs && song && !current && <option value={song}>{title}</option>}
               {songs?.map((s) => (
                 <option key={s.analysisId} value={s.analysisId}>
                   {s.title}
@@ -237,7 +238,7 @@ export default function HallOfFame() {
                   <DancerRow
                     key={e.accountId}
                     {...e}
-                    meta={`${e.rounds} ${e.rounds === 1 ? 'round' : 'rounds'} · best combo ${e.bestCombo}`}
+                    meta={`${e.rounds} ${e.rounds === 1 ? 'round' : 'rounds'} · combo ${e.bestCombo}`}
                     value={e.total.toLocaleString()}
                   />
                 ))}

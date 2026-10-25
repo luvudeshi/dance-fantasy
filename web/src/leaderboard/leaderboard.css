@@ -36,6 +36,18 @@
 .lb-tabs {
   margin-bottom: 4px;
 }
+@media (max-width: 520px) {
+  .lb-tabs {
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 4px;
+  }
+  .lb-tabs .df-tab {
+    padding: 0 10px;
+    font-size: var(--df-text-xs);
+    white-space: nowrap;
+  }
+}
 .lb-note {
   margin: 0;
   color: var(--df-ink-soft);
