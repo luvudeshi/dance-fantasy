@@ -31,9 +31,11 @@ GEMINI_BASE = "https://generativelanguage.googleapis.com"
 # With two keys the first provider gets this share of the deadline, so the fallback still has time to answer.
 FIRST_SHARE = 0.6
 MIN_BUDGET_SEC = 0.2  # not worth starting a call with less time than this
-# Muse sometimes answers HTTP 404 model_not_found in ~0.1 s (flaky upstream routing): an HTTP error this fast is
-# retried once on the same provider.
+# Muse often answers HTTP 404 model_not_found in ~0.1 s, in bursts (flaky upstream routing): an HTTP error this fast
+# is retried on the same provider after a short pause (RETRY_PAUSE_SEC x attempt), up to FAST_RETRIES times.
 FAST_FAIL_SEC = 1.0
+FAST_RETRIES = 3
+RETRY_PAUSE_SEC = 0.3
 KEY_ENV: dict[Provider, str] = {"muse": "MUSE_API_KEY", "gemini": "GEMINI_API_KEY"}
 
 
@@ -118,7 +120,7 @@ def generate_text(
     order: list[Provider] = ["gemini", "muse"] if env("AI_PROVIDER") == "gemini" else ["muse", "gemini"]
     keyed = [(p, key) for p in order if (key := env(KEY_ENV[p]))]
     end = time.monotonic() + deadline_sec
-    i, retried = 0, False
+    i, retries = 0, 0
     while i < len(keyed):
         provider, key = keyed[i]
         remaining = end - time.monotonic()
@@ -131,10 +133,13 @@ def generate_text(
         except (OSError, http.client.HTTPException, ValueError, LookupError, TypeError) as exc:  # net, HTTP, JSON, shape
             ms = (time.monotonic() - started) * 1000
             log.warning("ai.call provider=%s ok=false ms=%.0f error=%s", provider, ms, _describe(exc))
-            if not retried and isinstance(exc, urllib.error.HTTPError) and ms < FAST_FAIL_SEC * 1000:
-                retried = True  # same provider, once more
+            pause = RETRY_PAUSE_SEC * (retries + 1)
+            fast = isinstance(exc, urllib.error.HTTPError) and ms < FAST_FAIL_SEC * 1000
+            if fast and retries < FAST_RETRIES and end - time.monotonic() - pause > MIN_BUDGET_SEC * 4:
+                retries += 1  # same provider, after a short pause
+                time.sleep(pause)
             else:
-                i += 1
+                i, retries = i + 1, 0
             continue
         log.info("ai.call provider=%s ok=true ms=%.0f", provider, (time.monotonic() - started) * 1000)
         return text, provider

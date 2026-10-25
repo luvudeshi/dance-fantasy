@@ -151,7 +151,7 @@ def test_generate_text_retries_a_provider_that_fails_instantly(monkeypatch: pyte
         def do_POST(self) -> None:
             self.rfile.read(int(self.headers["Content-Length"]))
             hits.append(self.path)
-            ok = len(hits) > 1  # the first answer is Muse's flaky 404
+            ok = len(hits) > 2  # the first two answers are Muse's flaky 404s
             body = json.dumps({"choices": [{"message": {"content": '{"lines": ["Bravo!"]}'}}]} if ok else {"error": {"code": "model_not_found"}})
             self.send_response(200 if ok else 404)
             self.send_header("Content-Type", "application/json")
@@ -168,7 +168,7 @@ def test_generate_text_retries_a_provider_that_fails_instantly(monkeypatch: pyte
         monkeypatch.setenv("MUSE_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         text, provider = generate_text("system", "user", deadline_sec=5.0, json_mode=True)
-        assert provider == "muse" and "Bravo!" in text and len(hits) == 2
+        assert provider == "muse" and "Bravo!" in text and len(hits) == 3
     finally:
         server.shutdown()
 
