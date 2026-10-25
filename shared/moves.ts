@@ -84,4 +84,14 @@ export interface ChoreographRequest {
   seed?: number
   /** Default 'classic'. */
   moveSource?: MoveSource
+  /**
+   * Optional signature dances (GET /api/signature/moves ids), each on the first downbeat of every matching
+   * section, whatever the moveSource (the moves around them come from that source).
+   */
+  pinnedMoves?: PinnedMoveRequest[]
+}
+
+export interface PinnedMoveRequest {
+  moveId: string
+  placement: 'chorus' | 'drop' | 'finale'
 }

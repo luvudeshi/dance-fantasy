@@ -137,6 +137,8 @@ export interface Checkpoint {
   /** Compared limbs whose target is (near) the resting pose: they can lower the score but never
    *  raise it above the moving limbs' score (see scoreFrame). */
   resting?: LimbName[]
+  /** Points multiplier for this checkpoint only (signature moves, src/signature); default 1. */
+  multiplier?: number
 }
 
 export interface CheckpointResult {
@@ -463,7 +465,7 @@ export class ScoreKeeper {
     const seen = b !== null && !b.unseen
     const score = seen ? b.score : 0
     const judgment = judge(score, this.config)
-    const points = Math.round(JUDGMENT_POINTS[judgment] * comboMultiplier(this.combo))
+    const points = Math.round(JUDGMENT_POINTS[judgment] * comboMultiplier(this.combo) * (cp.multiplier ?? 1))
     if (judgment === 'miss') {
       this.combo = 0
     } else {

@@ -30,7 +30,7 @@ export function ReelLauncher({ session }: { session: ReelSession }) {
   if (open) return <HighlightReel session={session} onClose={() => setOpen(false)} />
   if (!session.ready) return null
   return (
-    <div className="reel-launcher">
+    <div className="reel-launcher" data-overlay-peer>
       {clips.length > 0 ? (
         <button type="button" className="primary reel-launch" onClick={() => setOpen(true)}>
           🎬 Watch your highlights <span className="reel-count">{clips.length}</span>

@@ -605,7 +605,7 @@ export default function AnalysisDebug() {
           <div ref={pulseRef} className="beat-circle small" />
           {routine && <canvas ref={previewRef} className="preview-figure" aria-label="Routine preview (mirrored coach view)" />}
           <div>
-            <div className="live-section" style={section ? { color: groupColor(section.group) } : undefined}>
+            <div className="live-section">
               {section ? section.label : '–'}
               {section && <span className="live-group">{section.group}</span>}
             </div>

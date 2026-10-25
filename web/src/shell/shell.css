@@ -21,9 +21,6 @@ html[data-reduced-motion] *::after {
   font-family: var(--df-font-ui);
   font-weight: 500;
   -webkit-font-smoothing: antialiased;
-  box-shadow:
-    0 1px 0 rgb(91 74 59 / 0.2),
-    0 8px 18px -14px rgb(46 36 33 / 0.5);
 }
 .shell-bar-inner {
   display: flex;

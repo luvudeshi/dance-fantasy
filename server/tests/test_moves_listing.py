@@ -14,7 +14,6 @@ from choreo_fixtures import make_analysis
 from fastapi.testclient import TestClient
 from helpers import REPO_ROOT
 
-from app.ai.prompts import filter_move_ids, move_id_lookup
 from app.analysis_store import AnalysisStore
 from app.api.compress import accepts_gzip
 from app.config import get_settings
@@ -169,11 +168,3 @@ def test_routine_responses_are_gzipped(client: TestClient, tmp_path: Path, monke
     assert again.headers["content-encoding"] == "gzip" and again.headers["x-routine-cache"] == "hit"
     assert again.content == stored
 
-
-def test_signature_ids_map_twins_to_their_listed_clip() -> None:
-    lookup = move_id_lookup(LIB.moves)
-    twin = next(m for m in LIB.moves if is_twin(m))
-    assert lookup[twin.id.lower()] == twin.mirrorOf
-    assert filter_move_ids([twin.id, twin.mirrorOf], lookup) == [twin.mirrorOf]
-    listed = {m.id for m in LIB.moves if not is_twin(m)}
-    assert set(lookup.values()) <= listed

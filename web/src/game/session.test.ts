@@ -5,6 +5,7 @@ import routineExample from '@shared/examples/routine.example.json'
 import { ApiError, SERVER_UNREACHABLE_MESSAGE } from '../api'
 import {
   describeFailure,
+  lobbyRequest,
   prepareFromRecipe,
   prepareFromRoutine,
   prepareGame,
@@ -94,6 +95,36 @@ describe('prepareGame', () => {
     await run({ ...REQ, moveSource: 'aist' }, deps)
     expect(deps.choreograph).toHaveBeenCalledWith(
       { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'aist' },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('sends the signature pins together with the move source', async () => {
+    const deps = mockDeps()
+    const pinnedMoves = [{ moveId: 'sig_ymca_arms', placement: 'chorus' as const }]
+    await run({ ...REQ, moveSource: 'aist', pinnedMoves }, deps)
+    expect(deps.choreograph).toHaveBeenCalledWith(
+      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'aist', pinnedMoves },
+      expect.any(AbortSignal),
+    )
+    await run({ ...REQ, moveSource: 'mix', pinnedMoves: [] }, deps)
+    expect(deps.choreograph).toHaveBeenLastCalledWith(
+      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'mix' },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('lobbyRequest: "Moves from" always, signature pins only when on and found', async () => {
+    const song = { kind: 'library' as const, file: 'synth_120bpm.wav' }
+    const setup = { difficulty: 'hard' as const, mode: 'seated' as const, seed: 7, moveSource: 'aist' as const }
+    const pins = [{ moveId: 'sig_ymca_arms', placement: 'chorus' as const }]
+    expect(lobbyRequest(song, setup, pins)).toEqual({ song, ...setup, pinnedMoves: pins })
+    expect(lobbyRequest(song, setup, [])).toEqual({ song, ...setup })
+    expect(lobbyRequest(song, setup, null)).toEqual({ song, ...setup })
+    const deps = mockDeps()
+    await run(lobbyRequest(song, { ...setup, moveSource: 'mix' }, pins), deps)
+    expect(deps.choreograph).toHaveBeenCalledWith(
+      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'mix', pinnedMoves: pins },
       expect.any(AbortSignal),
     )
   })
@@ -222,6 +253,15 @@ describe('prepareFromRoutine (deep link / Your routines)', () => {
     const mixed = { ...SAVED, meta: { ...SAVED.meta, moveSource: 'mix' } }
     expect(recipeFromRoutine(mixed)).toEqual({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'mix' })
     expect(recipeFromRoutine({ ...SAVED, meta: { ...SAVED.meta, moveSource: 'disco' } })).not.toHaveProperty('moveSource')
+    const pinnedMoves = [{ moveId: 'sig_whip', placement: 'chorus' }]
+    expect(recipeFromRoutine({ ...SAVED, meta: { ...SAVED.meta, moveSource: 'aist', pinnedMoves } })).toEqual({
+      analysisId: ANALYSIS.id,
+      difficulty: 'hard',
+      mode: 'seated',
+      seed: 7,
+      moveSource: 'aist',
+      pinnedMoves,
+    })
   })
 })
 
@@ -269,6 +309,16 @@ describe('prepareFromRecipe (generate it again / new seed)', () => {
     )
   })
 
+  it('keeps the move source and the signature pins when rebuilding', async () => {
+    const deps = mockDeps()
+    const pinnedMoves = [{ moveId: 'sig_whip', placement: 'chorus' as const }]
+    await build(deps, { ...RECIPE, moveSource: 'mix', pinnedMoves })
+    expect(deps.choreograph).toHaveBeenCalledWith(
+      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'mix', pinnedMoves },
+      expect.any(AbortSignal),
+    )
+  })
+
   it('reuses the analysis on stage (new seed)', async () => {
     const deps = mockDeps()
     const { states } = await build(deps, { ...RECIPE, seed: 8 }, { analysis: ANALYSIS })
@@ -289,6 +339,9 @@ describe('routineFor ("Learn it first")', () => {
     expect(steps).toEqual(['analyzing', 'choreographing'])
     await routineFor({ ...REQ, moveSource: 'mix' }, deps, new AbortController().signal)
     expect(deps.choreograph).toHaveBeenLastCalledWith(expect.objectContaining({ moveSource: 'mix' }), expect.anything())
+    const pinnedMoves = [{ moveId: 'sig_ymca_arms', placement: 'chorus' as const }]
+    await routineFor({ ...REQ, moveSource: 'aist', pinnedMoves }, deps, new AbortController().signal)
+    expect(deps.choreograph).toHaveBeenLastCalledWith(expect.objectContaining({ moveSource: 'aist', pinnedMoves }), expect.anything())
   })
 
   it('rejects with the failing step in the message', async () => {

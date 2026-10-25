@@ -1,14 +1,17 @@
 // In-game pause menu over the stage (Play.tsx renders it while paused). Pure view: every action
-// is the page's own (togglePause, restart, endRehearsal, exitToLobby); Settings and Main menu are
-// plain hash links (leaving #/play unmounts the page, which releases the camera and audio).
+// is the page's own (togglePause, restart, endRehearsal, exitToLobby); Main menu is a plain hash
+// link (leaving #/play unmounts the page, which releases the camera and audio). No Settings link:
+// leaving #/play would throw the round away (M, C, D and S cover the in-game toggles).
 
 import { useEffect, useRef } from 'react'
 import { Button } from '../components'
 import { Icon } from '../Icon'
+import { useInertSiblings } from '../useInertSiblings'
 
 interface Props {
   onResume: () => void
-  onRestart: () => void
+  /** absent: no Restart (a room round: restarting would desync this dancer) */
+  onRestart?: () => void
   onQuit: () => void
   /** Preview / practice run: "Skip, I'm ready" (absent: no button). */
   onSkip?: () => void
@@ -16,11 +19,13 @@ interface Props {
 
 export function PauseMenu({ onResume, onRestart, onQuit, onSkip }: Props) {
   const resumeRef = useRef<HTMLButtonElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   // Enter / Space on the focused Resume button dances on (the stage ignores Space on controls).
   useEffect(() => resumeRef.current?.focus(), [])
+  useInertSiblings(overlayRef)
 
   return (
-    <div className="play-overlay dim-bg df-pause-overlay">
+    <div ref={overlayRef} className="play-overlay dim-bg df-pause-overlay">
       <div className="df-pause-menu df-pop-in" role="dialog" aria-modal="true" aria-labelledby="df-pause-title">
         <Icon name="clock-tower" size={88} className="df-pause-menu-icon df-bob" />
         <hgroup className="df-hgroup">
@@ -34,27 +39,34 @@ export function PauseMenu({ onResume, onRestart, onQuit, onSkip }: Props) {
             <Icon name="sparkles" size="xs" cut="none" />
             Resume
           </button>
-          <Button variant="secondary" icon="wand" block onClick={onRestart}>
-            Restart
-          </Button>
+          {onRestart && (
+            <Button variant="secondary" icon="wand" block onClick={onRestart}>
+              Restart
+            </Button>
+          )}
           {onSkip && (
             <Button variant="secondary" icon="slipper" block onClick={onSkip}>
               Skip, I’m ready
             </Button>
           )}
-          <a className="df-btn df-btn-secondary df-btn-block" href="#/settings">
-            <Icon name="gear" size="xs" cut="none" />
-            Settings
-          </a>
           <Button variant="secondary" icon="castle" block onClick={onQuit}>
             Quit to lobby
           </Button>
-          <a className="df-btn df-btn-ghost" href="#/">
+          <a
+            className="df-btn df-btn-ghost"
+            href="#/"
+            onKeyDown={(e) => {
+              // the hint says Space resumes; a focused link would otherwise swallow it
+              if (e.key !== ' ') return
+              e.preventDefault()
+              onResume()
+            }}
+          >
             Main menu
           </a>
         </div>
         <p className="df-note">
-          <kbd>Space</kbd> resume · <kbd>R</kbd> restart · <kbd>Esc</kbd> lobby
+          <kbd>Space</kbd> resume{onRestart && <> · <kbd>R</kbd> restart</>} · <kbd>Esc</kbd> lobby
         </p>
       </div>
     </div>

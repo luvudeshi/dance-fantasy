@@ -17,6 +17,8 @@ import { DEMO_LIBRARY } from '../routine/demo'
 import { allStyles, filterMoves, intensityColor, libraryStats, MIRROR_SUFFIX, NO_FILTERS, withMirrorTwins, type ListedMove, type MoveFilters } from '../routine/library'
 import { AIST_CARD_CREDIT, librarySourceOf } from '../routine/moveSource'
 import { poseInMove } from '../routine/pose'
+import { signatureEnabled } from '../signature/flag'
+import { signatureLabel, withSignatureMoves } from '../signature/dances'
 
 interface ViewSettings {
   bpm: number
@@ -107,6 +109,7 @@ function MoveMeta({ move, full = false }: { move: ListedMove; full?: boolean }) 
           </span>
         )}
         {move.upperBodyOnly && <span className="tag seated">seated ok</span>}
+        {signatureLabel(move) && <span className="tag">★ {signatureLabel(move)}</span>}
         {move.styles
           .filter((s) => s !== 'aist')
           .map((s) => (
@@ -360,7 +363,7 @@ export default function MoveGallery() {
   useEffect(() => {
     const ac = new AbortController()
     getMoves(ac.signal).then(
-      (lib) => setState({ kind: 'ok', lib, demo: false }),
+      (lib) => void (signatureEnabled() ? withSignatureMoves(lib, ac.signal) : Promise.resolve(lib)).then((l) => setState({ kind: 'ok', lib: l, demo: false }), () => undefined),
       (err: unknown) => {
         if (isAbortError(err)) return
         const message =

@@ -138,14 +138,14 @@ Stage 2 endpoints (moves + choreography):
 |---|---|---|
 | GET | `/api/moves?source=classic\|aist&mirrors=1` | `MoveLibraryResponse` (`shared/moves.ts`): the compiled moves (classic moves with their L/R variants, real-dancer clips); both parameters optional, see below |
 | GET | `/api/moves/sources` | `MoveSourcesResponse`: move counts per source (`library`, `aist`) + the data attribution |
-| POST | `/api/choreograph` (JSON `ChoreographRequest`: `analysisId`, `difficulty`, `mode`, `seed`, `moveSource`) | a `routine.json` (`Routine`); 404 if the analysis isn't cached yet |
+| POST | `/api/choreograph` (JSON `ChoreographRequest`: `analysisId`, `difficulty`, `mode`, `seed`, `moveSource`, `pinnedMoves`) | a `routine.json` (`Routine`); 404 if the analysis isn't cached yet |
 | GET | `/api/routines/{routineId}` | a previously generated routine (for share links / multiplayer later) |
 
 Generated routines put `routineId`, `generator`, `libraryVersion`, `analysisId`,
 `analysisVersion`, `moveSource` and `aistMoves` (how many moves are real-dancer clips; plus `credit`
-when there are any) in `meta`. The same request always returns the same routine (cached by
-`routineId` = hash of analysis id + versions + difficulty + mode + seed + move source); a new seed
-gives a new routine. `moveSource` is `classic` (default: the angle-based library), `aist`
+when there are any) in `meta`, and `pinnedMoves` when signature moves were pinned. The same request
+always returns the same routine (cached by `routineId` = hash of analysis id + versions + difficulty +
+mode + seed + move source, + pinned moves when there are any); a new seed gives a new routine. `moveSource` is `classic` (default: the angle-based library), `aist`
 (real-dancer clips from AIST++, library moves only as a fallback and for the closing bow) or `mix`.
 Library moves carry `source` (`library` / `aist`) and `credit`; real-dancer clips have
 `startAnchor` / `endAnchor` `"free"` and mirrored twins `<id>_m`. Keyframes may carry `root` (rendering-only hip offset, see the schema).
@@ -262,7 +262,6 @@ fallback (`AI_PROVIDER=gemini` swaps them). Prompts and model output are never l
 |---|---|---|
 | POST | `/api/announcer` (JSON `AnnouncerRequest`) | `{ lines: string[], items: { id, text }[], source: "muse" \| "gemini" \| "canned" }`: 1-3 lines, each ≤ 90 chars; `items` are the same lines with ids. 429 over 120 requests/min per client |
 | GET | `/api/announcer/voice/{id}` | `audio/wav` (16-bit mono, 24 kHz): the line voiced by the herald (Gemini TTS, cached forever). 404 unless `/api/announcer` gave that line out, 429 over 40 requests/min per client, 503 not cached and no `GEMINI_API_KEY` (or TTS down) |
-| GET | `/api/songs/signature?analysisId=` (or `?file=` for a library song) | `Signature` (below), for a song the server knows: title and artist come from its analysis (or the library), never the caller. 404 unknown song, or without `SERPAPI_API_KEY` + an LLM key (unless cached); 502 search failed; 503 no usable AI answer, 2 lookups already running, or the day's 150 lookups used |
 
 A line's `id` is the sha256 hex of its UTF-8 text, so a client holding only the text can compute it
 (web/src/voice). The voice route never takes text: it only voices lines the announcer returned (fixed canned
@@ -284,15 +283,6 @@ interface AnnouncerRequest {
     bestMove?: string; hardestMove?: string   // display names
     difficulty?: string
   }
-}
-
-// GET /api/songs/signature. Cached per analysis, so a repeat costs no searches.
-interface Signature {
-  found: boolean               // false: no well-known dance; summary says so
-  summary: string              // 2-3 plain sentences on the signature moves
-  keyMoments: { label: string; approxTimeSec?: number }[]   // ≤ 5
-  suggestedMoveIds: string[]   // ≤ 8, always ids in GET /api/moves (re-checked on every read)
-  sources: { title: string; link: string; thumbnail?: string; source: string }[]  // ≤ 6, http(s) links
 }
 ```
 
@@ -368,3 +358,29 @@ sends the header `X-DF: 1` (403 without it).
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large); the rooms routes add 401, 403, 409, 429 and 503 as above, and the
 accounts routes 401, 403, 404, 409 and 429.
+
+## Signature dances (on by default; `?signature=0` or localStorage `mb.signature` = `"0"` turns them off)
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/signature/lookup?file=` (library song) or `?analysisId=`, optional `&title=&artist=` | `SignatureLookup` (below). Without `file`/`analysisId`, or with a `title` that isn't the song's own, only the bundled table and the signature moves answer (free). The online search (SerpApi + Gemini) runs only for the known song's own title and artist (from its analysis or the library), is cached per analysis for 24 h, and is limited to 2 at once (503), 10 fresh lookups per client per hour (429) and 150 a day (503). 400 without a title, 404 unknown song |
+| GET | `/api/signature/moves` | `{ version, moves }`: `LibraryMove`s from `assets/moves/signature/` plus `signatureDance`, `songs`, `creator` |
+
+`POST /api/choreograph` takes an optional `pinnedMoves: [{ moveId, placement: "chorus" | "drop" | "finale" }]`
+(signature move ids, at most 4). Each pinned move starts on the first downbeat of every matching section (no
+labeled chorus: every occurrence of the highest-energy repeated section group); the beam search fills the
+rest from the request's `moveSource` (real-dancer clips around a signature move with `aist` / `mix`; the
+section before a pinned one is choreographed knowing the pin comes next). Pinned moves carry
+`signatureDance: { name, creator? }` in the routine, and `meta.pinnedMoves` echoes the request. Without
+`pinnedMoves` the routine is exactly what it was before, and its `routineId` leaves the pins out.
+
+```jsonc
+// SignatureLookup. Bundled table first, then SerpApi (SERPAPI_API_KEY) + Gemini (GEMINI_API_KEY) for a known song.
+{ "title": "Lottery (Renegade)", "artist": "", "found": true,
+  "danceName": "The Renegade", "creator": "Jalaiah Harmon",   // creator "" when unknown (never guessed)
+  "year": null, "confidence": 1.0,
+  "links": [{ "title": str, "url": "https://…", "source": "YouTube", "thumbnail"?: "https://…" }],  // links only, never downloaded
+  "source": "table",            // table | serpapi | gemini | library | none
+  "moveId": null, "moveName": null,   // a signature move to pin, when one exists
+  "configured": true }                 // false without SERPAPI_API_KEY (table only)
+```

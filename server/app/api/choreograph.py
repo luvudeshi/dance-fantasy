@@ -1,8 +1,9 @@
 """Stage 2: POST /api/choreograph (analysis id -> routine.json) and GET /api/routines/{routineId}.
 
 Routines are cached by routineId (hash of analysis id/version, library version, generator,
-difficulty, mode, seed, move source), so the same request always returns byte-identical JSON (sent
-gzip-compressed to clients that accept it: a long real-dancer routine is a few MB, app.api.compress).
+difficulty, mode, seed, move source, pinned signature moves), so the same request always returns
+byte-identical JSON (sent gzip-compressed to clients that accept it: a long real-dancer routine is a few
+MB, app.api.compress).
 """
 
 from __future__ import annotations
@@ -21,10 +22,19 @@ from app.choreo import DEFAULT_MOVE_SOURCE, NoEligibleMoves, generate_routine, r
 from app.config import Settings, get_settings
 from app.moves.types import MoveLibrary
 from app.routine_store import ROUTINE_ID_PATTERN, RoutineStore
+from app.signature.pins import pin_key
+from app.signature.router import resolve_pins
 
 router = APIRouter(tags=["choreography"])
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 MAX_SEED = 2**53 - 1  # JS-safe integers
+
+
+class PinnedMoveRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    moveId: str = Field(min_length=1, max_length=64)
+    placement: Literal["chorus", "drop", "finale"] = "chorus"
 
 
 class ChoreographRequest(BaseModel):
@@ -38,6 +48,7 @@ class ChoreographRequest(BaseModel):
     seed: StrictInt = Field(default=0, ge=-MAX_SEED, le=MAX_SEED)
     # classic = library moves, aist = real-dancer clips (AIST++), mix = both. Without clips, aist/mix = classic.
     moveSource: Literal["classic", "aist", "mix"] = DEFAULT_MOVE_SOURCE
+    pinnedMoves: list[PinnedMoveRequest] | None = Field(default=None, max_length=4)  # signature dances
 
 
 def get_move_library() -> MoveLibrary:
@@ -74,15 +85,25 @@ def choreograph(req: ChoreographRequest, request: Request, settings: SettingsDep
     if analysis is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No analysis with this id; analyze the song first.")
 
+    pinned = resolve_pins(req.pinnedMoves or [], req.mode)
     rid = routine_id(
-        analysis.id, analysis.analysisVersion, library.version, req.difficulty, req.mode, req.seed, req.moveSource
+        analysis.id,
+        analysis.analysisVersion,
+        library.version,
+        req.difficulty,
+        req.mode,
+        req.seed,
+        req.moveSource,
+        pins=pin_key(pinned),
     )
     store = RoutineStore(settings.cache_dir)
     cached = store.load_bytes(rid)
     if cached is not None:
         return _json_response(request, cached, "hit")
     try:
-        routine = generate_routine(analysis, library, req.difficulty, req.mode, req.seed, move_source=req.moveSource)
+        routine = generate_routine(
+            analysis, library, req.difficulty, req.mode, req.seed, move_source=req.moveSource, pinned=pinned
+        )
     except NoEligibleMoves as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     data = json.dumps(routine.to_json_dict(), separators=(",", ":")).encode("utf-8")

@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { listSongs, type SongInfo } from '../api'
 import type { ResultsSummary } from '../game/scoring'
-import { SignatureCard } from '../signature/SignatureCard'
+import { SignaturePanel } from '../signature/SignaturePanel'
 import { Badge, Button, Corners, Panel, Title } from '../theme/components'
 import { useAnnouncer } from './announcer'
 import { AnnouncerToggles, HeraldBubble } from './Herald'
@@ -27,6 +27,8 @@ function sampleSummary(perfect: boolean): ResultsSummary {
     bestMove: move('Raise the Roof', 97),
   }
 }
+
+const noPins = (): void => undefined
 
 export default function AiPreview() {
   const announcer = useAnnouncer()
@@ -133,7 +135,7 @@ export default function AiPreview() {
             Look it up
           </Button>
         </form>
-        {lookup && <SignatureCard song={{ file: lookup.file }} title={lookup.title} />}
+        {lookup && <SignaturePanel choice={{ kind: 'library', file: lookup.file, title: lookup.title }} onPins={noPins} />}
       </div>
     </div>
   )

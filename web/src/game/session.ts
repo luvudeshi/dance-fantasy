@@ -4,7 +4,7 @@
 // calls are injected (SessionDeps) so the state machine is unit-tested without a server.
 
 import type { Analysis } from '@shared/analysis'
-import type { ChoreographRequest, MoveSource } from '@shared/moves'
+import type { ChoreographRequest, MoveSource, PinnedMoveRequest } from '@shared/moves'
 import type { Difficulty, Mode, Routine } from '@shared/routine'
 import { analyzeLibrarySong, analyzeUpload, ApiError, choreograph, getAnalysis, getRoutine } from '../api'
 import { errorMessage, isAbortError } from '../lib/errors'
@@ -21,9 +21,24 @@ export interface SessionRequest {
   seed: number
   /** "Moves from" (absent = classic). */
   moveSource?: MoveSource
+  /** Signature dances (src/signature; off with ?signature=0); absent = the plain routine. */
+  pinnedMoves?: PinnedMoveRequest[]
 }
 
-/** Everything that rebuilds a routine: same analysis + difficulty + mode + seed (+ move source) = same routine. */
+/**
+ * The lobby's request (Start and "Learn it first"): the song, its settings and "Moves from", plus the
+ * signature pins when there are some (`pins` null: the signature feature is off).
+ */
+export function lobbyRequest(
+  song: SongChoice,
+  setup: { difficulty: Difficulty; mode: Mode; seed: number; moveSource: MoveSource },
+  pins: readonly PinnedMoveRequest[] | null,
+): SessionRequest {
+  const { difficulty, mode, seed, moveSource } = setup
+  return { song, difficulty, mode, seed, moveSource, ...(pins?.length ? { pinnedMoves: [...pins] } : {}) }
+}
+
+/** Everything that rebuilds a routine: same analysis + difficulty + mode + seed (+ move source, pins) = same routine. */
 export interface RoutineRecipe {
   analysisId: string
   difficulty: Difficulty
@@ -33,6 +48,8 @@ export interface RoutineRecipe {
   moveSource?: MoveSource
   /** Library song file, so a cleared analysis can be recomputed. */
   songFile?: string
+  /** Signature dances the routine was generated with (meta.pinnedMoves). */
+  pinnedMoves?: PinnedMoveRequest[]
 }
 
 export type SessionStep = 'findingRoutine' | 'analyzing' | 'choreographing' | 'loadingAudio'
@@ -122,9 +139,11 @@ const isMoveSource = (v: unknown): v is MoveSource => v === 'classic' || v === '
 /**
  * The request body for a recipe. The move source is always explicit: recipes from before move sources
  * (none recorded) are classic, so they keep rebuilding the same routine whatever the server's default.
+ * Signature pins are sent only when there are some (without them the body is what it was before pins).
  */
 export function choreographRequest(analysisId: string, r: Omit<RoutineRecipe, 'analysisId'>): ChoreographRequest {
-  return { analysisId, difficulty: r.difficulty, mode: r.mode, seed: r.seed, moveSource: r.moveSource ?? 'classic' }
+  const pins = r.pinnedMoves?.length ? { pinnedMoves: r.pinnedMoves } : {}
+  return { analysisId, difficulty: r.difficulty, mode: r.mode, seed: r.seed, moveSource: r.moveSource ?? 'classic', ...pins }
 }
 
 /** The recipe recorded in a generated routine's meta (null without an analysisId). */
@@ -134,6 +153,8 @@ export function recipeFromRoutine(routine: Routine): RoutineRecipe | null {
   const recipe: RoutineRecipe = { analysisId: id, difficulty: routine.difficulty, mode: routine.mode, seed: routine.seed }
   const source = routine.meta?.moveSource
   if (isMoveSource(source)) recipe.moveSource = source
+  const pins = routine.meta?.pinnedMoves
+  if (Array.isArray(pins) && pins.length) recipe.pinnedMoves = pins as PinnedMoveRequest[]
   return recipe
 }
 

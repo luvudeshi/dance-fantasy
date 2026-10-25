@@ -144,7 +144,18 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/keyframe" }
-        }
+        },
+        "signatureDance": { "$ref": "#/$defs/signatureDance" }
+      }
+    },
+    "signatureDance": {
+      "description": "Optional: this move was pinned as a famous song's signature dance (an approximation, shown as \"inspired by\").",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "description": "The dance, e.g. YMCA arms.", "type": "string", "minLength": 1 },
+        "creator": { "description": "Who created the dance, when known.", "type": "string" }
       }
     }
   }

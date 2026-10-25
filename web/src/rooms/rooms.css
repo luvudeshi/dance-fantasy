@@ -173,10 +173,10 @@
 }
 .rm-chat-name {
   font-weight: 800;
-  color: var(--df-blue-deep);
+  color: var(--df-night); /* ~8.7:1 on the chat well */
 }
 .rm-chat-list .is-me .rm-chat-name {
-  color: var(--df-rasp-deep);
+  color: var(--df-burg); /* ~7.4:1 */
 }
 .rm-chat-form {
   display: flex;
@@ -199,10 +199,30 @@
 .rm-dock-row {
   justify-content: center;
 }
-@media (max-width: 599px) {
-  .rm-dock-row > .df-btn {
-    flex: 1 1 100%;
+/* tablets: the two-column grid is short enough to scroll; a sticky bar would cut through the panels */
+@media (min-width: 900px) {
+  .rm-dock {
+    position: static;
+    background: none;
   }
+}
+/* phones: the two buttons side by side (the "dancing too" switch lives in the Dancers panel) */
+@media (max-width: 599px) {
+  .rm-dock {
+    padding-top: 16px;
+  }
+  .rm-dock-row {
+    flex-wrap: nowrap;
+  }
+  .rm-dock-row > .df-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 12px;
+    font-size: var(--df-text-md);
+  }
+}
+.rm-dancers .df-switch {
+  margin-top: 14px;
 }
 
 /* live board progress line */

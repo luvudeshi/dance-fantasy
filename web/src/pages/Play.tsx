@@ -10,7 +10,8 @@
 // (src/game/clock.ts). Webcam frames and poses never leave the browser; the optional session
 // log (game/sessionLog.ts) holds numbers only and is saved only when downloaded.
 
-import { useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
+import type { PinnedMoveRequest } from '@shared/moves'
 import type { Difficulty, Mode } from '@shared/routine'
 import { ApiError, listSongs, type SongInfo } from '../api'
 import { recordRound } from '../account/store'
@@ -27,7 +28,6 @@ import { barSeekTarget, effectiveRehearsal, loadRehearsal, REHEARSALS, saveRehea
 import ResultsScreen from '../game/ResultsScreen'
 import { useAnnouncer } from '../announcer/announcer'
 import { HeraldBubble } from '../announcer/Herald'
-import { SignatureCard } from '../signature/SignatureCard'
 import { buildResultsView, roundDetails, type ResultsView } from '../game/results'
 import {
   forgetRoutine,
@@ -43,9 +43,11 @@ import { GameRun } from '../game/run'
 import { buildCheckpoints, type ScoringConfig } from '../game/scoring'
 import {
   apiSessionDeps,
+  lobbyRequest,
   prepareFromRecipe,
   prepareFromRoutine,
   prepareGame,
+  recipeFromRoutine,
   routineFor,
   STEP_LABELS,
   type PreparedGame,
@@ -63,7 +65,7 @@ import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
 import { createReelSession, reelEnabled, ReelLauncher } from '../reel'
-import { finishRoomRound, inRoomRound, reportRoomBeat, roomRoundFor, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
+import { finishRoomRound, reportRoomBeat, roomRoundFor, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
 import RoomLeaderboard from '../rooms/RoomLeaderboard'
 import { getSettings } from '../settings'
 import { Corners } from '../theme/components'
@@ -73,6 +75,10 @@ import { PauseMenu } from '../theme/screens/PauseMenu'
 import { setVoiceDucker, unlockVoice } from '../voice/voice'
 import { AIST_CREDIT, MOVE_SOURCES, moveSourceSuffix, movesFromDetail, routineMoveSource, type MoveSource } from '../routine/moveSource'
 import { moveSourceHint as hintForMoveSource, useMoveSource } from '../routine/useMoveSource'
+import { signatureEnabled } from '../signature/flag'
+import { withSignatureMultiplier } from '../signature/dances'
+import { SignatureBanner } from '../signature/SignatureBanner'
+import { SignaturePanel } from '../signature/SignaturePanel'
 import './play.css'
 
 const randomSeed = (): number => Math.floor(Math.random() * 1_000_000)
@@ -166,6 +172,8 @@ interface Launch {
   firstStep: SessionStep
   title: string
   subtitle: string
+  /** a saved routine (a room round plays one: no rehearsal, no calibration) */
+  routineId?: string
 }
 
 export default function Play() {
@@ -176,6 +184,9 @@ export default function Play() {
   const [songsError, setSongsError] = useState<string | null>(null)
   const [songsReload, setSongsReload] = useState(0)
   const [choice, setChoice] = useState<SongChoice | null>(null)
+  const [signatureOn] = useState(() => signatureEnabled())
+  const [signaturePins, setSignaturePins] = useState<PinnedMoveRequest[]>([])
+  const songTimeNow = useCallback(() => clock.songTime(), [clock])
   const [difficulty, setDifficulty] = useState<Difficulty>(() => getSettings().difficulty)
   const [mode, setMode] = useState<Mode>(() => getSettings().mode)
   const [seed, setSeed] = useState(randomSeed)
@@ -242,6 +253,7 @@ export default function Play() {
   const soundOn = autoplay ? autoSfx : sfxOn
   const soundOnRef = useLatest(soundOn)
   const judgingRef = useLatest(judging)
+  const inRoom = roomRoundFor(active?.game.routine.meta?.routineId) !== null // no R / Restart: it would desync the round
   useRoomReporter(active?.game.routine.meta?.routineId, () => {
     const a = activeRef.current
     return a?.run && phaseRef.current === 'game' ? { keeper: a.run.keeper, songTime: clock.songTime(), durationSec: a.game.durationSec } : null
@@ -296,7 +308,7 @@ export default function Play() {
     if (bot) void bot.start()
     const source = bot ?? cam
     if (!source) return null
-    const checkpoints = buildCheckpoints(game.routine, game.routine.mode).filter((cp) => cp.time >= fromT)
+    const checkpoints = withSignatureMultiplier(buildCheckpoints(game.routine, game.routine.mode), game.routine).filter((cp) => cp.time >= fromT)
     const config = scoringFor(judgingRef.current)
     return new GameRun({
       keeper: createScoreKeeper(checkpoints, config, game.track),
@@ -363,7 +375,7 @@ export default function Play() {
     const run = a?.run
     if (!a || !run || phaseRef.current !== 'game') return
     const summary = run.finish(a.game.routine, a.game.durationSec)
-    const inRoom = roomRoundFor(a.game.routine.meta?.routineId) !== null
+    const wasRoomRound = roomRoundFor(a.game.routine.meta?.routineId) !== null
     finishRoomRound(a.game.routine.meta?.routineId, summary)
     console.log(a.monitor.summary())
     const results = run.keeper.results()
@@ -372,7 +384,7 @@ export default function Play() {
     setResults(buildResultsView(summary, results, a.game.routine, meta.config.thresholds))
     if (!auto) {
       const { score, maxCombo, stars } = summary.state
-      void recordRound({ analysisId: a.game.analysis.id, songTitle: a.game.analysis.title, score, accuracy: summary.accuracy, maxCombo, stars, mode: inRoom ? 'room' : 'solo' })
+      void recordRound({ analysisId: a.game.analysis.id, songTitle: a.game.analysis.title, score, accuracy: summary.accuracy, maxCombo, stars, mode: wasRoomRound ? 'room' : 'solo' })
     }
     announcer.results(summary)
     setRound({
@@ -534,7 +546,8 @@ export default function Play() {
     setLinked(null) // a waiting deep link is superseded by whatever starts now
     const auto = autoplay
     playAutoRef.current = auto
-    const reh = inRoomRound() ? 'none' : effectiveRehearsal(rehearsal, auto)
+    const roomRound = roomRoundFor(l.routineId) !== null
+    const reh = roomRound ? 'none' : effectiveRehearsal(rehearsal, auto)
     setRunRehearsal(reh)
     practiceNextRef.current = reh === 'practice'
     setPending({ title: l.title, subtitle: l.subtitle })
@@ -554,7 +567,7 @@ export default function Play() {
       if (!game || sessionRef.current !== ac) return
       setPrepared(game)
       shelve(game)
-      const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal || inRoomRound(), calibrated: calRef.current !== null })
+      const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal || roomRound, calibrated: calRef.current !== null })
       dispatch({ type: 'prepared', calibrate, rehearsal: reh })
       if (reh === 'watch') beginPreview(game)
       else if (!calibrate) void warmup(game)
@@ -564,7 +577,7 @@ export default function Play() {
   /** Lobby Start: the chosen song + settings. */
   const start = (): void => {
     if (!choice) return
-    const req = { song: choice, difficulty, mode, seed, moveSource }
+    const req = lobbyRequest(choice, { difficulty, mode, seed, moveSource }, signatureOn ? signaturePins : null)
     launch({ load: (deps, on, signal) => prepareGame(req, deps, on, signal), firstStep: 'analyzing', title: choiceTitle(choice), subtitle: setupLabel(req) })
   }
 
@@ -575,6 +588,7 @@ export default function Play() {
     launch({
       load: (deps, on, signal) => prepareFromRoutine(routineId, deps, on, signal, hint),
       firstStep: 'findingRoutine',
+      routineId,
       title: entry?.title ?? 'Your routine',
       subtitle: entry ? setupLabel(entry) : `routine ${routineId}`,
     })
@@ -790,7 +804,7 @@ export default function Play() {
     setLearnError(null)
     setLearnBusy(STEP_LABELS.analyzing)
     try {
-      const req = { song: choice, difficulty, mode, seed, moveSource }
+      const req = lobbyRequest(choice, { difficulty, mode, seed, moveSource }, signatureOn ? signaturePins : null)
       const { analysis, routine } = await routineFor(req, apiSessionDeps(clock), ac.signal, (step) => setLearnBusy(STEP_LABELS[step]))
       const id = routine.meta?.routineId
       const entry = shelfEntryFor(routine, analysis, 'play')
@@ -814,12 +828,14 @@ export default function Play() {
     if (!game) return
     const s = randomSeed()
     setSeed(s)
+    const pins = recipeFromRoutine(game.routine)?.pinnedMoves
     const recipe: RoutineRecipe = {
       analysisId: game.analysis.id,
       difficulty: game.routine.difficulty,
       mode: game.routine.mode,
       seed: s,
       moveSource: routineMoveSource(game.routine),
+      ...(pins ? { pinnedMoves: pins } : {}),
     }
     launch({
       load: (deps, on, signal) => prepareFromRecipe(recipe, deps, on, signal, { analysis: game.analysis }),
@@ -873,7 +889,7 @@ export default function Play() {
         break
       case 'r':
       case 'R':
-        if (!e.repeat) restart()
+        if (!e.repeat && !inRoom) restart()
         break
       case 'm':
       case 'M':
@@ -942,7 +958,7 @@ export default function Play() {
   const watchInstead =
     runRehearsal === 'practice' ? (
       <button type="button" onClick={switchToWatch}>
-        👀 Just watch it first
+        Just watch it first
       </button>
     ) : null
 
@@ -1049,11 +1065,7 @@ export default function Play() {
               </span>
             )}
           </label>
-          {choice?.kind === 'library' && (
-            <div style={{ marginTop: 20 }}>
-              <SignatureCard song={{ file: choice.file }} title={choiceTitle(choice)} />
-            </div>
-          )}
+          {signatureOn && <SignaturePanel choice={choice} onPins={setSignaturePins} />}
         </div>
 
         <div className="lobby-card">
@@ -1126,7 +1138,7 @@ export default function Play() {
                 onChange={(e) => setSeed(Math.trunc(Number(e.target.value)) || 0)}
               />
               <button type="button" onClick={() => setSeed(randomSeed())} title="A different routine for the same song">
-                🎲 New seed
+                New seed
               </button>
             </div>
           </div>
@@ -1341,7 +1353,7 @@ export default function Play() {
                   <>
                     {watchInstead}
                     <button type="button" onClick={switchToAutoplay}>
-                      🤖 No camera? Let the bot dance
+                      No camera? Let the bot dance
                     </button>
                     <button type="button" onClick={exitToLobby}>
                       Lobby
@@ -1375,7 +1387,7 @@ export default function Play() {
                   </button>
                   {watchInstead}
                   <button type="button" onClick={switchToAutoplay}>
-                    🤖 Let the bot dance
+                    Let the bot dance
                   </button>
                   <button type="button" onClick={exitToLobby}>
                     Lobby
@@ -1384,8 +1396,9 @@ export default function Play() {
               </div>
             </div>
           )}
+          {signatureOn && active && isRunning(phase) && <SignatureBanner routine={active.game.routine} songTime={songTimeNow} />}
           {paused && isRunning(phase) && (
-            <PauseMenu onResume={togglePause} onRestart={restart} onQuit={exitToLobby} onSkip={isRehearsing(phase) ? endRehearsal : undefined} />
+            <PauseMenu onResume={togglePause} onRestart={inRoom ? undefined : restart} onQuit={exitToLobby} onSkip={isRehearsing(phase) ? endRehearsal : undefined} />
           )}
           {phase === 'ready' && active && (
             <div className="play-overlay dim-bg">
@@ -1406,7 +1419,7 @@ export default function Play() {
                     {runRehearsal === 'practice' ? 'Practice again' : 'Watch again'}
                   </button>
                   <button type="button" onClick={newRoutine} title="Same song and setup, a new seed">
-                    🎲 New routine
+                    New routine
                   </button>
                   <button type="button" onClick={exitToLobby}>
                     Lobby
@@ -1431,7 +1444,6 @@ export default function Play() {
               onMenu={() => {
                 window.location.hash = '#/'
               }}
-              aside={<SignatureCard song={{ analysisId: active.game.analysis.id }} title={active.game.analysis.title} />}
               herald={
                 <>
                   <HeraldBubble announcer={announcer} placement="inline" />

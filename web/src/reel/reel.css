@@ -9,6 +9,11 @@
   pointer-events: none;
 }
 
+/* Room under the results card for the launcher, so the last lines scroll clear of it. */
+.results-overlay:has(~ .reel-launcher) {
+  padding-bottom: calc(clamp(12px, 3vh, 28px) + 84px);
+}
+
 .reel-launch {
   pointer-events: auto;
   font-size: 1.25rem;

@@ -21,6 +21,8 @@ from app.choreo import generator
 from app.moves.library import build_library
 from app.moves.types import CompiledMove, MoveLibrary
 from app.routine import Routine
+from app.signature.moves import load_signature_library
+from app.signature.pins import PinnedMove, pin_key
 from app.skeleton import JOINTS
 
 ROUTINE_VALIDATOR = Draft202012Validator(json.loads((SHARED_DIR / "routine.schema.json").read_text()))
@@ -69,7 +71,7 @@ def test_layout_schema_and_determinism(analysis: Analysis, source: str, difficul
         assert not [e.message for e in ROUTINE_VALIDATOR.iter_errors(doc)]
         assert generate_routine(analysis, LIB, difficulty, mode, seed, move_source=source).to_json_dict() == doc
         meta = doc["meta"]
-        assert meta["generator"] == GENERATOR == "procedural-v5"
+        assert meta["generator"] == GENERATOR == "procedural-v6"
         assert meta["moveSource"] == source
         assert meta["routineId"] == routine_id(analysis.id, analysis.analysisVersion, LIB.version, difficulty, mode, seed, source)
         assert meta["aistMoves"] == sum(BY_ID[m.id].source == "aist" for m in routine.moves)
@@ -271,3 +273,90 @@ def test_boundary_costs_leave_classic_routines_unchanged(analysis: Analysis, mon
     assert [generate_routine(a, LIB, d, m, s).to_json_dict() for a, d, m, s in cases] == before
     after = [generate_routine(a, LIB, d, m, s, move_source="mix").to_json_dict() for a, d, m, s in cases]
     assert after != clips_before  # ...while they do change routines with clips
+
+
+# ---- signature dances (pinned moves) with every move source ------------------------------------------------
+
+SIG = load_signature_library()
+SIG_BY_ID = {m.move.id: m.move for m in SIG.moves}
+
+
+def pin(move_id: str, placement: str = "chorus") -> PinnedMove:
+    sig = SIG.get(move_id)
+    assert sig is not None
+    return PinnedMove(move=sig.move, placement=placement, tag=sig.tag(), version=SIG.version)
+
+
+@pytest.mark.parametrize("source", MOVE_SOURCES)
+@pytest.mark.parametrize("mode", MODES)
+def test_pinned_signature_moves_with_every_source(analysis: Analysis, source: str, mode: str) -> None:
+    """The pin opens both choruses (which still match), the search fills the rest from the move source and never
+    picks a signature move itself; meta and the routine id carry both the source and the pins."""
+    chorus = [i for i, (label, _, _, _) in enumerate(DEFAULT_LAYOUT) if label == "chorus"]
+    pins = [pin("sig_ymca_arms")]
+    for difficulty in DIFFICULTIES:
+        routine = generate_routine(analysis, LIB, difficulty, mode, 3, move_source=source, pinned=pins)
+        check_layout(routine)
+        doc = routine.to_json_dict()
+        assert not [e.message for e in ROUTINE_VALIDATOR.iter_errors(doc)]
+        per_section = section_moves(routine)
+        assert per_section[chorus[0]] == per_section[chorus[1]]
+        assert per_section[chorus[0]][0] == (0, "sig_ymca_arms")
+        assert [m.id for m in routine.moves if m.signatureDance] == ["sig_ymca_arms"] * 2
+        assert all(m.id in BY_ID for m in routine.moves if not m.signatureDance)
+        meta = doc["meta"]
+        assert meta["moveSource"] == source and meta["pinnedMoves"] == [{"moveId": "sig_ymca_arms", "placement": "chorus"}]
+        assert meta["routineId"] == routine_id(
+            analysis.id, analysis.analysisVersion, LIB.version, difficulty, mode, 3, source, pins=pin_key(pins)
+        )
+        n_aist = sum(BY_ID[m.id].source == "aist" for m in routine.moves if m.id in BY_ID)
+        assert meta["aistMoves"] == n_aist and ("credit" in meta) == (n_aist > 0)
+        if source == "classic":
+            assert n_aist == 0
+        elif source == "aist" or mode == "standing":
+            assert n_aist > 0, (difficulty, mode)
+        if mode == "seated":
+            assert all((BY_ID.get(m.id) or SIG_BY_ID[m.id]).upperBodyOnly for m in routine.moves)
+        plain = generate_routine(analysis, LIB, difficulty, mode, 3, move_source=source)
+        assert generate_routine(analysis, LIB, difficulty, mode, 3, move_source=source, pinned=()).to_json_dict() == (
+            plain.to_json_dict()
+        )
+        assert "pinnedMoves" not in plain.meta and plain.meta["routineId"] != meta["routineId"]
+
+
+def test_routine_ids_cover_source_and_pins(analysis: Analysis) -> None:
+    ids = {
+        generate_routine(analysis, LIB, "normal", "standing", 1, move_source=s, pinned=p).meta["routineId"]
+        for s in MOVE_SOURCES
+        for p in ((), (pin("sig_whip"),), (pin("sig_whip", "finale"),), (pin("sig_whip"), pin("sig_floss")))
+    }
+    assert len(ids) == 12
+
+
+def test_pins_keep_the_library_credit(analysis: Analysis) -> None:
+    routine = generate_routine(analysis, LIB, "normal", "standing", 0, move_source="aist", pinned=[pin("sig_floss")])
+    assert LIB.attribution and routine.meta["credit"] == LIB.attribution
+
+
+@pytest.mark.skipif(not REAL_CLIPS.exists(), reason="assets/moves/aist_clips.json not built")
+@pytest.mark.parametrize("source", ("aist", "mix"))
+def test_clip_edges_around_pins_stay_under_the_cap_with_real_clips(source: str) -> None:
+    """Real-dancer clips around a signature move: the section before a pinned chorus knows the pin comes next,
+    so every clip edge, into and out of the pins too, stays under the cap."""
+    lib = clips_library(REAL_CLIPS.read_bytes())
+    by_id = {**lib.by_id(), **SIG_BY_ID}
+    n = at_pin = 0
+    for layout in (DEFAULT_LAYOUT, REPLAYS):
+        analysis = make_analysis(layout)
+        for difficulty in DIFFICULTIES:
+            for mode in MODES:
+                for pins in ([pin("sig_ymca_arms")], [pin("sig_whip"), pin("sig_horse_dance", "finale")]):
+                    routine = generate_routine(analysis, lib, difficulty, mode, 0, move_source=source, pinned=pins)
+                    check_layout(routine)
+                    moves = [by_id[m.id] for m in routine.moves]
+                    for a, b in zip(moves, moves[1:]):
+                        if a.source == "aist" or b.source == "aist":
+                            n += 1
+                            at_pin += a.id in SIG_BY_ID or b.id in SIG_BY_ID
+                            assert edge(a, b) <= DEFAULT_CONFIG.trans_cap + 1e-6, (difficulty, mode, a.id, b.id)
+    assert n > 150 and at_pin > 10, (n, at_pin)

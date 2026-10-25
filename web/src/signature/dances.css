@@ -1,0 +1,150 @@
+/* Signature dances: lobby panel (SignaturePanel.tsx) and in-game banner (SignatureBanner.tsx). */
+
+.mb-sig-panel {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mb-sig-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mb-sig-star {
+  color: #facc15;
+}
+
+.mb-sig-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.mb-sig-fields label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  gap: 4px;
+}
+
+.mb-sig-fields input {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+}
+
+.mb-sig-fields input:focus-visible {
+  outline: 2px solid #facc15;
+  outline-offset: 1px;
+}
+
+@media (max-width: 520px) {
+  .mb-sig-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.mb-sig-note {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.mb-sig-pinned {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+}
+
+.mb-sig-learn p {
+  margin: 0 0 6px;
+}
+
+.mb-sig-links ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+
+.mb-sig-links a {
+  overflow-wrap: anywhere;
+}
+
+.mb-sig-banner {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.92), rgba(219, 39, 119, 0.92));
+  border: 2px solid #facc15;
+  box-shadow: 0 0 28px rgba(250, 204, 21, 0.55);
+  color: #fff;
+  pointer-events: none;
+  animation: mb-sig-in 280ms ease-out;
+}
+
+.mb-sig-banner-text {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.mb-sig-banner-badge {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #1e1b4b;
+}
+
+.mb-sig-banner-sub {
+  flex-basis: 100%;
+  text-align: center;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+@keyframes mb-sig-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mb-sig-banner {
+    animation: none;
+  }
+}
+
+.mb-sig-thumb {
+  width: 48px;
+  height: 27px;
+  object-fit: cover;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
