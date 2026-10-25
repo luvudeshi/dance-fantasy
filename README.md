@@ -36,6 +36,10 @@ slippers wear through, because a dance game should feel like a night at the ball
   - **Dance cards**: an automatic guest profile (sign in with a username and password to keep it),
     friend codes, invites, recent dance partners and history.
 - **Learn mode** loops any 8 counts at half or three-quarter speed, with tips like "left arm late".
+- **A Hall of Fame and badges.** Every song has its own leaderboard (all time, this week, today, or
+  just you and your friends) with a podium for the top three, and the results screen tells you
+  where you placed. Your dance card collects 16 fairy-tale badges, from First Dance to Stroke of
+  Midnight, with a progress bar on each one you haven't earned yet.
 
 | Title menu | Online ballroom |
 |---|---|
@@ -82,7 +86,8 @@ The source video is linked so you can watch the original.
 Tiger Data (Postgres + TimescaleDB) holds everything multiplayer and social: ballrooms, dancers,
 chat, accounts, friends and invites. Every round and every beat danced in a ballroom is stored in
 **hypertables**, and a **continuous aggregate** rolls those beats up into each song's "hardest
-moments", the beats that trip up dancers across every ballroom. It also keeps the paid AI and search
+moments", the beats that trip up dancers across every ballroom. A second continuous aggregate adds
+up each dancer's score per day for the Hall of Fame's top dancers of the week. It also keeps the paid AI and search
 calls within daily and per-visitor limits.
 
 ### Also built with
