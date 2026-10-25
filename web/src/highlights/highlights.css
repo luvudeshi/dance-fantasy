@@ -1,0 +1,67 @@
+/* Highlight reel (HighlightReel.tsx), on the Dance Fantasy theme. */
+
+/* The dialog holds a live <video>: no SVG die-cut filter on it (it would re-filter every frame). */
+.df-modal:has(.hl-reel) {
+  width: min(52rem, calc(100vw - 32px));
+  filter: none;
+  box-shadow: var(--df-shadow-lift);
+}
+
+.hl-reel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hl-mirror {
+  margin-top: 14px;
+}
+
+.hl-glass {
+  max-height: min(60dvh, 34rem);
+  margin-inline: auto;
+  width: 100%;
+}
+
+.hl-glass > video {
+  object-fit: contain;
+}
+
+.hl-ribbon {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 1;
+  font-size: clamp(0.95rem, 2.6vw, 1.5rem);
+  pointer-events: none;
+}
+
+.hl-caption {
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.hl-moves {
+  margin: 0;
+  font-size: var(--df-text-lg);
+}
+
+.hl-clips {
+  justify-content: flex-start;
+  --df-gap: 8px;
+}
+
+.hl-clips .df-chip img {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+/* Closed reel: a launcher over the results screen. */
+.hl-launch {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  translate: -50% 0;
+  z-index: 6;
+}
