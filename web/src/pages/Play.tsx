@@ -1219,7 +1219,7 @@ export default function Play() {
           keys={stageKeys}
           sound={soundOn}
         >
-          <RoomLeaderboard routineId={routine?.meta?.routineId} />
+          {phase !== 'results' && <RoomLeaderboard routineId={routine?.meta?.routineId} />}
           {phase !== 'results' && <HeraldBubble announcer={announcer} />}
           {session.status === 'loading' && (
             <div className="play-overlay">
@@ -1371,7 +1371,12 @@ export default function Play() {
                 window.location.hash = '#/'
               }}
               aside={<SignatureCard title={active.game.analysis.title} artist={active.game.analysis.artist} />}
-              herald={<HeraldBubble announcer={announcer} placement="inline" />}
+              herald={
+                <>
+                  <HeraldBubble announcer={announcer} placement="inline" />
+                  <RoomLeaderboard routineId={shownId} inline />
+                </>
+              }
             />
           )}
         </PlayStage>

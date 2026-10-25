@@ -377,3 +377,17 @@
     display: none;
   }
 }
+
+/* on the results card (inline): in the flow under the title, the full board on phones too */
+.rm-overlay.rm-overlay-inline {
+  position: static;
+  width: min(100%, 22rem);
+  margin: 14px auto 0;
+  padding: 10px 14px;
+  opacity: 1;
+  text-align: left;
+  font-size: var(--df-text-md);
+}
+.rm-overlay-inline .rm-overlay-board {
+  display: block;
+}

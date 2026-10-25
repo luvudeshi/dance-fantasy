@@ -149,10 +149,11 @@ export function resultsContext(summary: ResultsSummary): Omit<AnnouncerContext, 
   return {
     score: Math.max(0, Math.round(state.score)),
     accuracy: Math.min(100, Math.max(0, Math.round(summary.accuracy))),
-    maxCombo: state.maxCombo,
+    // a round with no hits has no combo or best move worth a line ("A 0-move combo!")
+    ...(state.maxCombo >= 2 ? { maxCombo: state.maxCombo } : {}),
     stars: Math.floor(stars),
     grade: rankTitle(stars),
-    ...(summary.bestMove ? { bestMove: summary.bestMove.name } : {}),
+    ...(summary.bestMove && summary.bestMove.avgScore > 0 ? { bestMove: summary.bestMove.name } : {}),
     ...(summary.hardestMove ? { hardestMove: summary.hardestMove.name } : {}),
   }
 }

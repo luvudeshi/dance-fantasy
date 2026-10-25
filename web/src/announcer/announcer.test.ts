@@ -84,6 +84,13 @@ describe('results helpers', () => {
     })
   })
 
+  it('a round with no hits names no combo and no best move', () => {
+    const s = summary({ accuracy: 0, stars: 0 })
+    const ctx = resultsContext({ ...s, state: { ...s.state, maxCombo: 0 }, bestMove: s.bestMove && { ...s.bestMove, avgScore: 0 } })
+    expect(ctx.maxCombo).toBeUndefined()
+    expect(ctx.bestMove).toBeUndefined()
+  })
+
   it('local lines fill in the song and score', () => {
     expect(localLine('intro', { songTitle: 'Vibe Ace' }, () => 0)).toContain('Vibe Ace')
     expect(localLine('results', { songTitle: 'x', score: 12345 }, () => 0)).toContain('12,345')
