@@ -13,46 +13,53 @@ const DEBOUNCE_MS = 450
 
 type LookupState = { kind: 'idle' } | { kind: 'loading' } | { kind: 'done'; result: SignatureLookup } | { kind: 'error'; message: string }
 
-export function SignaturePanel({ choice, onPins }: { choice: SongChoice | null; onPins: (pins: PinnedMoveRequest[]) => void }) {
-  const [title, setTitle] = useState('')
-  const [artist, setArtist] = useState('')
-  const [state, setState] = useState<LookupState>({ kind: 'idle' })
+type Answer = { query: string } & ({ kind: 'done'; result: SignatureLookup } | { kind: 'error'; message: string })
 
-  // A new song: its title from the library, the upload's ID3 tag, else the file name.
-  useEffect(() => {
-    let live = true
+function defaultTitle(choice: SongChoice | null): string {
+  if (!choice) return ''
+  return choice.kind === 'library' ? (choice.title ?? titleFromFileName(choice.file)) : titleFromFileName(choice.file.name)
+}
+
+export function SignaturePanel({ choice, onPins }: { choice: SongChoice | null; onPins: (pins: PinnedMoveRequest[]) => void }) {
+  const [forChoice, setForChoice] = useState(choice)
+  const [title, setTitle] = useState(() => defaultTitle(choice))
+  const [artist, setArtist] = useState('')
+  const [answer, setAnswer] = useState<Answer | null>(null)
+
+  // A new song: its title from the library or the file name (then the upload's ID3 tag, below).
+  if (choice !== forChoice) {
+    setForChoice(choice)
+    setTitle(defaultTitle(choice))
     setArtist('')
-    if (!choice) setTitle('')
-    else if (choice.kind === 'library') setTitle(choice.title ?? titleFromFileName(choice.file))
-    else {
-      setTitle(titleFromFileName(choice.file.name))
-      void readSongTags(choice.file).then((tags) => {
-        if (!live) return
-        if (tags.title) setTitle(tags.title)
-        if (tags.artist) setArtist(tags.artist)
-      })
-    }
+  }
+
+  useEffect(() => {
+    if (choice?.kind !== 'upload') return
+    let live = true
+    void readSongTags(choice.file).then((tags) => {
+      if (!live) return
+      if (tags.title) setTitle(tags.title)
+      if (tags.artist) setArtist(tags.artist)
+    })
     return () => {
       live = false
     }
   }, [choice])
 
+  const query = title.trim() ? `${title.trim()}\n${artist.trim()}` : ''
   useEffect(() => {
     onPins([])
-    if (!title.trim()) {
-      setState({ kind: 'idle' })
-      return
-    }
+    if (!query) return
     const ac = new AbortController()
-    setState({ kind: 'loading' })
     const timer = window.setTimeout(() => {
-      lookupSignature(title, artist, ac.signal).then(
+      const [t, a] = query.split('\n')
+      lookupSignature(t, a, ac.signal).then(
         (result) => {
-          setState({ kind: 'done', result })
+          setAnswer({ query, kind: 'done', result })
           onPins(pinsFor(result))
         },
         (err: unknown) => {
-          if (!isAbortError(err)) setState({ kind: 'error', message: errorMessage(err) })
+          if (!isAbortError(err)) setAnswer({ query, kind: 'error', message: errorMessage(err) })
         },
       )
     }, DEBOUNCE_MS)
@@ -60,7 +67,9 @@ export function SignaturePanel({ choice, onPins }: { choice: SongChoice | null; 
       window.clearTimeout(timer)
       ac.abort()
     }
-  }, [title, artist, onPins])
+  }, [query, onPins])
+
+  const state: LookupState = !query ? { kind: 'idle' } : answer?.query === query ? answer : { kind: 'loading' }
 
   return (
     <section className="mb-sig-panel" aria-label="Signature dance">
