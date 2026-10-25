@@ -17,13 +17,17 @@
   margin-top: 14px;
 }
 
+/* a definite box (aspect-ratio, clamped by max-height) with the video letterboxed inside, so a tall
+   phone recording is never cropped by the glass */
 .hl-glass {
-  max-height: min(50dvh, 34rem);
-  margin-inline: auto;
+  display: block;
   width: 100%;
+  max-height: min(50dvh, 34rem);
 }
 
 .hl-glass > video {
+  position: absolute;
+  inset: 0;
   object-fit: contain;
 }
 
@@ -67,6 +71,13 @@
 }
 
 @media (max-width: 600px) {
+  /* room for the actions without scrolling the dialog */
+  .hl-glass {
+    max-height: 40dvh;
+  }
+  .hl-moves {
+    font-size: var(--df-text-md);
+  }
   .hl-launch {
     left: auto;
     right: 16px;
