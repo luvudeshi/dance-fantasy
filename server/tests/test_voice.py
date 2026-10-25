@@ -25,8 +25,10 @@ from app.ai.voice import (
     sample_rate,
     to_pcm,
     trim_silence,
+    voiced_ids,
     wav_path,
 )
+from app.ai import voice as voice_mod
 from app.api import announcer as announcer_api
 from app.config import REPO_ROOT, get_settings
 from app.main import app
@@ -39,6 +41,7 @@ def _no_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     announcer_api._cache.clear()
     announcer_api._hits.clear()
     announcer_api._line_hits.clear()
+    voice_mod._voiced = (0.0, frozenset())
 
 
 @pytest.fixture
@@ -98,6 +101,33 @@ def test_announcer_returns_ids_and_remembers_the_lines_it_gave_out(client: TestC
         assert known_text(cache_dir, item["id"]) == item["text"]
         stored = cache_dir / "voice-lines" / f"{item['id']}.json"
         assert stored.exists() == (item["id"] not in CANNED_BY_ID)  # fixed lines need no store
+
+
+def test_in_game_moments_get_a_recorded_line_without_asking_a_model(
+    client: TestClient, cache_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MUSE_API_KEY", "test-key")
+    monkeypatch.setenv("MUSE_BASE_URL", "http://127.0.0.1:9")  # a model would be asked, and fail slowly
+    recorded = "The chandeliers are shaking! What a streak!"
+    _wav(cache_dir, line_id(recorded), TTS_MODELS[2])
+    for event, extra in (("combo", {"combo": 15}), ("combo", {"combo": 20}), ("cheer", {}), ("cheer", {"score": 5})):
+        body = {"event": event, "context": {"songTitle": "Vibe Ace", **extra}}
+        reply = client.post("/api/announcer", json=body).json()
+        assert reply["source"] == "canned" and len(reply["lines"]) == 1
+        if event == "combo":
+            assert reply["lines"] == [recorded]  # the only recorded line wins over unrecorded ones
+        else:
+            assert reply["items"][0]["id"] in CANNED_BY_ID  # cheer has no recording yet: a fixed, voiceable line
+
+
+def test_voiced_ids_reads_the_cache_once_per_ttl(cache_dir: Path) -> None:
+    a, b = (line_id(t) for t in CANNED["cheer"][:2])
+    _wav(cache_dir, a)
+    assert a in voiced_ids(cache_dir, DEFAULT_VOICE) and b not in voiced_ids(cache_dir, DEFAULT_VOICE)
+    _wav(cache_dir, b)
+    assert b not in voiced_ids(cache_dir, DEFAULT_VOICE)  # memoized
+    voice_mod._voiced = (0.0, frozenset())
+    assert {a, b} <= voiced_ids(cache_dir, DEFAULT_VOICE)
 
 
 def test_known_text_rejects_non_ids_unknown_ids_and_tampered_files(cache_dir: Path) -> None:

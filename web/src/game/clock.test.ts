@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { audibleSongTime, GameClock, START_DELAY_SEC } from './clock'
+import { audibleSongTime, DUCK_GAIN, GameClock, START_DELAY_SEC } from './clock'
 
 class FakeSource {
   buffer: unknown = null
@@ -85,7 +85,7 @@ describe('GameClock', () => {
     const ctx = FakeContext.instances[0]
     expect(ctx.gains).toHaveLength(1)
     clock.duck(true)
-    expect(ctx.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0.35, ctx.currentTime, 0.04)
+    expect(ctx.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(DUCK_GAIN, ctx.currentTime, 0.04)
     clock.duck(false)
     expect(ctx.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(1, ctx.currentTime, 0.25)
   })

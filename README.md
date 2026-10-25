@@ -59,10 +59,11 @@ slippers wear through, because a dance game should feel like a night at the ball
 ## How we used each sponsor's tools
 
 ### Meta Muse: the Royal Herald's voice of the ball
-**Muse Spark** writes the herald's commentary live, from what *you* just did: your name, the song,
-the move you nailed, your combo count, your grade. It reacts to your dancing as it happens, not to a
-chat box. Muse goes first, Gemini is the fallback, and a hand-written line covers anything slower
-than 2.5 seconds, so the show never waits.
+**Muse Spark** writes the herald's big moments live, from what *you* did: it throws open the
+ballroom doors with your name and the song, and delivers the final verdict with your score, grade,
+best move and longest combo. During the song the herald calls out every combo and cheers you on
+with recorded lines, so it never lags behind your feet. Muse goes first, Gemini is the fallback, and
+a hand-written line covers anything slower than 2.5 seconds, so the show never waits.
 
 ### Google Gemini: three jobs
 1. **The herald's voice.** Gemini text-to-speech performs every line with a directed delivery

@@ -30,15 +30,22 @@ from pathlib import Path
 
 import numpy as np
 
+from app import blob
 from app.ai.prompts import CANNED_BY_ID, line_id
 from app.ai.provider import GEMINI_BASE, _describe, _post, env
 from app.analysis_store import ID_RE, _atomic_write, read_cached
 
 log = logging.getLogger(__name__)
 
-# First answer wins; the lite model is the fallback when the main one is missing, busy or failing. The 2.5
-# model is a last resort with its own quota (free tier: about 10 requests a day per model) and same voices.
-TTS_MODELS = ("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-2.5-flash-preview-tts")
+# First answer wins; the others are fallbacks when one is missing, busy or out of quota. Each model has its own
+# free-tier quota (about 10 requests a day) and the same voices; an exhausted one fails in ~0.1 s.
+TTS_MODELS = (
+    "gemini-3.8-flash-tts",
+    "gemini-3.8-flash-lite-tts",
+    "gemini-3.1-flash-tts-preview",
+    "gemini-2.5-flash-preview-tts",
+    "gemini-2.5-pro-preview-tts",
+)
 # Chosen by a listening test by proxy (same herald line, six candidates, a Gemini listener plus pitch and
 # loudness stats): Fenrir rated energy 9 / warmth 9, said the words exactly, had the widest pitch movement
 # (17 semitones) and the punchiest delivery. Puck ad-libbed an "Oh,"; Zephyr was flatter and slurred a word.
@@ -118,6 +125,27 @@ def cached_wav(cache_dir: Path, lid: str, voice: str) -> bytes | None:
         except FileNotFoundError:
             continue
     return None
+
+
+VOICED_TTL_SEC = 300.0
+# ponytail: per-instance memo, refreshed every VOICED_TTL_SEC; lines voiced meanwhile join on the next refresh.
+_voiced: tuple[float, frozenset[str]] = (0.0, frozenset())
+
+
+def voiced_ids(cache_dir: Path, voice: str) -> frozenset[str]:
+    """Ids of the fixed canned lines that already have audio (on disk or in Blob): one Blob listing, memoized."""
+    global _voiced
+    now = time.monotonic()
+    if now < _voiced[0]:
+        return _voiced[1]
+    names = {p.name for p in (cache_dir / "voice").glob("*.wav")}
+    try:
+        names |= {key.rsplit("/", 1)[-1] for key in blob.keys("voice/")}
+    except Exception as exc:  # Blob down: what is on disk still counts
+        log.warning("voice.voiced blob=false error=%s", type(exc).__name__)
+    ids = frozenset(lid for lid in CANNED_BY_ID if any(wav_path(cache_dir, lid, voice, m).name in names for m in TTS_MODELS))
+    _voiced = (now + VOICED_TTL_SEC, ids)
+    return ids
 
 
 def pcm_to_wav(pcm: bytes, rate: int = DEFAULT_RATE) -> bytes:

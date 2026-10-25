@@ -41,6 +41,8 @@ interface Run {
 }
 
 const COUNT_IN_CLICK = { frequency: 1500, volume: 0.18 }
+/** The song's gain while the herald speaks: dipped, never buried (about -5 dB). */
+export const DUCK_GAIN = 0.55
 
 export class GameClock {
   private ctx: AudioContext | null = null
@@ -57,6 +59,9 @@ export class GameClock {
    * so the autoplay policy lets audio start later, after async loading.
    */
   unlock(): AudioContext {
+    // iOS mutes Web Audio with the ringer switch unless the page says it plays media (Safari 16.4+).
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession
+    if (session) session.type = 'playback'
     if (!this.ctx || this.ctx.state === 'closed') this.ctx = new AudioContext({ latencyHint: 'interactive' })
     const ctx = this.ctx
     if (ctx.state === 'suspended') ctx.resume().catch(() => undefined)
@@ -166,7 +171,7 @@ export class GameClock {
 
   /** Lowers the music while the herald speaks (voice/voice.ts setVoiceDucker), back up after. */
   duck(on: boolean): void {
-    if (this.ctx && this.music) this.music.gain.setTargetAtTime(on ? 0.35 : 1, this.ctx.currentTime, on ? 0.04 : 0.25)
+    if (this.ctx && this.music) this.music.gain.setTargetAtTime(on ? DUCK_GAIN : 1, this.ctx.currentTime, on ? 0.04 : 0.25)
   }
 
   /** Stops playback; song time goes back to 0. The decoded song stays cached. */

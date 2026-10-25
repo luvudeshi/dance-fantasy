@@ -12,6 +12,7 @@ import asyncio
 import logging
 import time
 from collections import deque
+from pathlib import Path
 from typing import Annotated, Literal
 
 import anyio
@@ -20,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.prompts import (
     ANNOUNCER_SYSTEM,
+    IN_GAME_EVENTS,
     AnnouncerEvent,
     announcer_details,
     announcer_user,
@@ -29,7 +31,7 @@ from app.ai.prompts import (
 )
 from app.ai.provider import AIUnavailable, configured, env, generate_text
 from app.accounts.store import spend
-from app.ai.voice import VoiceUnavailable, cached_wav, known_text, remember, synthesize, voice_name
+from app.ai.voice import VoiceUnavailable, cached_wav, known_text, remember, synthesize, voice_name, voiced_ids
 from app.api.limits import client_ip
 from app.config import Settings, get_settings
 
@@ -83,8 +85,12 @@ def _reply(lines: list[str], source: Literal["muse", "gemini", "canned"]) -> Ann
 _cache: dict[str, tuple[float, AnnouncerReply]] = {}
 
 
-async def _announce(req: AnnouncerRequest) -> AnnouncerReply:
+async def _announce(req: AnnouncerRequest, cache_dir: Path) -> AnnouncerReply:
     details = announcer_details(req.context.model_dump())
+    if req.event in IN_GAME_EVENTS:
+        # A fresh line takes seconds to voice and the moment is gone by then: a recorded line plays at once.
+        voiced = await asyncio.to_thread(voiced_ids, cache_dir, voice_name())
+        return _reply(canned_lines(req.event, details, voiced), "canned")
     if configured():
         user = announcer_user(req.event, details)
         try:
@@ -112,7 +118,7 @@ async def announcer(req: AnnouncerRequest, request: Request, settings: SettingsD
     hit = _cache.get(key)
     if hit is not None and hit[0] > now:
         return hit[1]
-    reply = await _announce(req)
+    reply = await _announce(req, settings.cache_dir)
     try:
         await asyncio.to_thread(remember, settings.cache_dir, reply.lines)
     except Exception as exc:  # disk or Blob: the lines still show; the page falls back to its own voice

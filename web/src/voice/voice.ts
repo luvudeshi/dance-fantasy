@@ -20,10 +20,13 @@ export interface VoiceLine {
   text: string
 }
 
-/** Speak with speechSynthesis instead when the audio isn't ready this long after speak(). */
-export const FALLBACK_AFTER_MS = 1200
+/**
+ * Speak with speechSynthesis instead when the audio isn't ready this long after speak(). A recorded line
+ * arrives well within it; a fresh one takes ~2.5 s to voice, and the herald's voice beats a robotic one late.
+ */
+export const FALLBACK_AFTER_MS = 3500
 /** A queued line still waiting this long after speak() is dropped: the moment has passed. */
-export const STALE_AFTER_MS = 3000
+export const STALE_AFTER_MS = 4000
 const CLIP_CACHE_MAX = 32
 const LOAD_TIMEOUT_MS = 10_000
 const ATTACK_SEC = 0.012
@@ -216,10 +219,15 @@ async function playClip(buffer: AudioBuffer, signal: AbortSignal): Promise<void>
 
 type VoiceLike = Pick<SpeechSynthesisVoice, 'name' | 'lang'>
 
-/** A lively English voice: British first (the herald), then any English. */
+/** Neural / natural-sounding browser voices (Edge "Natural", Apple "Premium"/"Enhanced", Chrome's Google voices). */
+const NATURAL_VOICE = /natural|neural|premium|enhanced|^google/i
+
+/** The least robotic English voice: natural ones first, British before others (the herald), then any English. */
 export function pickSpeechVoice<V extends VoiceLike>(voices: readonly V[]): V | null {
   const en = voices.filter((v) => /^en([-_]|$)/i.test(v.lang))
-  return en.find((v) => /^en[-_]gb/i.test(v.lang)) ?? en[0] ?? null
+  const gb = (v: V): boolean => /^en[-_]gb/i.test(v.lang)
+  const natural = en.filter((v) => NATURAL_VOICE.test(v.name))
+  return natural.find(gb) ?? natural[0] ?? en.find(gb) ?? en[0] ?? null
 }
 
 function speakWithSynthesis(text: string, signal: AbortSignal): Promise<void> {
@@ -230,9 +238,8 @@ function speakWithSynthesis(text: string, signal: AbortSignal): Promise<void> {
     const voice = pickSpeechVoice(synth.getVoices())
     if (voice) u.voice = voice
     u.lang = voice?.lang ?? 'en-GB'
-    // ponytail: livelier than the default by ear (rate, pitch); per-voice tuning if one sounds off.
-    u.rate = 1.12
-    u.pitch = 1.3
+    // A touch quick for energy; the voice's own pitch (raised pitch is what made it sound robotic).
+    u.rate = 1.05
     // Some browsers never fire `end` for an utterance: give up after a generous estimate of its length.
     const guard = setTimeout(done, 2000 + text.length * 120)
     const abort = (): void => {
