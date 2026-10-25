@@ -160,7 +160,7 @@ lines and ballrooms use a local database. Technical docs: [shared/README.md](sha
 
 ## 👑 Team
 
-**Toyeshh Medikonda**, **Luv Udeshi** and **Suchay Kommisetty**, in one night at HackTX 2026.
+**Toyeshh Medikonda**, **Luv Udeshi**, **Suchay Kommisetty**, and **Gatik Goyal**.
 
 ## 🤖 AI tools used
 
