@@ -7,16 +7,6 @@ in an online ballroom with friends on their own phones.
 
 **Play at [DanceFantasy.tech](https://dancefantasy.tech)** (also at [midnight-ball.vercel.app](https://midnight-ball.vercel.app)) · HackTX 2026 · *Once upon a time…*
 
-[![Play it live](https://img.shields.io/badge/▶_Play_it_live-DanceFantasy.tech-8B2252?style=for-the-badge)](https://dancefantasy.tech)
-[![Meta Muse](https://img.shields.io/badge/Meta-Muse_Spark-0467DF?style=for-the-badge&logo=meta&logoColor=white)](#-meta-muse-the-royal-heralds-voice-of-the-ball)
-[![Google Gemini](https://img.shields.io/badge/Google-Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-google-gemini-three-jobs)
-[![SerpApi](https://img.shields.io/badge/SerpApi-Search-2F9E44?style=for-the-badge)](#-serpapi-search-results-that-change-the-game)
-[![Tiger Data](https://img.shields.io/badge/Tiger_Data-TimescaleDB-F5A623?style=for-the-badge)](#-tiger-data-the-memory-of-the-ball)
-[![Vultr](https://img.shields.io/badge/Vultr-Analysis_worker-007BFC?style=for-the-badge&logo=vultr&logoColor=white)](#%EF%B8%8F-vultr-an-always-warm-analysis-worker)
-[![.tech](https://img.shields.io/badge/.tech-DanceFantasy.tech-0B0B45?style=for-the-badge)](#-tech-domain-dancefantasytech)
-[![Cursor](https://img.shields.io/badge/Built_with-Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](#-cursor-and-grok-how-we-built-it)
-[![Grok](https://img.shields.io/badge/Built_with-Grok-111111?style=for-the-badge&logo=x&logoColor=white)](#-cursor-and-grok-how-we-built-it)
-
 ### 🏆 Sponsor tracks at a glance
 
 | | Track | What it does in Dance Fantasy |
