@@ -5,6 +5,7 @@
 import type { JointName, Pose2D, Vec2 } from '@shared/skeleton'
 import type { Ctx2D } from '../pose/draw'
 import type { CoachTheme, CoachView } from '../render/coach'
+import type { Coach3dImage } from './coach3d'
 import { getSettings } from '../settings'
 
 type Coach3dModule = typeof import('./coach3d')
@@ -40,26 +41,26 @@ export function coach3dActive(): boolean {
   return state === 'ready' && getSettings().dancer3d
 }
 
-/** Draws the 3D coach if it is enabled and loaded; false = draw the 2D coach instead. */
-export function tryDrawCoach3d(
+/** Renders the 3D coach if it is enabled and loaded (see renderCoach3d); null = draw the 2D coach instead. */
+export function tryRenderCoach3d(
   ctx: Ctx2D,
   pose: Pose2D,
   root: Vec2,
   view: CoachView,
   opts: { theme: CoachTheme; pulse: number; highlightJoints: readonly JointName[]; crown: boolean },
-): boolean {
+): Coach3dImage | null {
   if (!getSettings().dancer3d) {
     mod?.disposeCoach3d()
-    return false
+    return null
   }
   load()
-  if (state !== 'ready' || !mod) return false
+  if (state !== 'ready' || !mod) return null
   try {
-    return mod.drawCoach3d(ctx, pose, root, view, opts)
+    return mod.renderCoach3d(ctx, pose, root, view, opts)
   } catch (err) {
     console.warn('3D coach failed, using the 2D coach:', err)
     mod.disposeCoach3d()
     state = 'off'
-    return false
+    return null
   }
 }

@@ -374,20 +374,35 @@ function setBasis(obj: Object3D, b: Basis): void {
   obj.matrixWorldNeedsUpdate = true
 }
 
-/** Draws the 3D coach onto `ctx`; false when it can't (no WebGL, context lost): draw the 2D coach instead. */
-export function drawCoach3d(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachView, opts: Coach3dOptions): boolean {
-  if (failed) return false
+/** A rendered figure: source rect `sw` x `sh` at the canvas' top-left, to draw at x, y, w, h (CSS px). */
+export interface Coach3dImage {
+  src: HTMLCanvasElement
+  sw: number
+  sh: number
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/**
+ * Renders the 3D coach for `ctx` (its transform sets the resolution) into the shared canvas; the
+ * caller draws the image right away (the next render reuses the canvas). Null when it can't (no
+ * WebGL, context lost, nothing to draw): draw the 2D coach instead.
+ */
+export function renderCoach3d(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachView, opts: Coach3dOptions): Coach3dImage | null {
+  if (failed) return null
   fig ??= create()
   const f = fig
   if (!f) {
     failed = true
-    return false
+    return null
   }
-  if (f.lost || f.renderer.getContext().isContextLost()) return false
+  if (f.lost || f.renderer.getContext().isContextLost()) return null
   const s = view.scale
   const rig = buildRig(pose, root, view, performance.now() / 1000, opts.pulse)
   const { box } = rig
-  if (!(s > 0) || !Number.isFinite(box.x0) || !Number.isFinite(box.y1)) return true
+  if (!(s > 0) || !Number.isFinite(box.x0) || !Number.isFinite(box.y1)) return null
 
   // Viewport: the figure's box in device pixels (capped), top-left of the shared canvas.
   let k = Math.min(MAX_DPR, deviceScale(ctx))
@@ -444,8 +459,7 @@ export function drawCoach3d(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachVie
   r.setScissorTest(true)
   r.clear()
   r.render(f.scene, cam)
-  ctx.drawImage(c, 0, 0, pw, ph, x0, y0, pw / k, ph / k)
-  return true
+  return { src: c, sw: pw, sh: ph, x: x0, y: y0, w: pw / k, h: ph / k }
 }
 
 /** Creates the renderer and compiles the shader ahead of the first draw (no hitch when a round starts). */
