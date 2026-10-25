@@ -14,6 +14,7 @@ import type { Box } from '../render/pictogram'
 import type { PlayerFrame } from './poseSource'
 import { popFontSize, TOP_BAR_PX, type PlayLayout, type PopPlacement } from './render'
 import type { CheckpointResult, Judgment, ScoreState } from './scoring'
+import type { CheckpointResultV2, TimingTag } from './scoringV2'
 import { COMBO_BREAK_MIN } from './sfx'
 
 /** Judgment pop: scale-in, hold, fade. */
@@ -143,6 +144,7 @@ interface Pop {
   id: number
   judgment: Judgment
   at: number
+  timing?: TimingTag
 }
 
 export interface PopView {
@@ -156,6 +158,8 @@ export interface PopView {
   alpha: number
   /** Upward drift, 0..1 (multiply by a pixel distance). */
   rise: number
+  /** "EARLY" / "LATE" next to the judgment (scoring v2), if any. */
+  tag?: string
 }
 
 export interface HudView {
@@ -203,7 +207,7 @@ export class Hud {
   /** Finalized checkpoints (in order) plus the score state after them. */
   push(results: readonly CheckpointResult[], state: ScoreState, nowMs: number): void {
     for (const r of results) {
-      this.pops.push({ id: this.nextId++, judgment: r.judgment, at: nowMs })
+      this.pops.push({ id: this.nextId++, judgment: r.judgment, at: nowMs, timing: (r as CheckpointResultV2).timing })
       if (r.judgment === 'perfect') this.perfectAt = nowMs
       const hint = missHint(r)
       if (hint) this.hint = { text: hint, at: nowMs }
@@ -245,6 +249,7 @@ export class Hud {
         scale: popScale(life),
         alpha: popAlpha(life) * replaced,
         rise: easeOutCubic(life),
+        ...(p.timing ? { tag: p.timing === 'early' ? 'EARLY' : 'LATE' } : {}),
       }
     })
 
@@ -436,6 +441,12 @@ function drawPops(ctx: Ctx2D, anchor: Vec2, align: CanvasTextAlign, area: Box, v
     ctx.shadowBlur = 0
     ctx.fillStyle = p.color
     ctx.fillText(p.label, 0, 0)
+    if (p.tag) {
+      ctx.font = `800 ${Math.max(12, Math.round(size * 0.34))}px ${UI_FONT}`
+      ctx.lineWidth = 3
+      ctx.strokeText(p.tag, 0, -size * 0.72)
+      ctx.fillText(p.tag, 0, -size * 0.72)
+    }
     ctx.restore()
   }
   if (v.hint) {

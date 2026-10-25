@@ -17,6 +17,7 @@ import { BotPoseSource, type BotSkill } from '../game/botSource'
 import CalibrationScreen from '../game/CalibrationScreen'
 import { loadCalibration, type Calibration } from '../game/calibration'
 import { GameClock } from '../game/clock'
+import { createScoreKeeper } from '../game/createScoreKeeper'
 import { flowReducer, isRunning, needsCalibration, teachHash, type Phase } from '../game/flow'
 import { JUDGING_PRESETS, judgingLabel, loadJudging, saveJudging, scoringFor, type JudgingPreset } from '../game/judging'
 import PlayStage, { type ActiveGame } from '../game/PlayStage'
@@ -38,7 +39,7 @@ import {
   type ShelfEntry,
 } from '../game/routineShelf'
 import { GameRun } from '../game/run'
-import { buildCheckpoints, ScoreKeeper, type ScoringConfig } from '../game/scoring'
+import { buildCheckpoints, type ScoringConfig } from '../game/scoring'
 import {
   apiSessionDeps,
   prepareFromRecipe,
@@ -285,7 +286,7 @@ export default function Play() {
     const checkpoints = buildCheckpoints(game.routine, game.routine.mode).filter((cp) => cp.time >= fromT)
     const config = scoringFor(judgingRef.current)
     return new GameRun({
-      keeper: new ScoreKeeper(checkpoints, config),
+      keeper: createScoreKeeper(checkpoints, config, game.track),
       source,
       bot,
       isPlaying: () => clock.playing,
