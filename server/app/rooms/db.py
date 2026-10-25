@@ -200,20 +200,33 @@ _pg_ready: set[str] = set()
 _pg_lock = threading.Lock()
 
 
+def ssl_context(query: str) -> ssl.SSLContext | None:
+    """TLS for a DATABASE_URL query, honoring sslmode as libpq reads it (None = plain TCP for sslmode=disable).
+
+    Tiger Cloud signs with its own CA (ca.timescale.com), not a public one, and its connection strings say
+    "require": encrypted, certificate not checked (what psql does, and Tiger's documented default).
+    verify-ca / verify-full check the server against DATABASE_CA_CERT (PEM text, e.g. the chain from the Tiger
+    console) or, without it, the public roots (certifi). Use verify-full in production once that chain is set.
+    """
+    sslmode = parse_qs(query).get("sslmode", ["require"])[0]
+    if sslmode == "disable":
+        return None
+    if sslmode in ("verify-ca", "verify-full"):
+        ca_pem = os.environ.get("DATABASE_CA_CERT")
+        ctx = ssl.create_default_context(cadata=ca_pem) if ca_pem else ssl.create_default_context(cafile=certifi.where())
+        ctx.check_hostname = sslmode == "verify-full"
+        return ctx
+    ctx = ssl.create_default_context()  # allow / prefer / require / no-verify (node-postgres' spelling)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
 def _pg_connect(url: str) -> pg8000.dbapi.Connection:
     u = urlparse(url)
     if u.scheme not in ("postgres", "postgresql"):
         raise ValueError("DATABASE_URL must be a postgres:// or postgresql:// URL")
-    # TLS with certificate checks unless sslmode=disable (a local Postgres). Hosted Postgres such as Tiger Cloud presents a
-    # publicly trusted certificate, so its usual "sslmode=require" URL verifies. "no-verify" (node-postgres' spelling)
-    # is the explicit opt-out.
-    sslmode = parse_qs(u.query).get("sslmode", ["require"])[0]
-    ctx: ssl.SSLContext | None = None
-    if sslmode != "disable":
-        ctx = ssl.create_default_context(cafile=certifi.where())  # the function image's system CA path may not exist
-        if sslmode == "no-verify":
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+    ctx = ssl_context(u.query)
     return pg8000.dbapi.connect(
         user=unquote(u.username or ""),
         password=unquote(u.password) if u.password else None,
