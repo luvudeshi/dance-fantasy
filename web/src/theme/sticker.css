@@ -435,3 +435,17 @@
   font-size: 1.05rem;
   padding: 0.35em 1.4em;
 }
+
+/* ---------- die-cut look without an SVG filter ----------
+   Use on any box that holds a live <video>/<canvas> (the webcam mirror, the game stage): an SVG filter on an
+   ancestor re-filters every video frame. Box-shadow follows the border-radius, so rounded boxes still read as cut. */
+.df-st-live {
+  filter: none;
+  box-shadow: var(--df-shadow-lift);
+}
+.df-mirror.df-st-live {
+  box-shadow:
+    inset -3px -4px 0 var(--df-gold-shade),
+    inset 3px 3px 0 var(--df-gold-light),
+    var(--df-shadow-lift);
+}

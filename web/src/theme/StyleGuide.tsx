@@ -91,7 +91,7 @@ export default function StyleGuide() {
 
         {/* hero: the magic mirror (webcam) beside the die-cut title */}
         <section className="sg-hero">
-          <div className="df-mirror sg-cam">
+          <div className="df-mirror df-st-live sg-cam">
             <img className="df-mirror-crest" src="/art/storybook/crest.svg" alt="" />
             <div className="df-mirror-glass df-mirror-night df-mirror-glare sg-cam-glass">
               <Sparkle className="df-twinkle sg-glint" />
