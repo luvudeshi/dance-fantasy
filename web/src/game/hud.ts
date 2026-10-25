@@ -1,6 +1,7 @@
-// In-game HUD on the stage canvas: score count-up, combo bump, judgment pops near the coach's
-// shoulder, perfect edge glow, 5-star meter, miss hints ("Watch your left arm"), the
-// "Can't see you" toast, the AUTOPLAY badge and the webcam picture-in-picture.
+// In-game HUD on the stage canvas: score count-up, combo bump + combo-break flash, judgment
+// pops beside the coach's head (never over the face), perfect edge glow, 5-star meter, miss
+// hints ("Watch your left arm"), the "Can't see you" card, the AUTOPLAY badge and the webcam
+// picture-in-picture.
 //
 // `Hud` is a small event store fed with scoring results; `view(now)` turns it into a plain
 // snapshot (pure, unit-tested) and the draw functions only paint that snapshot. Animation
@@ -11,8 +12,9 @@ import { drawSkeleton, type Ctx2D } from '../pose/draw'
 import { bodyToScreen, imageToDisplay } from '../pose/normalize'
 import type { Box } from '../render/pictogram'
 import type { PlayerFrame } from './poseSource'
-import { TOP_BAR_PX, type PlayLayout } from './render'
+import { popFontSize, TOP_BAR_PX, type PlayLayout, type PopPlacement } from './render'
 import type { CheckpointResult, Judgment, ScoreState } from './scoring'
+import { COMBO_BREAK_MIN } from './sfx'
 
 /** Judgment pop: scale-in, hold, fade. */
 export const POP_MS = 600
@@ -29,8 +31,11 @@ export const HINT_MS = 1600
 export const UNSEEN_TOAST_MS = 1000
 /** The PIP border keeps the last judgment's colour this long. */
 export const TINT_MS = 1200
+/** A broken combo (of COMBO_BREAK_MIN+) shows as a falling, fading "×N" this long. */
+export const COMBO_BREAK_MS = 900
 
-export const UNSEEN_TOAST = 'Can’t see you — step back'
+export const UNSEEN_TOAST = 'Can’t see you'
+export const UNSEEN_TOAST_HINT = 'Step back until the camera sees your whole body'
 
 export interface JudgmentStyle {
   label: string
@@ -167,6 +172,10 @@ export interface HudView {
   /** Perfect edge glow strength, 0..1. */
   glow: number
   toast: string | null
+  /** 0..1 slow pulse for the toast's border. */
+  toastPulse: number
+  /** The combo that just broke (shown falling away while life < 1). */
+  comboBreak: { combo: number; life: number } | null
   /** Colour of the last judgment (fading back to null), for the PIP border. */
   tint: string | null
   autoplay: boolean
@@ -185,6 +194,7 @@ export class Hud {
   private last: { judgment: Judgment; at: number } | null = null
   private seenAt = Number.NEGATIVE_INFINITY
   private watchFrom: number | null = null
+  private broke: { combo: number; at: number } | null = null
 
   constructor(opts: { autoplay: boolean }) {
     this.autoplay = opts.autoplay
@@ -203,6 +213,8 @@ export class Hud {
     this.score = retarget(this.score, state.score, nowMs)
     this.stars = retarget(this.stars, state.stars, nowMs)
     if (state.combo > this.combo) this.comboAt = nowMs
+    if (state.combo === 0 && this.combo >= COMBO_BREAK_MIN) this.broke = { combo: this.combo, at: nowMs }
+    else if (state.combo > 0) this.broke = null
     this.combo = state.combo
   }
 
@@ -248,6 +260,12 @@ export class Hud {
     const since = Math.max(this.seenAt, this.watchFrom ?? Number.POSITIVE_INFINITY)
     const unseen = !this.autoplay && playing && this.watchFrom !== null && nowMs - since > UNSEEN_TOAST_MS
     const tint = this.last && nowMs - this.last.at < TINT_MS ? JUDGMENT_STYLE[this.last.judgment].color : null
+    let comboBreak: HudView['comboBreak'] = null
+    if (this.broke) {
+      const life = (nowMs - this.broke.at) / COMBO_BREAK_MS
+      if (life >= 1) this.broke = null
+      else comboBreak = { combo: this.broke.combo, life: clamp01(life) }
+    }
 
     return {
       score: Math.round(tweenValue(this.score, nowMs)),
@@ -258,6 +276,8 @@ export class Hud {
       hint,
       glow: (1 - glowU) * (1 - glowU),
       toast: unseen ? UNSEEN_TOAST : null,
+      toastPulse: 0.5 + 0.5 * Math.sin((nowMs / 1000) * Math.PI * 2 * 0.9),
+      comboBreak,
       tint,
       autoplay: this.autoplay,
     }
@@ -327,7 +347,7 @@ function drawScorePanel(ctx: Ctx2D, width: number, v: HudView): void {
   ctx.textAlign = 'right'
   ctx.textBaseline = 'top'
   ctx.fillStyle = 'rgba(226, 232, 255, 0.7)'
-  ctx.font = `700 ${Math.round(12 * scale)}px ${UI_FONT}`
+  ctx.font = `700 ${Math.max(13, Math.round(13 * scale))}px ${UI_FONT}`
   ctx.fillText('SCORE', right, y)
   y += Math.round(15 * scale)
   const scoreSize = Math.round(44 * scale)
@@ -359,18 +379,46 @@ function drawScorePanel(ctx: Ctx2D, width: number, v: HudView): void {
     ctx.fillStyle = '#ffe3f0'
     ctx.fillText(`×${v.combo}`, 0, 0)
     ctx.restore()
-    ctx.font = `700 ${Math.round(11 * scale)}px ${UI_FONT}`
-    ctx.fillStyle = 'rgba(255, 200, 225, 0.75)'
+    ctx.font = `700 ${Math.max(12, Math.round(12 * scale))}px ${UI_FONT}`
+    ctx.fillStyle = 'rgba(255, 200, 225, 0.8)'
     ctx.fillText('COMBO', right, y + size + 4)
+  } else if (v.comboBreak) {
+    // Combo break: the lost "×N" drops, tilts and fades in muted red.
+    const { combo, life } = v.comboBreak
+    const size = Math.round(30 * scale)
+    ctx.save()
+    ctx.globalAlpha = 1 - life * life
+    ctx.translate(right - size * 0.9, y + size / 2 + life * size * 0.9)
+    ctx.rotate(0.25 * life)
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = `italic 800 ${size}px ${STORY_FONT}`
+    ctx.fillStyle = '#ff8fa3'
+    ctx.fillText(`×${combo}`, 0, 0)
+    const w = ctx.measureText(`×${combo}`).width
+    ctx.strokeStyle = 'rgba(255, 143, 163, 0.9)'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(-w / 2 - 4, 2)
+    ctx.lineTo(w / 2 + 4, -2)
+    ctx.stroke()
+    ctx.restore()
+    ctx.globalAlpha = 1 - life
+    ctx.font = `800 ${Math.max(12, Math.round(12 * scale))}px ${UI_FONT}`
+    ctx.fillStyle = '#ff8fa3'
+    ctx.fillText('COMBO BREAK', right, y + size + 4)
   }
   ctx.restore()
 }
 
-/** Judgment pops (and the miss hint) around `anchor`, the screen point beside the coach's shoulder. */
-function drawPops(ctx: Ctx2D, anchor: Vec2, area: Box, v: HudView): void {
-  const size = Math.round(Math.max(26, Math.min(64, area.h * 0.075)))
+/**
+ * Judgment pops (and the miss hint) at `anchor`, beside the coach's head: with align 'right'
+ * the text ends at the anchor (and scales / rises away from the face), 'left' starts there.
+ */
+function drawPops(ctx: Ctx2D, anchor: Vec2, align: CanvasTextAlign, area: Box, v: HudView): void {
+  const size = popFontSize(area.h)
   ctx.save()
-  ctx.textAlign = 'center'
+  ctx.textAlign = align
   ctx.textBaseline = 'middle'
   ctx.lineJoin = 'round'
   for (const p of v.pops) {
@@ -391,7 +439,7 @@ function drawPops(ctx: Ctx2D, anchor: Vec2, area: Box, v: HudView): void {
     ctx.restore()
   }
   if (v.hint) {
-    const hs = Math.round(size * 0.42)
+    const hs = Math.max(16, Math.round(size * 0.42))
     ctx.globalAlpha = v.hint.alpha
     ctx.font = `600 ${hs}px ${UI_FONT}`
     ctx.lineWidth = 4
@@ -448,23 +496,56 @@ export interface HudFrame {
   width: number
   height: number
   layout: Pick<PlayLayout, 'coachArea'>
-  /** Where judgment pops appear (beside the coach's shoulder). */
+  /** Where judgment pops appear (beside the coach's head: render.ts popPlacement). */
   popAnchor: Vec2
+  /** Which way pop text runs from the anchor (default 'right': it ends there, left of the face). */
+  popAlign?: PopPlacement['align'] | 'center'
+}
+
+/** The "Can't see you" card: a big headline, the fix underneath, a pulsing border. */
+function drawToast(ctx: Ctx2D, area: Box, title: string, pulse: number): void {
+  const size = Math.round(Math.max(20, Math.min(34, area.h * 0.045)))
+  const sub = Math.max(15, Math.round(size * 0.55))
+  const cx = area.x + area.w / 2
+  const cy = area.y + Math.max(size * 2.2, area.h * 0.14)
+  ctx.save()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = `800 ${size}px ${UI_FONT}`
+  const head = `📷  ${title}`
+  const w1 = ctx.measureText(head).width
+  ctx.font = `600 ${sub}px ${UI_FONT}`
+  const w2 = ctx.measureText(UNSEEN_TOAST_HINT).width
+  const w = Math.min(area.w - 16, Math.max(w1, w2) + size * 1.6)
+  const h = size * 1.4 + sub * 1.5 + size * 0.7
+  roundRect(ctx, cx - w / 2, cy - h / 2, w, h, Math.min(22, h / 3))
+  ctx.fillStyle = 'rgba(150, 24, 70, 0.92)'
+  ctx.shadowColor = 'rgba(255, 90, 150, 0.9)'
+  ctx.shadowBlur = 12 + 18 * pulse
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.lineWidth = 2 + pulse
+  ctx.strokeStyle = `rgba(255, 200, 225, ${(0.6 + 0.4 * pulse).toFixed(3)})`
+  ctx.stroke()
+  ctx.fillStyle = '#ffffff'
+  ctx.font = `800 ${size}px ${UI_FONT}`
+  ctx.fillText(head, cx, cy - sub * 0.75, w - 16)
+  ctx.fillStyle = 'rgba(255, 236, 244, 0.95)'
+  ctx.font = `600 ${sub}px ${UI_FONT}`
+  ctx.fillText(UNSEEN_TOAST_HINT, cx, cy + size * 0.6, w - 16)
+  ctx.restore()
 }
 
 /** Paints the HUD snapshot over the stage (`scorePanel: false` for a practice run: no score). */
 export function drawHud(ctx: Ctx2D, f: HudFrame, v: HudView, opts: { scorePanel?: boolean } = {}): void {
   drawEdgeGlow(ctx, f.width, f.height, v.glow)
   if (opts.scorePanel !== false) drawScorePanel(ctx, f.width, v)
-  drawPops(ctx, f.popAnchor, f.layout.coachArea, v)
+  drawPops(ctx, f.popAnchor, f.popAlign ?? 'right', f.layout.coachArea, v)
   const area = f.layout.coachArea
   if (v.autoplay) {
-    drawPill(ctx, '🤖 AUTOPLAY', 84, TOP_BAR_PX + 34, 13, '#1b1036', 'rgba(255, 209, 102, 0.92)', 'rgba(255, 240, 200, 0.9)')
+    drawPill(ctx, '🤖 AUTOPLAY', 96, TOP_BAR_PX + 38, 15, '#1b1036', 'rgba(255, 209, 102, 0.92)', 'rgba(255, 240, 200, 0.9)')
   }
-  if (v.toast) {
-    const size = Math.round(Math.max(16, Math.min(26, area.h * 0.035)))
-    drawPill(ctx, v.toast, area.x + area.w / 2, area.y + Math.max(40, area.h * 0.1), size, '#ffffff', 'rgba(190, 40, 90, 0.88)', 'rgba(255, 180, 210, 0.9)')
-  }
+  if (v.toast) drawToast(ctx, area, v.toast, v.toastPulse)
 }
 
 // --- webcam picture-in-picture ------------------------------------------------------------------
@@ -560,7 +641,7 @@ export function drawPip(ctx: Ctx2D, box: Box, p: PipFrame): void {
       }
     } else {
       ctx.fillStyle = 'rgba(226, 232, 255, 0.6)'
-      ctx.font = `600 13px ${UI_FONT}`
+      ctx.font = `600 14px ${UI_FONT}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText('Waking the mirror…', box.x + box.w / 2, box.y + box.h / 2)
@@ -574,7 +655,7 @@ export function drawPip(ctx: Ctx2D, box: Box, p: PipFrame): void {
   ctx.lineWidth = p.tint ? 3 : 1.5
   ctx.strokeStyle = color
   ctx.stroke()
-  ctx.font = `800 11px ${UI_FONT}`
+  ctx.font = `800 13px ${UI_FONT}`
   ctx.textAlign = 'left'
   ctx.textBaseline = 'top'
   ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'

@@ -62,9 +62,9 @@
         { "beat": 0.5, "angles": { "shoulders": 70, "elbows": 105 } },
         { "beat": 1, "angles": { "shoulders": 155, "elbows": 25 } },
         { "beat": 1.5, "angles": { "shoulders": 70, "elbows": 105 } },
-        { "beat": 2, "angles": { "shoulders": 155, "elbows": 25 } },
-        { "beat": 2.5, "angles": { "shoulders": 70, "elbows": 105 } },
-        { "beat": 3, "angles": { "shoulders": 155, "elbows": 25 } },
+        { "beat": 2, "angles": { "shoulders": 155, "elbows": 25, "torso_lean": 9, "head_tilt": 6 } },
+        { "beat": 2.5, "angles": { "shoulders": 70, "elbows": 105, "torso_lean": 0, "head_tilt": 0 } },
+        { "beat": 3, "angles": { "shoulders": 155, "elbows": 25, "torso_lean": -9, "head_tilt": -6 } },
         { "beat": 4, "from": "neutral" }
       ]
     },
@@ -98,23 +98,26 @@
       "id": "shoulder_shimmy", "name": "Shoulder Shimmy", "lengthBeats": 4, "intensity": 3, "difficulty": "normal",
       "keyframes": [
         { "beat": 0 },
-        { "beat": 0.5, "angles": { "shoulders": 20, "elbows": 60, "torso_lean": 7, "head_tilt": -5 } },
-        { "beat": 1, "angles": { "torso_lean": -7, "head_tilt": 5 } },
-        { "beat": 1.5, "angles": { "torso_lean": 7, "head_tilt": -5 } },
-        { "beat": 2, "angles": { "torso_lean": -7, "head_tilt": 5 } },
-        { "beat": 2.5, "angles": { "torso_lean": 7, "head_tilt": -5 } },
-        { "beat": 3, "angles": { "torso_lean": -7, "head_tilt": 5 } },
-        { "beat": 3.5, "angles": { "torso_lean": 7, "head_tilt": -5 } },
+        { "beat": 0.5, "angles": { "shoulders": 20, "elbows": 60 } },
+        { "beat": 1, "angles": { "torso_lean": 8, "head_tilt": -5 } },
+        { "beat": 1.5, "angles": { "torso_lean": 0, "head_tilt": 0, "elbows": 75 } },
+        { "beat": 2, "angles": { "torso_lean": -8, "head_tilt": 5, "elbows": 60 } },
+        { "beat": 2.5, "angles": { "torso_lean": 0, "head_tilt": 0, "elbows": 75 } },
+        { "beat": 3, "angles": { "torso_lean": 8, "head_tilt": -5, "elbows": 60 } },
+        { "beat": 3.5, "angles": { "torso_lean": 0, "head_tilt": 0 } },
         { "beat": 4, "from": "neutral" }
       ]
     },
     {
-      "id": "boxer_jab", "name": "Boxer Jab", "lengthBeats": 1, "intensity": 3, "difficulty": "normal",
+      "id": "boxer_jab", "name": "Boxer Jab", "lengthBeats": 2, "intensity": 3, "difficulty": "normal",
       "side": "R", "mirror": true, "startAnchor": "guard", "endAnchor": "guard",
+      "notes": "Hold the guard, snap the jab out ON beat 1, snap back. (Was 1 beat with the punch between beats: only the guard was scored.)",
       "keyframes": [
         { "beat": 0, "from": "guard" },
-        { "beat": 0.5, "angles": { "r_shoulder": 92, "r_elbow": 0, "torso_lean": 5 } },
-        { "beat": 1, "from": "guard" }
+        { "beat": 0.5, "from": "guard", "angles": { "torso_lean": -3 } },
+        { "beat": 1, "from": "guard", "angles": { "r_shoulder": 92, "r_elbow": 0, "torso_lean": 5 } },
+        { "beat": 1.5, "from": "guard" },
+        { "beat": 2, "from": "guard" }
       ]
     },
     {
@@ -137,11 +140,14 @@
       ]
     },
     {
-      "id": "shrug", "name": "Who Knows?", "lengthBeats": 2, "intensity": 1, "difficulty": "easy",
+      "id": "shrug", "name": "Who Knows?", "lengthBeats": 4, "intensity": 1, "difficulty": "easy",
+      "notes": "Shrug with a head tilt on 1, drop the hands on 2, a bigger shrug the other way on 3. (Was a 2-beat single shrug that lost every slot to 4-beat chill moves.)",
       "keyframes": [
         { "beat": 0 },
         { "beat": 1, "angles": { "shoulders": 20, "elbows": 70, "head_tilt": 12 } },
-        { "beat": 2, "from": "neutral" }
+        { "beat": 2, "angles": { "shoulders": 8, "elbows": 15, "head_tilt": 0 } },
+        { "beat": 3, "angles": { "shoulders": 28, "elbows": 85, "head_tilt": -14, "torso_lean": -4 } },
+        { "beat": 4, "from": "neutral" }
       ]
     },
     {
@@ -172,12 +178,14 @@
       ]
     },
     {
-      "id": "ta_da", "name": "Ta-Da!", "lengthBeats": 1, "intensity": 2, "difficulty": "easy",
-      "endAnchor": "arms_up",
+      "id": "ta_da", "name": "Ta-Da!", "lengthBeats": 2, "intensity": 2, "difficulty": "easy",
+      "notes": "Gather the hands at the chest, fling them up into a V on beat 1: ta-da! (Was 1 beat ending in arms_up, which no move starts from, so it was never picked.)",
       "keyframes": [
         { "beat": 0 },
-        { "beat": 0.5, "angles": { "shoulders": 95 } },
-        { "beat": 1, "from": "arms_up" }
+        { "beat": 0.5, "angles": { "shoulders": -6, "elbows": -125 } },
+        { "beat": 1, "angles": { "shoulders": 155, "elbows": 0, "head_tilt": 6 } },
+        { "beat": 1.5, "angles": { "shoulders": 150, "head_tilt": 0 } },
+        { "beat": 2, "from": "neutral" }
       ]
     }
   ]

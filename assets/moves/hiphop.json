@@ -83,16 +83,16 @@
     {
       "id": "floss", "name": "The Floss", "lengthBeats": 4, "intensity": 5, "difficulty": "hard",
       "styles": ["hiphop", "pop"], "side": "R", "mirror": true,
-      "notes": "Straight arms swing together to one side while the hips swing to the other, every half beat.",
+      "notes": "Straight arms swing together to one side while the hips swing to the other: one swing per beat, alternating sides on the beats (the arms pass the middle on the and).",
       "keyframes": [
         { "beat": 0 },
-        { "beat": 0.5, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
-        { "beat": 1, "angles": { "r_shoulder": -40, "l_shoulder": 40, "hip_shift": 0.12, "l_knee": 15, "r_knee": 0, "torso_lean": -4 } },
-        { "beat": 1.5, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
+        { "beat": 0.5, "angles": { "knees": 8 } },
+        { "beat": 1, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
+        { "beat": 1.5, "angles": { "shoulders": 0, "hip_shift": 0, "knees": 8, "torso_lean": 0 } },
         { "beat": 2, "angles": { "r_shoulder": -40, "l_shoulder": 40, "hip_shift": 0.12, "l_knee": 15, "r_knee": 0, "torso_lean": -4 } },
-        { "beat": 2.5, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
-        { "beat": 3, "angles": { "r_shoulder": -40, "l_shoulder": 40, "hip_shift": 0.12, "l_knee": 15, "r_knee": 0, "torso_lean": -4 } },
-        { "beat": 3.5, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
+        { "beat": 2.5, "angles": { "shoulders": 0, "hip_shift": 0, "knees": 8, "torso_lean": 0 } },
+        { "beat": 3, "angles": { "r_shoulder": 40, "l_shoulder": -40, "hip_shift": -0.12, "r_knee": 15, "l_knee": 0, "torso_lean": 4 } },
+        { "beat": 3.5, "angles": { "shoulders": 0, "hip_shift": 0, "knees": 8, "torso_lean": 0 } },
         { "beat": 4, "from": "neutral" }
       ]
     },

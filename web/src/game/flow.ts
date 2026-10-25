@@ -76,3 +76,9 @@ export interface CalibrationNeed {
 export function needsCalibration(o: CalibrationNeed): boolean {
   return !o.autoplay && !o.skipCalibration && !o.calibrated
 }
+
+/** The teach page for a routine, optionally starting at a move: "#/teach?routine=<id>[&start=<i>]". */
+export function teachHash(routineId: string, start?: number): string {
+  const s = start !== undefined && Number.isInteger(start) && start > 0 ? `&start=${start}` : ''
+  return `#/teach?routine=${routineId}${s}`
+}

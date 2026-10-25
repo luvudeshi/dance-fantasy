@@ -6,14 +6,19 @@ import json
 import math
 import time
 from collections import defaultdict
+from dataclasses import replace
 
 import pytest
 from choreo_fixtures import (
+    CLAP,
     DEFAULT_LAYOUT,
+    N,
     big_library,
     check_layout,
     fixture_library,
     make_analysis,
+    move,
+    pose,
     section_moves,
 )
 from helpers import SHARED_DIR
@@ -21,6 +26,8 @@ from jsonschema import Draft202012Validator
 
 from app.analysis import Analysis
 from app.choreo import GENERATOR, ChoreoConfig, NoEligibleMoves, generate_routine, routine_id
+from app.choreo.generator import DEFAULT_CONFIG
+from app.moves.types import MoveLibrary
 from app.routine import Routine
 
 ROUTINE_VALIDATOR = Draft202012Validator(json.loads((SHARED_DIR / "routine.schema.json").read_text()))
@@ -44,6 +51,25 @@ def beat_weighted_intensity(routine: Routine, label: str) -> float:
                 total += mv.intensity * mv.lengthBeats
                 weight += mv.lengthBeats
     return total / weight
+
+
+def assert_paired_one_beat_moves(routine: Routine) -> int:
+    """Outside hard, 1-beat moves only come as identical back-to-back pairs on beats 1-2 / 3-4 of a bar.
+    Returns the number of pairs."""
+    d0 = routine.song.beats.index(routine.song.downbeats[0]) if routine.song.downbeats else 0
+    moves, pairs, i = routine.moves, 0, 0
+    while i < len(moves):
+        if moves[i].lengthBeats != 1:
+            i += 1
+            continue
+        a = moves[i]
+        assert i + 1 < len(moves), f"unpaired 1-beat {a.id} at the end"
+        b = moves[i + 1]
+        assert (b.id, b.lengthBeats, b.startBeat) == (a.id, 1, a.startBeat + 1), f"unpaired {a.id} at {a.startBeat}"
+        assert (a.startBeat - d0) % 2 == 0, f"1-beat pair {a.id} starts on an odd beat"
+        pairs += 1
+        i += 2
+    return pairs
 
 
 @pytest.mark.parametrize("mode", MODES)
@@ -120,11 +146,40 @@ def test_difficulty_pools(analysis: Analysis, mode: str, seed: int) -> None:
     for difficulty in ("easy", "normal"):
         routine = generate_routine(analysis, LIB, difficulty, mode, seed)
         assert all(BY_ID[mv.id].difficulty != "hard" for mv in routine.moves)
-        assert all(mv.lengthBeats > 1 for mv in routine.moves)  # 1-beat moves are hard-only
+        assert_paired_one_beat_moves(routine)  # 1-beat moves only as identical pairs outside hard
     easy = generate_routine(analysis, LIB, "easy", mode, seed)
     assert all(BY_ID[mv.id].difficulty == "easy" for mv in easy.moves)  # enough easy moves: no fallback
     hard = generate_routine(analysis, LIB, "hard", mode, seed)
     assert any(BY_ID[mv.id].difficulty == "hard" for mv in hard.moves)
+
+
+def test_one_beat_moves_pair_up_outside_hard(analysis: Analysis) -> None:
+    """easy/normal: a 1-beat move fills a 2-beat slot as an identical pair (clap x2); hard places singles."""
+    loop = move("clap_loop", "Clap Loop", 1, 3, "easy", True, [(0, N), (0.5, pose(CLAP)), (1, N)])
+    lib = MoveLibrary(moves=LIB.moves + tuple(loop), version="fixture-pairs")
+    cheap = ChoreoConfig(length_cost_easy=(0.0, 0.6, 0.0, 0.0), length_cost_normal=(0.0, 0.25, 0.0, 0.05))
+    pairs = {"easy": 0, "normal": 0}
+    for difficulty in pairs:
+        for mode in MODES:
+            for seed in range(4):
+                routine = generate_routine(analysis, lib, difficulty, mode, seed, cheap)
+                check_layout(routine)
+                pairs[difficulty] += assert_paired_one_beat_moves(routine)
+    assert pairs["easy"] > 0 and pairs["normal"] > 0, pairs
+    hard = [generate_routine(analysis, lib, "hard", "standing", seed) for seed in range(4)]
+    assert any(mv.lengthBeats == 1 for r in hard for mv in r.moves)
+
+
+def test_novelty_bonus_widens_variety(analysis: Analysis) -> None:
+    def distinct(cfg: ChoreoConfig) -> int:
+        return sum(
+            len({BY_ID[mv.id].baseId for mv in generate_routine(analysis, LIB, d, "standing", s, cfg).moves})
+            for d in DIFFICULTIES
+            for s in range(4)
+        )
+
+    assert DEFAULT_CONFIG.w_novel > 0
+    assert distinct(DEFAULT_CONFIG) > distinct(replace(DEFAULT_CONFIG, w_novel=0.0))
 
 
 def test_easy_falls_back_to_normal_moves_when_pool_is_small(analysis: Analysis) -> None:
@@ -286,3 +341,23 @@ def test_real_library_ends_on_finale_and_keeps_storybook_moves(analysis: Analysi
         assert "finale" in by_id[routine.moves[-1].id].styles
         storybook += sum("storybook" in by_id[mv.id].styles for mv in routine.moves[:-1])
     assert storybook > 0
+
+
+def test_real_library_uses_the_formerly_unused_moves(analysis: Analysis) -> None:
+    """v2 never picked jumping_jack, star_jump, shrug, ta_da (or clap_clap / hiphop_bounce): 4-beat
+    reworks, 1-beat pairs and the novelty bonus bring them in where they fit."""
+    from app.moves.library import load_library
+
+    lib = load_library()
+    by_id = lib.by_id()
+    used: set[str] = set()
+    for difficulty in DIFFICULTIES:
+        for mode in MODES:
+            for seed in range(3):
+                routine = generate_routine(analysis, lib, difficulty, mode, seed)
+                check_layout(routine)
+                if difficulty != "hard":
+                    assert_paired_one_beat_moves(routine)
+                used |= {by_id[mv.id].baseId for mv in routine.moves}
+    assert {"jumping_jack", "star_jump", "shrug", "ta_da"} <= used
+    assert len(used) >= 0.85 * len({m.baseId for m in lib.moves})

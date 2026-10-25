@@ -30,13 +30,18 @@
       ]
     },
     {
-      "id": "jumping_jack", "name": "Jumping Jack", "lengthBeats": 2, "intensity": 5, "difficulty": "normal",
+      "id": "jumping_jack", "name": "Jumping Jacks", "lengthBeats": 4, "intensity": 5, "difficulty": "normal",
+      "notes": "Two jacks: land in the star on 1 and 3, feet together on 2. (Was one 2-beat jack, never picked over the 4-beat cardio moves.)",
       "keyframes": [
         { "beat": 0 },
         { "beat": 0.5, "angles": { "jump": 0.15, "hips": 10, "knees": 5, "shoulders": 100 } },
         { "beat": 1, "angles": { "jump": 0, "hips": 16, "knees": 20, "shoulders": 170, "elbows": 10 } },
         { "beat": 1.5, "angles": { "jump": 0.15, "hips": 8, "knees": 5, "shoulders": 90, "elbows": 0 } },
-        { "beat": 2, "from": "neutral" }
+        { "beat": 2, "angles": { "jump": 0, "hips": 0, "knees": 20, "shoulders": 10 } },
+        { "beat": 2.5, "angles": { "jump": 0.15, "hips": 10, "knees": 5, "shoulders": 100 } },
+        { "beat": 3, "angles": { "jump": 0, "hips": 16, "knees": 20, "shoulders": 170, "elbows": 10 } },
+        { "beat": 3.5, "angles": { "jump": 0.15, "hips": 8, "knees": 5, "shoulders": 90, "elbows": 0 } },
+        { "beat": 4, "from": "neutral" }
       ]
     },
     {
@@ -71,9 +76,9 @@
         { "beat": 0, "from": "ready" },
         { "beat": 0.5, "angles": { "r_shoulder": 165, "r_elbow": 45, "l_shoulder": 40, "l_elbow": -118, "knees": 10 } },
         { "beat": 1, "angles": { "r_shoulder": 145, "r_elbow": -35, "knees": 32 } },
-        { "beat": 1.5, "angles": { "r_shoulder": 165, "r_elbow": 45, "knees": 10 } },
-        { "beat": 2, "angles": { "r_shoulder": 145, "r_elbow": -35, "knees": 32 } },
-        { "beat": 2.5, "angles": { "r_shoulder": 165, "r_elbow": 45, "knees": 10 } },
+        { "beat": 1.5, "angles": { "r_shoulder": 178, "r_elbow": 0, "knees": 20 } },
+        { "beat": 2, "angles": { "r_shoulder": 165, "r_elbow": 45, "knees": 10 } },
+        { "beat": 2.5, "angles": { "r_shoulder": 145, "r_elbow": -35, "knees": 32 } },
         { "beat": 3, "angles": { "r_shoulder": 100, "r_elbow": 0, "knees": 25, "r_hip": 8, "torso_lean": 7 } },
         { "beat": 4, "from": "ready" }
       ]

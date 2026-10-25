@@ -3,9 +3,12 @@
 // generating (analysis + routine + audio) -> calibration (webcam framing + latency) -> warmup
 // (camera ready) -> game (glowing coach, cue strip, live per-beat scoring + HUD) -> results,
 // optionally with a preview (Watch first) or a practice run before the real round. A routine
-// can also come from "#/play?routine=<id>" (the Analysis tab's "Play this routine") or the
-// shelf. Playback and every visual run on the AudioContext clock (src/game/clock.ts). Webcam
-// frames and poses never leave the browser.
+// can also come from "#/play?routine=<id>" (the Studio's "Play this routine") or the shelf;
+// "Learn it first" / "Practice your hardest move" / the shelf's Learn open "#/teach?routine=<id>".
+// Judging strictness (game/judging.ts) and sound effects (game/sfx.ts, S) are lobby settings
+// remembered on this device. Playback and every visual run on the AudioContext clock
+// (src/game/clock.ts). Webcam frames and poses never leave the browser; the optional session
+// log (game/sessionLog.ts) holds numbers only and is saved only when downloaded.
 
 import { useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
 import type { Difficulty, Mode } from '@shared/routine'
@@ -14,12 +17,13 @@ import { BotPoseSource, type BotSkill } from '../game/botSource'
 import CalibrationScreen from '../game/CalibrationScreen'
 import { loadCalibration, type Calibration } from '../game/calibration'
 import { GameClock } from '../game/clock'
-import { flowReducer, isRunning, needsCalibration, type Phase } from '../game/flow'
+import { flowReducer, isRunning, needsCalibration, teachHash, type Phase } from '../game/flow'
+import { JUDGING_PRESETS, judgingLabel, loadJudging, saveJudging, scoringFor, type JudgingPreset } from '../game/judging'
 import PlayStage, { type ActiveGame } from '../game/PlayStage'
 import type { PoseSource } from '../game/poseSource'
 import { barSeekTarget, effectiveRehearsal, loadRehearsal, REHEARSALS, saveRehearsal, type Rehearsal } from '../game/rehearsal'
 import ResultsScreen from '../game/ResultsScreen'
-import { buildResultsView, type ResultsView } from '../game/results'
+import { buildResultsView, roundDetails, type ResultsView } from '../game/results'
 import {
   forgetRoutine,
   loadShelf,
@@ -31,12 +35,13 @@ import {
   type ShelfEntry,
 } from '../game/routineShelf'
 import { GameRun } from '../game/run'
-import { buildCheckpoints, ScoreKeeper } from '../game/scoring'
+import { buildCheckpoints, ScoreKeeper, type ScoringConfig } from '../game/scoring'
 import {
   apiSessionDeps,
   prepareFromRecipe,
   prepareFromRoutine,
   prepareGame,
+  routineFor,
   STEP_LABELS,
   type PreparedGame,
   type RoutineRecipe,
@@ -45,10 +50,12 @@ import {
   type SessionStep,
   type SongChoice,
 } from '../game/session'
+import { buildSessionLog, downloadSessionLog, type SessionLog } from '../game/sessionLog'
+import { countdownSfx, judgmentSfx, loadSfxEnabled, saveSfxEnabled, Sfx } from '../game/sfx'
 import { DriftMeter, SyncMonitor } from '../game/sync'
 import { songTimeAtFromClock, WebcamPoseSource } from '../game/webcamSource'
 import { errorMessage, isAbortError } from '../lib/errors'
-import { routineFromHash } from '../lib/hashRoute'
+import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
 import './play.css'
 
@@ -96,6 +103,36 @@ function blurFocus(): void {
 const pageWasActivated = (): boolean => navigator.userActivation?.hasBeenActive ?? true
 
 const isRehearsing = (p: Phase): boolean => p === 'preview' || p === 'practice'
+
+/** Tells listeners in this tab (the app shell's Learn link) that the shelf changed. */
+const notifyShelf = (): void => {
+  window.dispatchEvent(new StorageEvent('storage', { key: SHELF_KEY }))
+}
+
+const HOW_TO_PLAY: readonly { icon: string; title: string; text: string }[] = [
+  { icon: '🪞', title: 'Step back', text: 'Head to toe in the camera (or sit, in Seated mode).' },
+  { icon: '✨', title: 'Mirror the dancer', text: 'Copy the glowing coach; the cards below show what’s next.' },
+  { icon: '⭐', title: 'Hit the beat', text: 'Land each pose on the beat for PERFECT and keep the combo.' },
+]
+
+const KEY_HINTS: readonly [string, string][] = [
+  ['Space', 'pause'],
+  ['R', 'restart'],
+  ['M', 'mirror'],
+  ['C', 'camera'],
+  ['S', 'sound'],
+  ['K', 'skip calibration'],
+  ['Esc', 'back here'],
+]
+
+/** What a scored round used (fixed when it starts): for the results line and the session log. */
+interface RoundMeta {
+  preset: JudgingPreset
+  config: ScoringConfig
+  /** null for the bot. */
+  calibration: Calibration | null
+  auto: boolean
+}
 
 interface Camera {
   source: WebcamPoseSource
@@ -147,7 +184,20 @@ export default function Play() {
   const [mirrored, setMirrored] = useState(true)
   const [pip, setPip] = useState(true)
   const [debug, setDebug] = useState(false)
+  /** Lobby: judging strictness (remembered on this device). */
+  const [judging, setJudging] = useState<JudgingPreset>(() => loadJudging())
+  /** Sound effects for camera games (remembered); autoplay runs use autoSfx (off until S). */
+  const [sfxOn, setSfxOn] = useState(() => loadSfxEnabled())
+  const [autoSfx, setAutoSfx] = useState(false)
+  const [sfx] = useState(() => new Sfx(() => clock.context))
+  /** "Learn it first": the step label while the routine is generated, then an error if any. */
+  const [learnBusy, setLearnBusy] = useState<string | null>(null)
+  const [learnError, setLearnError] = useState<string | null>(null)
+  /** The finished round's details line + session log. */
+  const [round, setRound] = useState<{ details: string; log: SessionLog } | null>(null)
   const sessionRef = useRef<AbortController | null>(null)
+  const learnRef = useRef<AbortController | null>(null)
+  const roundMetaRef = useRef<RoundMeta | null>(null)
   const camRef = useRef<Camera | null>(null)
   /** This visit's calibration (done or skipped); reset in the lobby (a new dancer may step up). */
   const calRef = useRef<Calibration | null>(null)
@@ -163,6 +213,10 @@ export default function Play() {
   const lastLaunchRef = useRef<Launch | null>(null)
   const activeRef = useLatest(active)
   const phaseRef = useLatest(phase)
+  /** Sound for the current stage run: autoplay runs only when toggled on with S. */
+  const soundOn = autoplay ? autoSfx : sfxOn
+  const soundOnRef = useLatest(soundOn)
+  const judgingRef = useLatest(judging)
 
   // --- pose sources ----------------------------------------------------------------------
   const stopCamera = (): void => {
@@ -214,7 +268,24 @@ export default function Play() {
     const source = bot ?? cam
     if (!source) return null
     const checkpoints = buildCheckpoints(game.routine, game.routine.mode).filter((cp) => cp.time >= fromT)
-    return new GameRun({ keeper: new ScoreKeeper(checkpoints), source, bot, isPlaying: () => clock.playing })
+    const config = scoringFor(judgingRef.current)
+    return new GameRun({
+      keeper: new ScoreKeeper(checkpoints, config),
+      source,
+      bot,
+      isPlaying: () => clock.playing,
+      onResults: (rs, comboBefore) => {
+        if (!soundOnRef.current) return
+        for (const name of judgmentSfx(rs, comboBefore)) sfx.play(name)
+      },
+    })
+  }
+
+  /** (Re)schedules the count-in ticks + "go" from the current song position (after play / resume / seek). */
+  const armCountdown = (game: PreparedGame): void => {
+    sfx.cancelScheduled()
+    if (!soundOnRef.current || !clock.playing) return
+    sfx.schedule(countdownSfx(game.timeline.countdown, game.timeline.countInClicks, clock.songTime()), clock.startAt)
   }
 
   // --- lifecycle -----------------------------------------------------------------------
@@ -223,6 +294,8 @@ export default function Play() {
   const unmountRef = useLatest(() => {
     sessionRef.current?.abort()
     sessionRef.current = null
+    learnRef.current?.abort()
+    sfx.cancelScheduled()
     tokenRef.current++
     disposeRun()
     const cam = camRef.current
@@ -237,6 +310,7 @@ export default function Play() {
   const endRehearsal = (): void => {
     if (!isRehearsing(phaseRef.current)) return
     clock.stop()
+    sfx.cancelScheduled()
     disposeRun()
     const a = activeRef.current
     if (a?.run) setActive({ ...a, run: null })
@@ -256,7 +330,31 @@ export default function Play() {
     if (!a || !run || phaseRef.current !== 'game') return
     const summary = run.finish(a.game.routine, a.game.durationSec)
     console.log(a.monitor.summary())
-    setResults(buildResultsView(summary, run.keeper.results(), a.game.routine))
+    const results = run.keeper.results()
+    const auto = run.source.kind === 'bot'
+    const meta: RoundMeta = roundMetaRef.current ?? { preset: 'standard', config: scoringFor('standard'), calibration: null, auto }
+    setResults(buildResultsView(summary, results, a.game.routine, meta.config.thresholds))
+    setRound({
+      details: roundDetails({
+        judging: judgingLabel(meta.preset),
+        latencySec: meta.calibration?.latencySec ?? null,
+        latencySource: meta.calibration?.source,
+        autoplay: auto,
+      }),
+      log: buildSessionLog({
+        routine: a.game.routine,
+        title: a.game.analysis.title,
+        durationSec: a.game.durationSec,
+        autoplay: auto,
+        calibration: meta.calibration,
+        preset: meta.preset,
+        config: meta.config,
+        summary,
+        results,
+      }),
+    })
+    sfx.cancelScheduled()
+    if (soundOnRef.current) sfx.play('fanfare')
     if (run.source.kind === 'bot') run.source.stop()
     stopCamera()
     dispatch({ type: 'finished' })
@@ -327,11 +425,14 @@ export default function Play() {
     disposeRun()
     const run = createRun(game, auto, cam?.source ?? null)
     if (!run) return
+    const preset = judgingRef.current
+    roundMetaRef.current = { preset, config: scoringFor(preset), calibration: auto ? null : (calRef.current ?? loadCalibration()), auto }
     setActive({ game, monitor: new SyncMonitor(game.routine.song.beats), run, practice })
     setPrepared(null)
     setPaused(false)
     dispatch({ type: 'ready', practice })
     clock.play(-game.timeline.countdown.preRollSec, game.timeline.countInClicks)
+    armCountdown(game)
   }
 
   /** Watch first: the coach dances the whole routine to the music; no camera, no scoring. */
@@ -341,6 +442,7 @@ export default function Play() {
     setPrepared(null)
     setPaused(false)
     clock.play(-game.timeline.countdown.preRollSec, game.timeline.countInClicks)
+    armCountdown(game)
   }
 
   /** Waits for the camera (no wait for the bot), then begins. Camera errors show an overlay. */
@@ -358,7 +460,9 @@ export default function Play() {
 
   const shelve = (game: PreparedGame): void => {
     const entry = shelfEntryFor(game.routine, game.analysis, 'play')
-    if (entry) setShelf(rememberRoutine(entry))
+    if (!entry) return
+    setShelf(rememberRoutine(entry))
+    notifyShelf()
   }
 
   /**
@@ -368,6 +472,7 @@ export default function Play() {
   const launch = (l: Launch): void => {
     clock.unlock()
     clock.stop()
+    sfx.cancelScheduled()
     sessionRef.current?.abort()
     const ac = new AbortController()
     sessionRef.current = ac
@@ -386,6 +491,7 @@ export default function Play() {
     setActive(null)
     setPrepared(null)
     setResults(null)
+    setRound(null)
     setPaused(false)
     setCamError(null)
     dispatch({ type: 'generate' })
@@ -490,6 +596,7 @@ export default function Play() {
       setActive({ ...a, run: createRun(a.game, false, camRef.current?.source ?? null, target) })
     }
     clock.seek(target)
+    armCountdown(a.game)
   }
 
   /** "Ready to dance?" -> the real round with the same routine (and, after practice, the same camera + calibration). */
@@ -554,6 +661,7 @@ export default function Play() {
     disposeRun()
     practiceNextRef.current = false
     setResults(null)
+    setRound(null)
     setActive(null)
     setPrepared(game)
     setCamError(null)
@@ -586,10 +694,64 @@ export default function Play() {
     if (!active || !isRunning(phase)) return
     if (clock.playing) {
       clock.pause()
+      sfx.cancelScheduled()
       setPaused(true)
     } else {
       clock.resume()
+      armCountdown(active.game)
       setPaused(false)
+    }
+  }
+
+  /** S / the lobby toggle: sound effects on or off (autoplay runs have their own switch). */
+  const toggleSound = (): void => {
+    const botRun = autoplay && onStage
+    const next = botRun ? !autoSfx : !sfxOn
+    if (botRun) setAutoSfx(next)
+    else {
+      setSfxOn(next)
+      saveSfxEnabled(next)
+    }
+    if (!botRun && autoplay) return // the lobby switch while Autoplay is ticked: the bot's sound is unchanged
+    soundOnRef.current = next
+    const a = activeRef.current
+    if (next && a && isRunning(phaseRef.current)) armCountdown(a.game)
+    else if (!next) sfx.cancelScheduled()
+  }
+
+  const chooseJudging = (j: JudgingPreset): void => {
+    setJudging(j)
+    saveJudging(j)
+  }
+
+  /** Leaves the stage (if on it) for the teach page; Play unmounts and releases everything. */
+  const openTeach = (routineId: string, start?: number): void => {
+    window.location.hash = teachHash(routineId, start)
+  }
+
+  /** "Learn it first": choreograph what Start would play, shelve it, open it on the teach page. */
+  const learnFirst = async (): Promise<void> => {
+    if (!choice || learnRef.current) return
+    const ac = new AbortController()
+    learnRef.current = ac
+    setLearnError(null)
+    setLearnBusy(STEP_LABELS.analyzing)
+    try {
+      const req = { song: choice, difficulty, mode, seed }
+      const { analysis, routine } = await routineFor(req, apiSessionDeps(clock), ac.signal, (step) => setLearnBusy(STEP_LABELS[step]))
+      const id = routine.meta?.routineId
+      const entry = shelfEntryFor(routine, analysis, 'play')
+      if (!entry || !isRoutineId(id)) throw new Error('The server did not return a saved routine id')
+      setShelf(rememberRoutine(entry))
+      notifyShelf()
+      openTeach(id)
+    } catch (err) {
+      if (!ac.signal.aborted && !isAbortError(err)) setLearnError(errorMessage(err))
+    } finally {
+      if (learnRef.current === ac) {
+        learnRef.current = null
+        setLearnBusy(null)
+      }
     }
   }
 
@@ -613,6 +775,7 @@ export default function Play() {
     sessionRef.current = null
     tokenRef.current++
     clock.stop()
+    sfx.cancelScheduled()
     disposeRun()
     stopCamera()
     calRef.current = null
@@ -620,6 +783,7 @@ export default function Play() {
     setActive(null)
     setPrepared(null)
     setResults(null)
+    setRound(null)
     setCamError(null)
     setSession({ status: 'idle' })
     setPending(null)
@@ -663,6 +827,10 @@ export default function Play() {
       case 'D':
         if (!e.repeat) setDebug((d) => !d)
         break
+      case 's':
+      case 'S':
+        if (!e.repeat) toggleSound()
+        break
     }
   })
   useEffect(() => {
@@ -701,9 +869,15 @@ export default function Play() {
       : REHEARSALS.find((r) => r.value === rehearsal)?.hint
   const linkedEntry = linked ? shelf.find((e) => e.routineId === linked) : undefined
   const stageKeys = isRehearsing(phase)
-    ? `Space pause · ←/→ one bar · R restart · M mirror${phase === 'practice' ? ' · C camera' : ''} · Esc lobby`
+    ? `Space pause · ←/→ one bar · R restart · M mirror${phase === 'practice' ? ' · C camera' : ''} · S sound (${soundOn ? 'on' : 'off'}) · Esc lobby`
     : undefined
   const goneRecipe = session.status === 'error' ? session.recipe : undefined
+  const judgingHint = JUDGING_PRESETS.find((j) => j.value === judging)?.hint
+  const shownId = active?.game.routine.meta?.routineId
+  const hardestIndex = results?.hardest?.moveIndex
+  const practiceHardest =
+    isRoutineId(shownId) && hardestIndex !== undefined ? () => openTeach(shownId, hardestIndex) : undefined
+  const roundLog = round?.log
   const watchInstead =
     runRehearsal === 'practice' ? (
       <button type="button" onClick={switchToWatch}>
@@ -722,6 +896,21 @@ export default function Play() {
           Every night the princesses slip away to dance until their slippers wear through. Pick a song, follow the glowing
           dancer like a mirror, and keep up until the clock strikes the final beat.
         </p>
+        <ol className="how-to-play" aria-label="How to play">
+          {HOW_TO_PLAY.map((h, i) => (
+            <li key={h.title}>
+              <span className="how-icon" aria-hidden="true">
+                {h.icon}
+              </span>
+              <span>
+                <strong>
+                  {i + 1}. {h.title}
+                </strong>
+                <span className="how-text">{h.text}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
 
       {linked && (
@@ -872,6 +1061,24 @@ export default function Play() {
             </div>
             <span className="hint rehearsal-hint">{rehearsalHint}</span>
           </div>
+          <div className="field">
+            <span className="field-label">Judging</span>
+            <div className="segmented" role="radiogroup" aria-label="Judging">
+              {JUDGING_PRESETS.map((j) => (
+                <button
+                  key={j.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={judging === j.value}
+                  className={judging === j.value ? 'on' : undefined}
+                  onClick={() => chooseJudging(j.value)}
+                >
+                  {j.label}
+                </button>
+              ))}
+            </div>
+            <span className="hint rehearsal-hint">{judgingHint}</span>
+          </div>
           <div className="field lobby-toggles">
             <label className="toggle">
               <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} />
@@ -885,15 +1092,36 @@ export default function Play() {
                 Skip calibration <span className="dim">· use the saved timing</span>
               </span>
             </label>
+            <label className="toggle">
+              <input type="checkbox" checked={sfxOn} onChange={toggleSound} />
+              <span>
+                Sound effects <span className="dim">· S on stage{autoplay ? ' (off for the bot until you press S)' : ''}</span>
+              </span>
+            </label>
           </div>
           <button type="button" className="start-button" disabled={!choice} onClick={start}>
             {START_LABEL[effectiveRehearsal(rehearsal, autoplay)]}
           </button>
-          <p className="hint lobby-keys">
+          <button
+            type="button"
+            className="learn-button"
+            disabled={!choice || learnBusy !== null}
+            onClick={() => void learnFirst()}
+            title="Step through this routine move by move, at your own pace"
+          >
+            {learnBusy ?? '🎓 Learn it first'}
+          </button>
+          {learnError && <p className="error">{learnError}</p>}
+          <p className="hint lobby-privacy">
             {autoplay ? 'The bot dances, you watch.' : 'Your camera stays on this device: no video ever leaves the browser.'}
-            <br />
-            Space pause · R restart · M mirror · C camera · K skip calibration · D debug · Esc back here
           </p>
+          <ul className="key-hints" aria-label="Keyboard shortcuts">
+            {KEY_HINTS.map(([k, what]) => (
+              <li key={k}>
+                <kbd>{k}</kbd> {what}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
@@ -911,12 +1139,15 @@ export default function Play() {
                     {e.artist && <span className="dim"> · {e.artist}</span>}
                   </span>
                   <span className="shelf-meta">
-                    {setupLabel(e)} · {e.moves} moves · {e.from === 'analysis' ? 'from Analysis' : 'played'} ·{' '}
+                    {setupLabel(e)} · {e.moves} moves · {e.from === 'analysis' ? 'from Studio' : 'played'} ·{' '}
                     {relativeTime(e.createdAt, nowMs)}
                   </span>
                 </div>
                 <button type="button" className="primary" onClick={() => playRoutine(e.routineId)}>
                   ▶ Play
+                </button>
+                <button type="button" onClick={() => openTeach(e.routineId)} title="Learn it move by move">
+                  🎓 Learn
                 </button>
                 <button
                   type="button"
@@ -948,6 +1179,7 @@ export default function Play() {
           onExit={exitToLobby}
           caption={phase === 'preview'}
           keys={stageKeys}
+          sound={soundOn}
         >
           {session.status === 'loading' && (
             <div className="play-overlay">
@@ -1090,6 +1322,9 @@ export default function Play() {
                   <button type="button" onClick={rehearseAgain}>
                     {runRehearsal === 'practice' ? 'Practice again' : 'Watch again'}
                   </button>
+                  <button type="button" onClick={newRoutine} title="Same song and setup, a new seed">
+                    🎲 New routine
+                  </button>
                   <button type="button" onClick={exitToLobby}>
                     Lobby
                   </button>
@@ -1103,9 +1338,12 @@ export default function Play() {
               moves={active.game.routine.moves}
               mirrored={mirrored}
               autoplay={active.run?.source.kind === 'bot'}
+              details={round?.details}
               onPlayAgain={playAgain}
               onNewRoutine={newRoutine}
               onLobby={exitToLobby}
+              onPracticeHardest={practiceHardest}
+              onDownloadLog={roundLog ? () => downloadSessionLog(roundLog) : undefined}
             />
           )}
         </PlayStage>

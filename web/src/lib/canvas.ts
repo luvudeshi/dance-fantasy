@@ -9,12 +9,13 @@ export interface PreparedCanvas {
  * Matches the canvas backing store to its CSS box x devicePixelRatio (cheap no-op when
  * unchanged, so it can run every frame and follows resizes and monitor changes), clears
  * it and returns a context that draws in CSS pixels. Null when the canvas has no size.
+ * `maxDpr` caps the ratio (a full-window 60 fps canvas on a 2x/3x screen costs 4-9x the pixels).
  */
-export function prepareCanvas(canvas: HTMLCanvasElement): PreparedCanvas | null {
+export function prepareCanvas(canvas: HTMLCanvasElement, maxDpr = Number.POSITIVE_INFINITY): PreparedCanvas | null {
   const width = canvas.clientWidth
   const height = canvas.clientHeight
   if (width <= 0 || height <= 0) return null
-  const dpr = window.devicePixelRatio || 1
+  const dpr = Math.min(maxDpr, window.devicePixelRatio || 1)
   const pxW = Math.round(width * dpr)
   const pxH = Math.round(height * dpr)
   if (canvas.width !== pxW || canvas.height !== pxH) {

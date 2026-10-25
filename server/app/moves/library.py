@@ -23,7 +23,7 @@ from app.moves.types import BodyPart, CompiledMove, MoveKeyframe, MoveLibrary, P
 from app.skeleton import JOINTS, MIRROR
 
 # Bump when the compiler/FK changes in a way that changes compiled poses (part of the library version).
-COMPILER_VERSION = "fk-1"
+COMPILER_VERSION = "fk-2"  # fk-2: spins keep TURN_MIN_WIDTH
 LENGTHS = (1, 2, 4, 8)
 DIFFICULTIES = ("easy", "normal", "hard")
 SIDES = ("L", "R", "both")

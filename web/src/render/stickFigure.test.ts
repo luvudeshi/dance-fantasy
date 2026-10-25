@@ -60,6 +60,18 @@ describe('headCircle', () => {
     expect(headCircle({ l_wrist: [0, 0] })).toBeNull()
     expect(headCircle({ nose: [0.1, -1.4] })).toEqual({ center: [0.1, -1.4], radius: 0.22 })
   })
+
+  it('keeps its size as the head turns into profile', () => {
+    // Server FK head: ears (+-0.15, z -0.02), nose (0, z 0.15) around the neck; turned by psi.
+    const radiusAt = (psi: number): number => {
+      const x = (bx: number, z: number): number => bx * Math.cos(psi) + z * Math.sin(psi)
+      const h = headCircle({ nose: [x(0, 0.15), -1.45], l_ear: [x(-0.15, -0.02), -1.48], r_ear: [x(0.15, -0.02), -1.48] })
+      return h?.radius ?? 0
+    }
+    const front = radiusAt(0)
+    for (const deg of [30, 66.4, 90]) expect(radiusAt((deg * Math.PI) / 180) / front).toBeGreaterThan(0.9)
+    for (const deg of [30, 66.4, 90]) expect(radiusAt((deg * Math.PI) / 180) / front).toBeLessThan(1.15)
+  })
 })
 
 describe('drawFigure', () => {

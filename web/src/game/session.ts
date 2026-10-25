@@ -276,3 +276,33 @@ export function prepareFromRecipe(
     return finishGame(analysis, routine, { url: analysis.audioUrl }, deps, enter, signal)
   })
 }
+
+/**
+ * "Learn it first": the routine Start would play (analysis -> choreography; no audio), so the
+ * teach page can open it by id. Rejects with a user-facing message (describeFailure) on failure.
+ */
+export async function routineFor(
+  req: SessionRequest,
+  deps: Pick<SessionDeps, 'analyzeLibrarySong' | 'analyzeUpload' | 'choreograph'>,
+  signal: AbortSignal,
+  onStep?: (step: SessionStep) => void,
+): Promise<{ analysis: Analysis; routine: Routine }> {
+  let step: SessionStep = 'analyzing'
+  try {
+    onStep?.(step)
+    const analysis =
+      req.song.kind === 'library'
+        ? await deps.analyzeLibrarySong(req.song.file, { signal })
+        : await deps.analyzeUpload(req.song.file, { signal })
+    signal.throwIfAborted()
+    step = 'choreographing'
+    onStep?.(step)
+    const { routine } = await deps.choreograph({ analysisId: analysis.id, difficulty: req.difficulty, mode: req.mode, seed: req.seed }, signal)
+    signal.throwIfAborted()
+    if (routine.moves.length === 0) throw new Error('the choreographer returned no moves for this song')
+    return { analysis, routine }
+  } catch (err) {
+    if (signal.aborted || isAbortError(err)) throw err
+    throw new Error(describeFailure(step, err), { cause: err })
+  }
+}

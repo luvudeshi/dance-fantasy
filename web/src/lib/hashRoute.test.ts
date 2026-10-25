@@ -16,6 +16,8 @@ describe('hash routes', () => {
     expect(routineFromHash('#/play')).toBeNull()
     expect(routineFromHash('#/play?routine=XYZ')).toBeNull()
     expect(routineFromHash('#/play?routine=0123456789ABCDEF')).toBeNull()
+    // Only Play's deep link: the teach page's query must not launch the game on Play.
+    expect(routineFromHash('#/teach?routine=0123456789abcdef&start=3')).toBeNull()
     expect(isRoutineId('0123456789abcde')).toBe(false)
     expect(isRoutineId(42)).toBe(false)
   })

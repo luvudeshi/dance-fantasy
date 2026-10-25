@@ -1,5 +1,6 @@
 // End-of-song results over the stage: score, stars, accuracy, judgment counts, best combo, the
-// hardest move (pictogram + practice tip), the best move and a move-by-move accuracy list.
+// hardest move (pictogram + practice tip + "Practice your hardest move"), the best move, a
+// move-by-move accuracy list, the round's judging + latency and "Download session log".
 // Large type and high contrast so it reads on a projector. Pure view model: results.ts.
 
 import { useEffect, useRef } from 'react'
@@ -14,9 +15,15 @@ interface Props {
   moves: readonly Move[]
   mirrored: boolean
   autoplay: boolean
+  /** "Judging: Standard · camera latency 120 ms (measured)". */
+  details?: string
   onPlayAgain: () => void
   onNewRoutine: () => void
   onLobby: () => void
+  /** Opens the teach page at the hardest move (absent: no button). */
+  onPracticeHardest?: () => void
+  /** Saves the round's session log (absent: no button). */
+  onDownloadLog?: () => void
 }
 
 function Stars({ value }: { value: number }) {
@@ -45,7 +52,8 @@ function MovePictogram({ move, mirrored, theme }: { move: Move; mirrored: boolea
   return <canvas ref={ref} className="results-pictogram" aria-label={`Pictogram of ${move.name}`} />
 }
 
-export default function ResultsScreen({ view, moves, mirrored, autoplay, onPlayAgain, onNewRoutine, onLobby }: Props) {
+export default function ResultsScreen(props: Props) {
+  const { view, moves, mirrored, autoplay, details, onPlayAgain, onNewRoutine, onLobby, onPracticeHardest, onDownloadLog } = props
   const playAgainRef = useRef<HTMLButtonElement>(null)
   // Enter replays straight away (Space stays the stage's pause key, which is off here).
   useEffect(() => playAgainRef.current?.focus(), [])
@@ -100,6 +108,19 @@ export default function ResultsScreen({ view, moves, mirrored, autoplay, onPlayA
                 Lobby
               </button>
             </div>
+            {(details || onDownloadLog) && (
+              <p className="results-details">
+                {details}
+                {onDownloadLog && (
+                  <>
+                    {details && ' · '}
+                    <button type="button" className="link" onClick={onDownloadLog} title="JSON numbers for tuning the scoring: no video, no poses">
+                      Download session log
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
           </section>
 
           <section className="results-side" aria-label="Moves">
@@ -112,6 +133,11 @@ export default function ResultsScreen({ view, moves, mirrored, autoplay, onPlayA
                     {view.hardest.row.name} <span className="results-spot-pct">{formatPercent(view.hardest.row.accuracy)}</span>
                   </h3>
                   <p className="results-tip">{view.hardest.tip}</p>
+                  {onPracticeHardest && (
+                    <button type="button" className="results-practice" onClick={onPracticeHardest}>
+                      🎓 Practice your hardest move
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -134,7 +160,7 @@ export default function ResultsScreen({ view, moves, mirrored, autoplay, onPlayA
                     <li key={m.id}>
                       <span className="results-move-name">{m.name}</span>
                       <span className="results-bar" aria-hidden="true">
-                        <span style={{ width: `${Math.max(2, Math.min(100, m.accuracy))}%`, background: scoreColor(m.accuracy) }} />
+                        <span style={{ width: `${Math.max(2, Math.min(100, m.accuracy))}%`, background: scoreColor(m.accuracy, view.thresholds) }} />
                       </span>
                       <span className="results-move-pct">{formatPercent(m.accuracy)}</span>
                     </li>

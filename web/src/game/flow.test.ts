@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { flowReducer, isRunning, needsCalibration, type FlowEvent, type Phase } from './flow'
+import { flowReducer, isRunning, needsCalibration, teachHash, type FlowEvent, type Phase } from './flow'
 
 const run = (events: FlowEvent[], from: Phase = 'lobby'): Phase => events.reduce(flowReducer, from)
 
@@ -130,5 +130,14 @@ describe('needsCalibration', () => {
     expect(needsCalibration({ autoplay: true, skipCalibration: false, calibrated: false })).toBe(false)
     expect(needsCalibration({ autoplay: false, skipCalibration: true, calibrated: false })).toBe(false)
     expect(needsCalibration({ autoplay: false, skipCalibration: false, calibrated: true })).toBe(false)
+  })
+})
+
+describe('teach links', () => {
+  it('opens the teach page for a routine, optionally at a move', () => {
+    expect(teachHash('0123456789abcdef')).toBe('#/teach?routine=0123456789abcdef')
+    expect(teachHash('0123456789abcdef', 4)).toBe('#/teach?routine=0123456789abcdef&start=4')
+    expect(teachHash('0123456789abcdef', 0)).toBe('#/teach?routine=0123456789abcdef')
+    expect(teachHash('0123456789abcdef', -2)).toBe('#/teach?routine=0123456789abcdef')
   })
 })

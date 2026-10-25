@@ -24,12 +24,16 @@
     },
     {
       "id": "vogue_frame", "name": "Vogue Frame", "lengthBeats": 4, "intensity": 2, "difficulty": "normal",
-      "side": "R", "mirror": true,
+      "styles": ["pop", "disco"], "side": "R", "mirror": true,
+      "notes": "Strike a new frame on every beat (snap on the beat, hold through the and): right arm over the head, both hands framing the face, left arm over the head.",
       "keyframes": [
         { "beat": 0 },
         { "beat": 1, "angles": { "r_shoulder": 180, "r_elbow": 55, "l_shoulder": 40, "l_elbow": -118, "head_tilt": -10 } },
-        { "beat": 2 },
-        { "beat": 3 },
+        { "beat": 1.5 },
+        { "beat": 2, "angles": { "shoulders": 150, "elbows": 118, "head_tilt": 0 } },
+        { "beat": 2.5 },
+        { "beat": 3, "angles": { "l_shoulder": 180, "l_elbow": 55, "r_shoulder": 40, "r_elbow": -118, "head_tilt": 10 } },
+        { "beat": 3.5 },
         { "beat": 4, "from": "neutral" }
       ]
     }

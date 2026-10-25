@@ -70,7 +70,11 @@ export interface HeadCircle {
 
 const FACE: readonly JointName[] = ['nose', 'l_eye', 'r_eye', 'l_ear', 'r_ear']
 
-/** Head circle (body units) from the face joints: centred on them, sized by ear span / nose offset. */
+/**
+ * Head circle (body units) from the face joints: centred on them, sized by ear span and nose offset
+ * combined (hypot), so a head keeps its size as it turns: the ear span shrinks into profile while the
+ * nose moves out in front (a spinning coach's head used to swell ~1.5x side-on).
+ */
 export function headCircle(pose: Pose2D): HeadCircle | null {
   let sx = 0
   let sy = 0
@@ -92,7 +96,7 @@ export function headCircle(pose: Pose2D): HeadCircle | null {
     const span = Math.hypot(le[0] - re[0], le[1] - re[1])
     const mid: Vec2 = [(le[0] + re[0]) / 2, (le[1] + re[1]) / 2]
     const noseOff = nose ? Math.hypot(nose[0] - mid[0], nose[1] - mid[1]) : 0
-    radius = Math.min(0.4, Math.max(0.17, 0.75 * span, 2.2 * noseOff))
+    radius = Math.min(0.4, Math.max(0.17, Math.hypot(0.75 * span, 1.3 * noseOff)))
   }
   return { center, radius }
 }

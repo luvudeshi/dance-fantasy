@@ -27,7 +27,18 @@ export function scoreBand(score: number, thresholds: ScoringConfig['thresholds']
 }
 
 /** Bar colour for a 0..100 score: the HUD colour of its judgment band. */
-export const scoreColor = (score: number): string => JUDGMENT_STYLE[scoreBand(score)].color
+export const scoreColor = (score: number, thresholds?: ScoringConfig['thresholds']): string => JUDGMENT_STYLE[scoreBand(score, thresholds)].color
+
+/** "Judging: Standard · camera latency 120 ms (measured)" (the bot needs no latency). */
+export function roundDetails(o: { judging: string; latencySec: number | null; latencySource?: 'measured' | 'default'; autoplay: boolean }): string {
+  const parts = [`Judging: ${o.judging}`]
+  if (o.autoplay) parts.push('danced by the bot')
+  else if (o.latencySec !== null && Number.isFinite(o.latencySec)) {
+    const src = o.latencySource === 'measured' ? 'measured' : 'default'
+    parts.push(`camera latency ${Math.round(o.latencySec * 1000)} ms (${src})`)
+  }
+  return parts.join(' · ')
+}
 
 /** Storybook rank for a 0..5 star result. */
 export function rankTitle(stars: number): string {
@@ -145,6 +156,8 @@ export interface ResultsView {
   hardest: (Spotlight & { tip: string }) | null
   /** Omitted when it is the hardest move too. */
   best: Spotlight | null
+  /** Judgment thresholds of the round (bar colours). */
+  thresholds: ScoringConfig['thresholds']
 }
 
 const COUNT_ORDER: readonly Judgment[] = ['perfect', 'good', 'ok', 'miss']
@@ -166,6 +179,7 @@ export function buildResultsView(
   summary: ResultsSummary,
   results: readonly CheckpointResult[],
   routine: Pick<Routine, 'moves'>,
+  thresholds: ScoringConfig['thresholds'] = DEFAULT_SCORING.thresholds,
 ): ResultsView {
   const { state } = summary
   const moves = moveRows(summary.perMove)
@@ -189,5 +203,6 @@ export function buildResultsView(
     moves,
     hardest,
     best: best && best.row.id !== hard?.row.id ? best : null,
+    thresholds,
   }
 }

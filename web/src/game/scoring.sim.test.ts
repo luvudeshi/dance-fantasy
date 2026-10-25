@@ -8,7 +8,8 @@ import { buildMotionTrack } from '../routine/track'
 import seatedJson from './__fixtures__/routine_synth120_normal_seated.json'
 import standingJson from './__fixtures__/routine_synth120_normal.json'
 import { BotPoseSource, type BotSkill } from './botSource'
-import { buildCheckpoints, DEFAULT_SCORING, ScoreKeeper, type Judgment, type ResultsSummary } from './scoring'
+import { JUDGING_PRESETS, scoringFor } from './judging'
+import { buildCheckpoints, DEFAULT_SCORING, ScoreKeeper, type Judgment, type ResultsSummary, type ScoringConfig } from './scoring'
 
 const ROUTINES: Record<string, Routine> = {
   standing: standingJson as unknown as Routine,
@@ -21,8 +22,8 @@ interface SimResult {
   frac: Record<Judgment, number>
 }
 
-function simulate(routine: Routine, skill: BotSkill, lagSec = 0, seed = 1): SimResult {
-  const keeper = new ScoreKeeper(buildCheckpoints(routine, routine.mode), DEFAULT_SCORING)
+function simulate(routine: Routine, skill: BotSkill, lagSec = 0, seed = 1, config: ScoringConfig = DEFAULT_SCORING): SimResult {
+  const keeper = new ScoreKeeper(buildCheckpoints(routine, routine.mode), config)
   const bot = new BotPoseSource({ track: buildMotionTrack(routine), skill, lagSec, seed })
   bot.onFrame((f) => keeper.addFrame(f))
   void bot.start()
@@ -118,4 +119,54 @@ describe.each(Object.entries(ROUTINES))('bot simulation: %s routine', (mode, rou
     expect(summary.bestMove?.avgScore ?? 0).toBeGreaterThan(summary.hardestMove?.avgScore ?? 100)
     expect(summary.perMove.reduce((n, m) => n + m.checkpoints, 0)).toBe(summary.state.total)
   })
+})
+
+// Judging presets (lobby: Lenient / Standard / Strict): every preset keeps the core fairness
+// invariants; Lenient helps a sloppy dancer, Strict asks more of them.
+describe.each(Object.entries(ROUTINES))('judging presets: %s routine', (mode, routine) => {
+  const SKILLS: BotSkill[] = ['perfect', 'good', 'sloppy', 'idle', 'mirrored']
+  const table = new Map<string, SimResult>()
+  const run = (preset: (typeof JUDGING_PRESETS)[number]['value'], skill: BotSkill, seed = 1, lagSec = 0): SimResult => {
+    const key = `${preset}/${skill}/${seed}/${lagSec}`
+    const hit = table.get(key)
+    if (hit) return hit
+    const r = simulate(routine, skill, lagSec, seed, scoringFor(preset))
+    table.set(key, r)
+    return r
+  }
+
+  it('prints the per-preset table', () => {
+    const lines = [`${mode}: judging presets (seed 1)`, 'preset    skill      perfect  good    ok  miss  accuracy  stars']
+    for (const { value } of JUDGING_PRESETS) {
+      for (const skill of SKILLS) {
+        const { summary: s, frac } = run(value, skill)
+        lines.push(
+          `${value.padEnd(9)} ${skill.padEnd(9)}  ${pct(frac.perfect)}  ${pct(frac.good)} ${pct(frac.ok)} ${pct(frac.miss)}  ${s.accuracy.toFixed(1).padStart(8)}  ${s.state.stars.toFixed(2).padStart(5)}`,
+        )
+      }
+    }
+    console.log(lines.join('\n'))
+    expect(table.size).toBe(JUDGING_PRESETS.length * SKILLS.length)
+  })
+
+  for (const seed of [1, 2, 3]) {
+    it(`keeps the invariants on every preset (seed ${seed})`, () => {
+      for (const { value } of JUDGING_PRESETS) {
+        const idle = run(value, 'idle', seed)
+        expect(idle.frac.miss, `${value} idle miss`).toBeGreaterThanOrEqual(0.9)
+        expect(idle.summary.state.stars, `${value} idle stars`).toBeLessThan(0.5)
+        const perfect = run(value, 'perfect', seed)
+        expect(perfect.frac.perfect, `${value} perfect`).toBeGreaterThanOrEqual(0.95)
+        // A late camera within the window still counts.
+        expect(run(value, 'perfect', seed, 0.1).frac.perfect, `${value} perfect +0.1 s`).toBeGreaterThanOrEqual(0.9)
+        const mirrored = run(value, 'mirrored', seed)
+        expect(mirrored.summary.state.stars, `${value} mirrored stars`).toBeLessThan(3.5)
+      }
+      const sloppy = (p: (typeof JUDGING_PRESETS)[number]['value']): SimResult => run(p, 'sloppy', seed)
+      expect(sloppy('lenient').summary.accuracy).toBeGreaterThan(sloppy('standard').summary.accuracy + 5)
+      expect(sloppy('lenient').summary.state.stars).toBeGreaterThan(sloppy('standard').summary.state.stars)
+      expect(sloppy('strict').summary.accuracy).toBeLessThan(sloppy('standard').summary.accuracy)
+      expect(run('strict', 'good', seed).frac.perfect).toBeLessThan(run('standard', 'good', seed).frac.perfect)
+    })
+  }
 })

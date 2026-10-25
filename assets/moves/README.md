@@ -60,8 +60,11 @@ Unknown fields are errors (typos fail loudly, naming the file and move id).
   zero for the first keyframe).
 - `"from": "<anchor>"` resets all angles to that anchor's angles first (then `angles` applies on top).
 - Convention: beats 0 and `lengthBeats` are the chaining boundaries (they sit on the anchors); the move's
-  signature shapes are on the interior beats (and on half-beats for 1-beat moves). Every move starts and ends
-  with the root at home (no net travel).
+  signature shapes are on the interior beats. Every move starts and ends with the root at home (no net travel).
+- Only on-beat keyframes are scored, so (tests enforce these): the biggest shape must land on a beat, not on
+  an "and"; consecutive beats must ask for different poses (except `freeze` moves, which hold on purpose);
+  a 1-beat move starts and ends on the same anchor (its beat pose is that anchor, e.g. a clap), because easy
+  and normal routines only use it as an identical pair filling 2 beats.
 
 ## Angles
 
@@ -81,7 +84,7 @@ length, +x = the dancer's anatomical right, +y down. "Left/right" always means t
 | `hip_shift` | -0.4..0.4 (body units) | Hips slide sideways over **planted feet** (+ = toward the dancer's right): the legs pivot at the hips so the ankles keep their floor position. |
 | `travel` | -1.5..1.5 (body units) | Whole-body sideways displacement (+ = dancer's right). Root only: the body-frame pose is unchanged. |
 | `jump` | 0..0.8 (body units) | Airborne height of the lowest foot. |
-| `turn` | -2..2 (fraction of a spin) | Spin about the vertical axis, + toward the dancer's right (right shoulder goes back). Rendered orthographically: widths scale by cos, sides swap past 90 deg, the face turns into profile. 1 = full turn. |
+| `turn` | -2..2 (fraction of a spin) | Spin about the vertical axis, + toward the dancer's right (right shoulder goes back). Rendered as a rotation whose widths scale by cos but never drop below 40% of the front view (`fk.TURN_MIN_WIDTH`; a true side view collapses into a column): the figure flips sides past 90 deg, the face turns into profile. 1 = full turn. Put spin keyframes at turn .2/.3 (.7/.8) around side-on, not on .25/.75 (see `twirl`), so the flip is quick. |
 
 Shorthands (both sides at once): `shoulders`, `elbows`, `hips`, `knees`, `lifts`.
 

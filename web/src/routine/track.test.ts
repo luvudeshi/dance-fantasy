@@ -191,6 +191,29 @@ describe('buildMotionTrack', () => {
     expect((track.sample(1.25).pose.r_shoulder as Vec2)[0]).toBeLessThan(0)
   })
 
+  it('flips a width-clamped spin through zero only between its side-on knots, then keeps turning', () => {
+    // Server FK keeps spins >= 40% wide: front, narrow front, narrow back, back, full back.
+    const turned = (k: number): Pose2D => {
+      const out: Pose2D = {}
+      for (const j of JOINTS) {
+        const p = NEUTRAL_POSE[j] as Vec2
+        out[j] = [p[0] * k, p[1]]
+      }
+      return out
+    }
+    const ks = [1, 0.7, 0.4, -0.4, -0.7, -1]
+    const r = { moves: [move('spin', 0, 5, ks.map((k, i) => ({ t: i / 5, pose: turned(k) })))] }
+    const track = buildMotionTrack(r)
+    for (let t = 0; t <= 5; t += 0.01) {
+      const p = track.sample(t).pose
+      expect(Math.abs((p.l_shoulder as Vec2)[1] + 1)).toBeLessThan(1e-9) // the shoulder line never swings
+      expect(Math.abs((p.r_hip as Vec2)[1])).toBeLessThan(1e-9)
+      const w = (p.r_shoulder as Vec2)[0] - (p.l_shoulder as Vec2)[0]
+      if (t < 2 - 1e-9 || t > 3 + 1e-9) expect(Math.abs(w)).toBeGreaterThan(0.4 * 0.9 - 1e-9) // narrow only mid-flip
+      if (t > 3 + 1e-9) expect(w).toBeLessThan(0)
+    }
+  })
+
   it('samples a 4-minute routine in well under 0.05 ms', () => {
     const r = routineOf(9, 240)
     expect(r.moves[r.moves.length - 1].endTime).toBeGreaterThan(200)

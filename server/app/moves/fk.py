@@ -20,6 +20,7 @@ Angles (degrees unless noted; every key optional, default 0):
   travel        body units, + moves the whole dancer toward their right (root only).
   jump          body units, airborne height of the lowest foot.
   turn          fraction of a spin (1 = 360 deg), + turns toward the dancer's right (right shoulder goes back).
+                Widths scale by cos(turn) but never below TURN_MIN_WIDTH, so a side-on frame stays readable.
 """
 
 from __future__ import annotations
@@ -86,6 +87,9 @@ LEG = THIGH + SHIN  # neutral ankle y; the floor is at this height below mid-hip
 THIGH_PITCH_PER_KNEE = 0.55
 KNEE_YAW_MAX = 20.0  # knees track outward up to this many degrees in a deep bend
 NECK: Vec2 = (0.0, -1.0)
+# A pure orthographic side view collapses the figure into a column (legs merge, raised arms run through the
+# head). Spins keep at least this fraction of the front-view width and flip sides past 90 deg instead.
+TURN_MIN_WIDTH = 0.4
 # Head points relative to the neck (x, y) plus forward depth z (used only while turning).
 HEAD: dict[str, tuple[float, float, float]] = {
     "nose": (0.0, -0.45, 0.15),
@@ -152,6 +156,17 @@ def _leg(sign: float, hip: float, knee: float, lift: float) -> tuple[Point3, Poi
     return (sign * HIP_HALF, 0.0, 0.0), (sign * kx, ky, kz), (sign * ax, ay, az)
 
 
+def turn_projection(turn: float) -> tuple[float, float]:
+    """(cos, sin) of a spin's rotation angle, with the angle kept far enough from side-on that widths
+    (|cos|) never drop below TURN_MIN_WIDTH. Still a rotation (cos^2 + sin^2 = 1), so no bone gets
+    longer than it is; cos is even and sin odd in ``turn`` (mirrored moves stay exact mirrors)."""
+    psi = 2.0 * math.pi * turn
+    c, s = math.cos(psi), math.sin(psi)
+    if abs(c) >= TURN_MIN_WIDTH:
+        return c, s
+    return math.copysign(TURN_MIN_WIDTH, c), math.copysign(math.sqrt(1.0 - TURN_MIN_WIDTH**2), s)
+
+
 def _rot(x: float, y: float, deg: float, cx: float = 0.0, cy: float = 0.0) -> Vec2:
     """Rotate (x, y) about (cx, cy) so that 'up' (-y) swings toward +x for deg > 0."""
     a = math.radians(deg)
@@ -194,9 +209,9 @@ def forward_kinematics(angles: Mapping[str, float]) -> tuple[Pose, Vec2]:
         hp, kn, an = _leg(sign, a[f"{side}_hip"], a[f"{side}_knee"], a[f"{side}_lift"])
         pts[f"{side}_hip"], pts[f"{side}_knee"], pts[f"{side}_ankle"] = hp, kn, an
 
-    # Turn about the vertical axis through mid-hip (orthographic): + brings the front (+z) toward +x.
-    psi = 2.0 * math.pi * a["turn"]
-    cp, sp = math.cos(psi), math.sin(psi)
+    # Turn about the vertical axis through mid-hip: + brings the front (+z) toward +x. Orthographic, except
+    # that widths never shrink below TURN_MIN_WIDTH (turn_projection).
+    cp, sp = turn_projection(a["turn"])
     pose: dict[str, Vec2] = {j: (x * cp + z * sp, y) for j, (x, y, z) in pts.items()}
 
     # Lean the upper body about mid-hip.
