@@ -129,7 +129,7 @@ def test_cache_hit_serves_the_wav_without_a_key(client: TestClient, cache_dir: P
 def test_cache_is_per_voice(client: TestClient, cache_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     lid = next(iter(CANNED_BY_ID))
     _wav(cache_dir, lid)
-    monkeypatch.setenv("GEMINI_TTS_VOICE", "Fenrir")
+    monkeypatch.setenv("GEMINI_TTS_VOICE", "Kore" if DEFAULT_VOICE != "Kore" else "Puck")
     r = client.get(f"/api/announcer/voice/{lid}")
     assert r.status_code == 503  # another voice is another file, and there is no key to make it
 
