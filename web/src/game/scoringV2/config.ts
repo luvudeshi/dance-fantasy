@@ -35,6 +35,15 @@ export interface V2Config {
   pathSamples: number
   /** Extra degrees of slack on the path (its shape matters, not frame-exact precision). */
   pathSlackDeg: number
+  /** Wrong-side forgiveness: dancing the mirror image (left for right) earns this fraction of
+   *  its score (0 = off: only the correct side counts). */
+  mirrorCredit: number
+  /** Arms first: legs and torso are hero limbs only when no arm qualifies (webcams track legs
+   *  poorly, and many players don't fit their feet in frame). */
+  armsFirst: boolean
+  /** Foreshortening: a limb whose 2D length is below this fraction of the longest seen for it
+   *  (pointing at the camera) has no reliable direction and is treated as missing (0 = off). */
+  shortLimbRatio: number
   /** Share of a checkpoint's score carried by its hero limbs; the rest can only add points. */
   heroWeight: number
   /** A limb is a hero when its direction change across the move is >= this fraction of the largest. */
@@ -81,6 +90,9 @@ export const DEFAULT_V2: V2Config = {
   pathBeats: 1,
   pathSamples: 6,
   pathSlackDeg: 10,
+  mirrorCredit: 0,
+  armsFirst: false,
+  shortLimbRatio: 0,
   heroWeight: 0.8,
   heroFraction: 0.4,
   heroMinChangeDeg: 15,

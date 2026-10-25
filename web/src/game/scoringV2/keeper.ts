@@ -35,7 +35,7 @@ import {
   limbVector,
 } from '../scoring'
 import { limbScoreV2, timingFactor, v2ConfigFor, type V2Config } from './config'
-import { LimbCarry, scoreFrameV2, visibleLimbDirs, type FrameScoreV2 } from './frame'
+import { Foreshortening, LimbCarry, mirrorDirs, scoreFrameV2, visibleLimbDirs, type FrameScoreV2, type LimbDirs } from './frame'
 import { heroLimbs } from './heroLimbs'
 import { LimbHistory, motionBonus, type MotionBonus } from './motion'
 
@@ -92,6 +92,8 @@ export class ScoreKeeperV2 {
   /** Late side (s): at least windowSec, up to lateBeats of a beat (late catch-up). */
   readonly lateSec: number
   private readonly carry: LimbCarry
+  private readonly foreshortening: Foreshortening
+  private readonly mirrorHistory = new LimbHistory()
   private readonly history = new LimbHistory()
   private readonly open: Open[]
   private next = 0
@@ -113,6 +115,7 @@ export class ScoreKeeperV2 {
     this.windowSec = Math.max(this.v2.windowSec, this.v2.windowBeats * this.beatSec)
     this.lateSec = Math.max(this.windowSec, this.v2.lateBeats * this.beatSec)
     this.carry = new LimbCarry(this.v2.carrySec)
+    this.foreshortening = new Foreshortening(this.v2.shortLimbRatio)
     this.open = this.checkpoints.map(() => ({ best: null, samples: [] }))
   }
 
@@ -120,15 +123,21 @@ export class ScoreKeeperV2 {
     this.shadow?.addFrame(frame)
     const t = frame.songTime
     if (Number.isFinite(t)) {
-      const dirs = this.carry.apply(t, visibleLimbDirs(frame, this.config.minVisibility))
+      const dirs = this.carry.apply(t, this.foreshortening.apply(visibleLimbDirs(frame, this.config.minVisibility)))
       this.history.push(t, dirs)
+      const mirrored: LimbDirs | null = this.v2.mirrorCredit > 0 ? mirrorDirs(dirs) : null
+      if (mirrored) this.mirrorHistory.push(t, mirrored)
       const w = this.windowSec
       for (let i = this.next; i < this.checkpoints.length; i++) {
         const cp = this.checkpoints[i]
         if (cp.time - w > t) break
         const offset = t - cp.time
         if (offset < -w || offset > this.lateSec) continue
-        const s = scoreFrameV2(cp, this.heroes[i], dirs, this.config, this.v2)
+        let s = scoreFrameV2(cp, this.heroes[i], dirs, this.config, this.v2)
+        if (mirrored) {
+          const m = scoreFrameV2(cp, this.heroes[i], mirrored, this.config, this.v2)
+          if (!m.unseen && (s.unseen || m.score * this.v2.mirrorCredit > s.score)) s = { ...m, score: m.score * this.v2.mirrorCredit }
+        }
         if (s.unseen) continue
         const o = this.open[i]
         o.samples.push({ offset, err: s.heroErrDeg })
@@ -191,6 +200,13 @@ export class ScoreKeeperV2 {
    * null without the motion track or when fewer than half the samples were seen.
    */
   private pathScore(i: number, offset: number): number | null {
+    const own = this.pathScoreOf(i, offset, this.history)
+    if (!(this.v2.mirrorCredit > 0)) return own
+    const m = this.pathScoreOf(i, offset, this.mirrorHistory)
+    return m === null ? own : Math.max(own ?? 0, m * this.v2.mirrorCredit)
+  }
+
+  private pathScoreOf(i: number, offset: number, history: LimbHistory): number | null {
     if (!this.track) return null
     const cp = this.checkpoints[i]
     const prev = i > 0 ? this.checkpoints[i - 1].time : Number.NEGATIVE_INFINITY
@@ -207,7 +223,7 @@ export class ScoreKeeperV2 {
         const c = limbVector(coach, limb)
         if (!c) continue
         total++
-        const p = this.history.at(limb, s + offset, 0.04)
+        const p = history.at(limb, s + offset, 0.04)
         if (!p) continue
         sum += limbScoreV2(Math.max(0, angleBetweenDeg(p, c) - this.v2.pathSlackDeg), this.v2)
         seen++

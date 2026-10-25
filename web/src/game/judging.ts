@@ -14,32 +14,39 @@ export const JUDGING_KEY = 'midnight-ball.judging.v1'
 export const DEFAULT_JUDGING: JudgingPreset = 'standard'
 
 export const JUDGING_PRESETS: readonly { value: JudgingPreset; label: string; hint: string }[] = [
-  { value: 'relaxed', label: 'Relaxed', hint: 'Effort counts: whole-beat timing, soft angles, and moving the right way is never a miss.' },
+  { value: 'relaxed', label: 'Relaxed', hint: 'Effort counts: arms lead, late or mirrored moves still score, and moving the right way is never a miss.' },
   { value: 'lenient', label: 'Lenient', hint: 'Forgiving angles and timing: great for first-timers and kids.' },
   { value: 'standard', label: 'Standard', hint: 'The intended balance: close enough counts.' },
   { value: 'strict', label: 'Strict', hint: 'Sharp angles, tight timing: for show-offs.' },
 ]
 
 /**
- * Relaxed (scoring v2): lower thresholds, a window of half a beat either side, an OKS-style
- * bell-curve falloff instead of a hard zero, gentler timing, late catch-up of up to a beat
- * (scored at least 78%) and the "tried it" OK floor.
+ * Relaxed (scoring v2): built for real webcams in living rooms. Lower thresholds, a window of
+ * half a beat either side, late catch-up of up to a beat (scored at least 78%), an OKS-style
+ * bell-curve falloff instead of a hard zero, gentler timing and movement checks, the "tried it"
+ * OK floor, arms first (legs only add points), the wrong side earning 85%, limbs pointing at the
+ * camera ignored instead of marked wrong, and joints counted from 30% visibility.
  */
 export const RELAXED_SCORING: V2ScoringConfig = {
   ...DEFAULT_SCORING,
   windowSec: 0.25,
-  thresholds: { perfect: 80, good: 62, ok: 50 },
+  minVisibility: 0.3,
+  thresholds: { perfect: 78, good: 60, ok: 50 },
   perfectDeg: 20,
   zeroDeg: 70,
   v2: {
-    perfectDeg: 25,
+    perfectDeg: 30,
     falloff: 'gaussian',
-    gaussianSigmaDeg: 18,
+    gaussianSigmaDeg: 20,
     windowBeats: 0.5,
     timingRefFactor: 0.92,
     triedFloor: true,
     lateBeats: 1,
     lateMinFactor: 0.78,
+    pathSlackDeg: 15,
+    mirrorCredit: 0.85,
+    armsFirst: true,
+    shortLimbRatio: 0.4,
   },
 }
 

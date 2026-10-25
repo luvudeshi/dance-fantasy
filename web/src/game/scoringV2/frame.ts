@@ -8,6 +8,47 @@ import { DEFAULT_V2, limbScoreV2, type V2Config } from './config'
 
 export type LimbDirs = Partial<Record<LimbName, Vec2>>
 
+const MIRROR_LIMB: Readonly<Record<LimbName, LimbName>> = Object.fromEntries(
+  LIMB_NAMES.map((l) => [l, (l.startsWith('l_') ? `r_${l.slice(2)}` : l.startsWith('r_') ? `l_${l.slice(2)}` : l) as LimbName]),
+) as Record<LimbName, LimbName>
+
+/** The player's limb directions as their mirror image (left <-> right, x flipped). */
+export function mirrorDirs(dirs: LimbDirs): LimbDirs {
+  const out: LimbDirs = {}
+  for (const limb of LIMB_NAMES) {
+    const v = dirs[MIRROR_LIMB[limb]]
+    if (v) out[limb] = [-v[0], v[1]]
+  }
+  return out
+}
+
+/**
+ * Drops limbs pointing at the camera: shorter in 2D than `ratio` x the longest seen for that limb
+ * (tracked across frames). Off when ratio <= 0.
+ */
+export class Foreshortening {
+  private readonly maxLen: Partial<Record<LimbName, number>> = {}
+  private readonly ratio: number
+
+  constructor(ratio: number) {
+    this.ratio = ratio
+  }
+
+  apply(dirs: LimbDirs): LimbDirs {
+    if (!(this.ratio > 0)) return dirs
+    const out: LimbDirs = {}
+    for (const limb of LIMB_NAMES) {
+      const v = dirs[limb]
+      if (!v) continue
+      const len = Math.hypot(v[0], v[1])
+      const max = Math.max(this.maxLen[limb] ?? 0, len)
+      this.maxLen[limb] = max
+      if (len >= this.ratio * max) out[limb] = v
+    }
+    return out
+  }
+}
+
 /** Limb directions of a frame, counting only joints at or above minVisibility. */
 export function visibleLimbDirs(frame: PlayerFrame, minVisibility: number): LimbDirs {
   const out: LimbDirs = {}

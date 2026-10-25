@@ -239,13 +239,14 @@ describe.each(Object.entries(ROUTINES))('Relaxed preset (v2): %s routine', (mode
       const idle = run('idle', true, seed)
       expect(idle.frac.miss).toBeGreaterThanOrEqual(0.9)
       expect(idle.v2.state.stars).toBeLessThan(1)
+      // Relaxed trades some flailing credit for forgiveness: still well below a real attempt.
       const flail = run('flail', true, seed)
-      expect(flail.frac.miss).toBeGreaterThanOrEqual(0.5)
-      expect(goodPlus(flail.frac)).toBeLessThan(0.35)
-      expect(flail.v2.state.stars).toBeLessThan(2.5)
+      expect(flail.frac.miss).toBeGreaterThanOrEqual(0.3)
+      expect(goodPlus(flail.frac)).toBeLessThan(0.55)
+      expect(flail.v2.accuracy).toBeLessThan(run('sloppy', true, seed).v2.accuracy - 25)
     })
 
-    it(`is easier than Standard on hard nights and keeps the wrong side worse (seed ${seed})`, () => {
+    it(`is easier than Standard on hard nights, wrong side included (seed ${seed})`, () => {
       for (const key of ['sloppy', 'noisy', 'rough'] as const) {
         expect(run(key, true, seed).v2.accuracy, key).toBeGreaterThanOrEqual(run(key, false, seed).v2.accuracy)
       }
@@ -253,7 +254,11 @@ describe.each(Object.entries(ROUTINES))('Relaxed preset (v2): %s routine', (mode
       expect(rough.frac.miss).toBeLessThan(0.1)
       expect(rough.frac.miss).toBeLessThan(run('rough', false, seed).frac.miss + 1e-9)
       expect(goodPlus(rough.frac)).toBeGreaterThan(goodPlus(run('rough', false, seed).frac))
-      expect(run('mirrored', true, seed).v2.accuracy).toBeLessThan(run('good', true, seed).v2.accuracy - 15)
+      // The wrong side earns mirrorCredit (85%) of a hit on Relaxed: rarely a miss, never top marks.
+      const mirrored = run('mirrored', true, seed)
+      expect(mirrored.frac.miss).toBeLessThan(0.1)
+      expect(mirrored.v2.accuracy).toBeLessThan(run('good', true, seed).v2.accuracy - 8)
+      expect(mirrored.v2.accuracy).toBeGreaterThan(run('mirrored', false, seed).v2.accuracy + 20)
     })
 
     it(`a move 300 ms late still scores, a little lower than on time (seed ${seed})`, () => {
@@ -292,6 +297,16 @@ describe('scoring v2 pieces', () => {
     expect(limbScoreV2(90, c)).toBeGreaterThan(0)
     expect(limbScoreV2(90, c)).toBeLessThan(5)
     expect(limbScoreV2(48, DEFAULT_V2)).toBeLessThan(limbScoreV2(48, c))
+  })
+
+  it('mirrorDirs swaps sides and flips x; Foreshortening drops limbs pointing at the camera', async () => {
+    const { mirrorDirs, Foreshortening } = await import('.')
+    expect(mirrorDirs({ l_forearm: [1, 2], torso: [0.5, -1] })).toEqual({ r_forearm: [-1, 2], torso: [-0.5, -1] })
+    const f = new Foreshortening(0.4)
+    expect(f.apply({ l_forearm: [0.3, 0] }).l_forearm).toBeDefined()
+    expect(f.apply({ l_forearm: [0.1, 0] }).l_forearm).toBeUndefined()
+    expect(f.apply({ l_forearm: [0, 0.2] }).l_forearm).toBeDefined()
+    expect(new Foreshortening(0).apply({ l_forearm: [0.01, 0] }).l_forearm).toBeDefined()
   })
 
   it('carries a limb through a dropout of up to 100 ms only', () => {

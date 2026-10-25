@@ -6,6 +6,8 @@ import { angleBetweenDeg, limbVector, type Checkpoint } from '../scoring'
 import { NEUTRAL_POSE } from '../../routine/pose'
 import { DEFAULT_V2, type V2Config } from './config'
 
+const ARM_LIMBS: ReadonlySet<LimbName> = new Set(['l_upper_arm', 'l_forearm', 'r_upper_arm', 'r_forearm'])
+
 /** Largest pairwise angle (degrees) between the limb's directions in `dirs`. */
 function spreadDeg(dirs: readonly Vec2[]): number {
   let max = 0
@@ -36,15 +38,22 @@ export function heroLimbs(checkpoints: readonly Checkpoint[], c: V2Config = DEFA
       const dirs = poses.map((p) => limbVector(p, limb)).filter((v): v is Vec2 => v !== undefined)
       change.set(limb, spreadDeg(dirs))
     }
-    const top = Math.max(0, ...change.values())
-    const cut = Math.max(c.heroMinChangeDeg, c.heroFraction * top)
-    heroesOfMove.set(move, new Set([...change].filter(([, d]) => d >= cut).map(([l]) => l)))
+    const pick = (entries: [LimbName, number][]): LimbName[] => {
+      const top = Math.max(0, ...entries.map(([, d]) => d))
+      const cut = Math.max(c.heroMinChangeDeg, c.heroFraction * top)
+      return entries.filter(([, d]) => d >= cut).map(([l]) => l)
+    }
+    const all = [...change]
+    const arms = c.armsFirst ? pick(all.filter(([l]) => ARM_LIMBS.has(l))) : []
+    heroesOfMove.set(move, new Set(arms.length > 0 ? arms : pick(all)))
   }
   return checkpoints.map((cp) => {
     const heroes = heroesOfMove.get(cp.moveIndex) ?? new Set<LimbName>()
     const own = cp.limbs.filter((l) => heroes.has(l) && !cp.resting?.includes(l))
     if (own.length > 0) return own
     const moving = cp.limbs.filter((l) => !cp.resting?.includes(l))
+    const movingArms = c.armsFirst ? moving.filter((l) => ARM_LIMBS.has(l)) : []
+    if (movingArms.length > 0) return movingArms
     return moving.length > 0 ? moving : [...cp.limbs]
   })
 }
