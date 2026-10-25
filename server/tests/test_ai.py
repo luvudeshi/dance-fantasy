@@ -28,6 +28,8 @@ from app.ai.prompts import (
 )
 from app.ai.provider import AIUnavailable, generate_text
 from app.api import announcer as announcer_api
+from app.analysis_store import AnalysisStore
+from app.api import signature as signature_api
 from app.api.signature import KeyMoment, Signature, _cache_path, google_hits, youtube_hits
 from app.config import REPO_ROOT, get_settings
 from app.main import app
@@ -211,29 +213,73 @@ def test_search_result_parsing_keeps_only_safe_links() -> None:
     assert google_hits(None) == [] and youtube_hits({"video_results": "nope"}) == []
 
 
-def test_signature_endpoint_needs_keys(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    r = client.get("/api/songs/signature", params={"title": "Cupid", "artist": "FIFTY FIFTY"})
+CUPID = "c0" * 32
+
+
+def _cupid() -> None:
+    """A known song: its analysis (title + artist) in the analysis store."""
+    AnalysisStore(get_settings().cache_dir).save(CUPID, {"id": CUPID, "title": "Cupid", "artist": "FIFTY FIFTY"})
+
+
+def test_signature_endpoint_needs_a_known_song_and_keys(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    _cupid()
+    r = client.get("/api/songs/signature", params={"analysisId": CUPID})
     assert r.status_code == 404 and "SERPAPI_API_KEY" in r.json()["detail"]  # our 404, not /songs/{file}'s
     monkeypatch.setenv("SERPAPI_API_KEY", "test-key")
-    assert client.get("/api/songs/signature", params={"title": "Cupid"}).status_code == 404  # no LLM key yet
+    assert client.get("/api/songs/signature", params={"analysisId": CUPID}).status_code == 404  # no LLM key yet
+    unknown = client.get("/api/songs/signature", params={"analysisId": "d1" * 32})
+    assert unknown.status_code == 404 and "analysis" in unknown.json()["detail"]
+    assert client.get("/api/songs/signature", params={"file": "nope.wav"}).status_code == 404  # not in the library
     assert client.get("/api/songs/signature").status_code == 400
-    assert client.get("/api/songs/signature", params={"title": "   "}).status_code == 400
+    assert client.get("/api/songs/signature", params={"analysisId": "Cupid"}).status_code == 400  # free text is out
+    assert client.get("/api/songs/signature", params={"title": "Cupid"}).status_code == 400
 
 
 def test_signature_endpoint_serves_the_cache_and_rechecks_move_ids(client: TestClient) -> None:
+    _cupid()
     cached = Signature(
         found=True, summary="Hands make a heart, then the hips sway.", keyMoments=[KeyMoment(label="Heart hands")],
         suggestedMoveIds=["hip_sway_R", "removed_move"], sources=[],
     )  # fmt: skip
-    path = _cache_path(get_settings().cache_dir, "Cupid", "FIFTY FIFTY")
+    path = _cache_path(get_settings().cache_dir, CUPID)
     path.parent.mkdir(parents=True)
     path.write_text(cached.model_dump_json(exclude_none=True))
-    r = client.get("/api/songs/signature", params={"title": " Cupid ", "artist": "FIFTY FIFTY"})  # no keys: cache only
+    r = client.get("/api/songs/signature", params={"analysisId": CUPID})  # no keys: cache only
     assert r.status_code == 200
     assert r.json() == {"found": True, "summary": cached.summary, "keyMoments": [{"label": "Heart hands"}],
                         "suggestedMoveIds": ["hip_sway_R"], "sources": []}  # fmt: skip
     path.write_text("{broken")
-    assert client.get("/api/songs/signature", params={"title": "Cupid", "artist": "FIFTY FIFTY"}).status_code == 404
+    assert client.get("/api/songs/signature", params={"analysisId": CUPID}).status_code == 404
+
+
+def test_signature_lookups_are_capped(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    _cupid()
+    other = "e2" * 32
+    AnalysisStore(get_settings().cache_dir).save(other, {"id": other, "title": "Gangnam Style", "artist": "PSY"})
+    monkeypatch.setenv("SERPAPI_API_KEY", "test-key")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    asked: list[tuple[str, str]] = []
+
+    def fake_look_up(title: str, artist: str, *_: object) -> Signature:
+        asked.append((title, artist))
+        return Signature(found=False, summary="none", keyMoments=[], suggestedMoveIds=[], sources=[])
+
+    monkeypatch.setattr(signature_api, "_look_up", fake_look_up)
+    monkeypatch.setattr(signature_api, "DAILY_CAP", 1)
+    # Lookups in flight are capped: with every slot taken the request waits its turn (503 + Retry-After).
+    for _ in range(signature_api.MAX_CONCURRENT):
+        signature_api._slots.acquire()
+    try:
+        busy = client.get("/api/songs/signature", params={"analysisId": CUPID})
+        assert busy.status_code == 503 and busy.headers["retry-after"] == "5"
+    finally:
+        for _ in range(signature_api.MAX_CONCURRENT):
+            signature_api._slots.release()
+    assert client.get("/api/songs/signature", params={"analysisId": CUPID}).status_code == 200
+    assert client.get("/api/songs/signature", params={"analysisId": CUPID}).status_code == 200  # cached: free
+    capped = client.get("/api/songs/signature", params={"analysisId": other})
+    assert capped.status_code == 503 and "tomorrow" in capped.json()["detail"]
+    assert asked == [("Cupid", "FIFTY FIFTY")]  # title and artist from the analysis, one paid lookup
 
 
 def test_song_files_still_route(client: TestClient) -> None:

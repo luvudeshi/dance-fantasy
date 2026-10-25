@@ -1,6 +1,7 @@
 // Dev page (#/ai): the herald and the signature-dance card against the real API, outside the game.
 
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { listSongs, type SongInfo } from '../api'
 import type { ResultsSummary } from '../game/scoring'
 import { SignatureCard } from '../signature/SignatureCard'
 import { Badge, Button, Corners, Panel, Title } from '../theme/components'
@@ -31,9 +32,21 @@ export default function AiPreview() {
   const announcer = useAnnouncer()
   const [song, setSong] = useState('Vibe Ace')
   const [started, setStarted] = useState<string | null>(null)
-  const [lookup, setLookup] = useState({ title: 'Vibe Ace', artist: '' })
-  const [title, setTitle] = useState(lookup.title)
-  const [artist, setArtist] = useState(lookup.artist)
+  // Signature lookups only take songs the server knows: pick one from the library.
+  const [songs, setSongs] = useState<SongInfo[]>([])
+  const [pick, setPick] = useState('')
+  const [lookup, setLookup] = useState<SongInfo | null>(null)
+  useEffect(() => {
+    const ac = new AbortController()
+    listSongs(ac.signal).then(
+      (list) => {
+        setSongs(list)
+        setPick((p) => p || (list[0]?.file ?? ''))
+      },
+      (err: unknown) => console.warn('[ai preview] songs', err),
+    )
+    return () => ac.abort()
+  }, [])
 
   const intro = (): void => {
     announcer.intro({ songTitle: song.trim() || 'Vibe Ace', playerName: 'Ella', difficulty: 'normal' })
@@ -103,22 +116,24 @@ export default function AiPreview() {
           style={{ justifyContent: 'flex-start', alignItems: 'end' }}
           onSubmit={(e) => {
             e.preventDefault()
-            setLookup({ title: title.trim(), artist: artist.trim() })
+            setLookup(songs.find((s) => s.file === pick) ?? null)
           }}
         >
           <label className="df-stack" style={{ '--df-gap': '6px', alignItems: 'stretch' } as CSSProperties}>
-            <span className="df-label">Title</span>
-            <input className="df-field" value={title} onChange={(e) => setTitle(e.target.value)} required />
-          </label>
-          <label className="df-stack" style={{ '--df-gap': '6px', alignItems: 'stretch' } as CSSProperties}>
-            <span className="df-label">Artist</span>
-            <input className="df-field" value={artist} onChange={(e) => setArtist(e.target.value)} />
+            <span className="df-label">Library song</span>
+            <select className="df-field" value={pick} onChange={(e) => setPick(e.target.value)} required>
+              {songs.map((s) => (
+                <option key={s.file} value={s.file}>
+                  {s.title}
+                </option>
+              ))}
+            </select>
           </label>
           <Button type="submit" variant="secondary" icon="map">
             Look it up
           </Button>
         </form>
-        <SignatureCard title={lookup.title} artist={lookup.artist} />
+        {lookup && <SignatureCard song={{ file: lookup.file }} title={lookup.title} />}
       </div>
     </div>
   )

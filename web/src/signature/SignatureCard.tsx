@@ -1,11 +1,22 @@
 // "Signature dance" card for a song: what the famous dance looks like, its key moments, the library moves
 // that capture it and where that came from. Loading, not-configured (no keys), error (retry) and
-// nothing-found states. Mount it with the song's title/artist (lobby song details, results).
+// nothing-found states. Mount it with the song (its analysis id, or a library file) and its title.
 
 import { useEffect, useState } from 'react'
+import { useLatest } from '../lib/useLatest'
 import { Badge, Button, Panel } from '../theme/components'
 import { Icon } from '../theme/Icon'
-import { formatMoment, loadMoveNames, loadSignature, moveNames, safeUrl, type Signature, type SignatureResult } from './signature'
+import {
+  formatMoment,
+  loadMoveNames,
+  loadSignature,
+  moveNames,
+  safeUrl,
+  signatureKey,
+  type Signature,
+  type SignatureResult,
+  type SignatureSong,
+} from './signature'
 import './signature.css'
 
 interface Loaded {
@@ -14,15 +25,15 @@ interface Loaded {
   names: ReadonlyMap<string, string>
 }
 
-export function SignatureCard({ title, artist = '', className }: { title: string; artist?: string; className?: string }) {
+export function SignatureCard({ song, title, className }: { song: SignatureSong; title: string; className?: string }) {
   const [attempt, setAttempt] = useState(0)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
-  const key = `${title}\n${artist}\n${attempt}`
+  const key = `${signatureKey(song)}\n${attempt}`
+  const songRef = useLatest(song) // a fresh object every render; `key` names the song
 
   useEffect(() => {
-    if (!title.trim()) return
     let live = true
-    void loadSignature(title, artist).then(async (result) => {
+    void loadSignature(songRef.current).then(async (result) => {
       const needsNames = result.status === 'ok' && result.signature.suggestedMoveIds.length > 0
       const names = needsNames ? await loadMoveNames() : new Map<string, string>()
       if (live) setLoaded({ key, result, names })
@@ -30,9 +41,8 @@ export function SignatureCard({ title, artist = '', className }: { title: string
     return () => {
       live = false
     }
-  }, [title, artist, key])
+  }, [key, songRef])
 
-  if (!title.trim()) return null
   const result = loaded?.key === key ? loaded.result : null
   const panelClass = `df-signature${className ? ` ${className}` : ''}`
 

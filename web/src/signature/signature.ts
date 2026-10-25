@@ -1,5 +1,6 @@
 // GET /api/songs/signature (shared/README.md "AI endpoints"): the song's well-known dance, found by
-// SerpApi and summarised by the AI, with move ids from GET /api/moves. Results are kept per title + artist
+// SerpApi and summarised by the AI, with move ids from GET /api/moves. Asked by the song's analysis id (or a
+// library file name): the server takes the title and artist from what it knows. Results are kept per song
 // for the page's lifetime (the server caches them on disk too); failures are not kept, so a retry asks again.
 
 import { apiUrl, getMoves } from '../api'
@@ -24,9 +25,14 @@ export interface Signature {
   sources: SignatureSource[]
 }
 
+/** Which song: an analysis the server has, or a file from the song library. */
+export type SignatureSong = { analysisId: string } | { file: string }
+
+const songParams = (song: SignatureSong): Record<string, string> => ('analysisId' in song ? { analysisId: song.analysisId } : { file: song.file })
+
 export type SignatureResult =
   | { status: 'ok'; signature: Signature }
-  /** 404: the server has no SERPAPI_API_KEY or no AI key (or predates the endpoint). */
+  /** 404: the server has no SERPAPI_API_KEY or no AI key, or doesn't know the song. */
   | { status: 'not-configured'; message: string }
   /** unreachable, 502 (search failed), 503 (no usable AI answer), a bad reply */
   | { status: 'error'; message: string }
@@ -80,10 +86,10 @@ function detail(body: unknown): string | null {
   return isRecord(body) && isStr(body.detail) ? body.detail : null
 }
 
-export async function fetchSignature(title: string, artist = '', signal?: AbortSignal, endpoint = apiUrl('/api/songs/signature')): Promise<SignatureResult> {
+export async function fetchSignature(song: SignatureSong, signal?: AbortSignal, endpoint = apiUrl('/api/songs/signature')): Promise<SignatureResult> {
   let res: Response
   try {
-    res = await fetch(`${endpoint}?${new URLSearchParams({ title, artist })}`, { headers: { Accept: 'application/json' }, signal })
+    res = await fetch(`${endpoint}?${new URLSearchParams(songParams(song))}`, { headers: { Accept: 'application/json' }, signal })
   } catch {
     return { status: 'error', message: 'The royal library is out of reach (server not reachable).' }
   }
@@ -101,12 +107,15 @@ export async function fetchSignature(title: string, artist = '', signal?: AbortS
 
 const signatures = new Map<string, Promise<SignatureResult>>()
 
-/** fetchSignature, shared and kept per title + artist (case-insensitive) unless it failed. */
-export function loadSignature(title: string, artist = ''): Promise<SignatureResult> {
-  const key = `${title.trim().toLowerCase()}\n${artist.trim().toLowerCase()}`
+/** The cache key of a song (also the card's React-ish identity). */
+export const signatureKey = (song: SignatureSong): string => ('analysisId' in song ? `a:${song.analysisId}` : `f:${song.file}`)
+
+/** fetchSignature, shared and kept per song unless it failed. */
+export function loadSignature(song: SignatureSong): Promise<SignatureResult> {
+  const key = signatureKey(song)
   const hit = signatures.get(key)
   if (hit) return hit
-  const p = fetchSignature(title.trim(), artist.trim())
+  const p = fetchSignature(song)
   signatures.set(key, p)
   void p.then((r) => {
     if (r.status === 'error' && signatures.get(key) === p) signatures.delete(key)

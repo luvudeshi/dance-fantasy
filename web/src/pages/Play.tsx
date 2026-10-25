@@ -1033,9 +1033,9 @@ export default function Play() {
               </span>
             )}
           </label>
-          {choice && (
+          {choice?.kind === 'library' && (
             <div style={{ marginTop: 20 }}>
-              <SignatureCard title={choiceTitle(choice)} />
+              <SignatureCard song={{ file: choice.file }} title={choiceTitle(choice)} />
             </div>
           )}
         </div>
@@ -1395,7 +1395,7 @@ export default function Play() {
               onMenu={() => {
                 window.location.hash = '#/'
               }}
-              aside={<SignatureCard title={active.game.analysis.title} artist={active.game.analysis.artist} />}
+              aside={<SignatureCard song={{ analysisId: active.game.analysis.id }} title={active.game.analysis.title} />}
               herald={
                 <>
                   <HeraldBubble announcer={announcer} placement="inline" />

@@ -51,6 +51,6 @@ describe('fetchSignature', () => {
     await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r))
     const url = `http://127.0.0.1:${(probe.address() as AddressInfo).port}/api/songs/signature`
     await new Promise<void>((r) => probe.close(() => r()))
-    expect((await fetchSignature('Vibe Ace', '', undefined, url)).status).toBe('error')
+    expect((await fetchSignature({ file: 'vibe_ace.wav' }, undefined, url)).status).toBe('error')
   })
 })
