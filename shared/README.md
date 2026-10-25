@@ -147,3 +147,26 @@ new routine. Keyframes may carry `root` (rendering-only hip offset, see the sche
 
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large).
+
+## Signature dances (flagged: `?signature=1` or localStorage `mb.signature` = `"1"`)
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/signature/lookup?title=&artist=` | `SignatureLookup` (below); 400 without a title |
+| GET | `/api/signature/moves` | `{ version, moves }`: `LibraryMove`s from `assets/moves/signature/` plus `signatureDance`, `songs`, `creator` |
+
+`POST /api/choreograph` takes an optional `pinnedMoves: [{ moveId, placement: "chorus" | "drop" | "finale" }]`
+(signature move ids, at most 4). Each pinned move starts on the first downbeat of every matching section (no
+labeled chorus: every occurrence of the highest-energy repeated section group); the beam search fills the
+rest. Pinned moves carry `signatureDance: { name, creator? }` in the routine, and `meta.pinnedMoves` echoes the
+request. Without `pinnedMoves` the routine and its `routineId` are exactly what they were before.
+
+```jsonc
+// SignatureLookup. Bundled table first, then SerpApi (SERPAPI_API_KEY) + Gemini (GEMINI_API_KEY), cached 24 h.
+{ "title": "Lottery (Renegade)", "artist": "", "found": true,
+  "danceName": "The Renegade", "creator": "Jalaiah Harmon",   // creator "" when unknown (never guessed)
+  "year": null, "confidence": 1.0,
+  "links": [{ "title": str, "url": "https://…", "source": "YouTube" }],  // links only, never downloaded
+  "source": "table",            // table | serpapi | gemini | library | none
+  "moveId": null, "moveName": null }  // a signature move to pin, when one exists
+```
