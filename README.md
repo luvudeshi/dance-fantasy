@@ -16,7 +16,7 @@ online ballroom with friends on their own phones and laptops.
 - [Tests](#tests)
 - [Deploy (Vercel)](#deploy-vercel)
 - [Project layout](#project-layout)
-- [Team](#team) · [Privacy](#privacy) · [Music](#music) · [AI tools used](#ai-tools-used) · [Status](#status)
+- [Team](#team) · [Privacy](#privacy) · [Music](#music) · [AI tools used](#ai-tools-used)
 
 ## What you can do
 
@@ -353,18 +353,3 @@ Required by the hackathon rules.
 - **Gemini TTS** gives the herald its voice; **Gemini** also names a song's signature dance from
   **SerpApi** web and YouTube results.
 - **three.js** renders the 3D storybook dancers (built from primitives, no model files).
-
-## Status
-
-| Stage | What | State |
-|---|---|---|
-| 0 | Scaffold, shared data contract, pose spike, beat spike | ✅ |
-| 1 | Audio analysis (`/api/analyze`) + debug timeline | ✅ |
-| 2 | Move library + choreography generator | ✅ |
-| 3 | Coach, smooth motion, `#/play` with cue strip + audio-clock sync | ✅ |
-| 4 | Calibration, per-beat webcam scoring, HUD, results (**MVP**, tag `mvp`) | ✅ |
-| 5 | Learn mode, judging presets, sound, polish; scoring v2 and highlight reel | ✅ |
-| 6 | Ballrooms (QR join, synced start, live leaderboard, chat, Versus / Crew), party mode, accounts and friends | ✅ |
-| 7 | Signature dances (SerpApi + Gemini) and the Royal Herald (Muse / Gemini, Gemini TTS) | ✅ |
-| 8 | Smarter generation (flagged) | in progress |
-| 9 | Dance Fantasy redesign, 3D dancers, deploy + demo hardening | ✅ |
