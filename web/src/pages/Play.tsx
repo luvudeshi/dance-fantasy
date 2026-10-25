@@ -54,6 +54,8 @@ import { buildSessionLog, downloadSessionLog, type SessionLog } from '../game/se
 import { countdownSfx, judgmentSfx, loadSfxEnabled, saveSfxEnabled, Sfx } from '../game/sfx'
 import { DriftMeter, SyncMonitor } from '../game/sync'
 import { songTimeAtFromClock, WebcamPoseSource } from '../game/webcamSource'
+import HighlightReel from '../highlights/HighlightReel'
+import { HighlightRecorder, type HighlightRecording } from '../highlights/recorder'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
@@ -195,6 +197,8 @@ export default function Play() {
   const [learnError, setLearnError] = useState<string | null>(null)
   /** The finished round's details line + session log. */
   const [round, setRound] = useState<{ details: string; log: SessionLog } | null>(null)
+  const [reel, setReel] = useState<HighlightRecording | null>(null)
+  const recRef = useRef<HighlightRecorder | null>(null)
   const sessionRef = useRef<AbortController | null>(null)
   const learnRef = useRef<AbortController | null>(null)
   const roundMetaRef = useRef<RoundMeta | null>(null)
@@ -298,6 +302,7 @@ export default function Play() {
     sfx.cancelScheduled()
     tokenRef.current++
     disposeRun()
+    recRef.current?.dispose()
     const cam = camRef.current
     camRef.current = null
     cam?.offError()
@@ -331,6 +336,8 @@ export default function Play() {
     const summary = run.finish(a.game.routine, a.game.durationSec)
     console.log(a.monitor.summary())
     const results = run.keeper.results()
+    const rec = recRef.current
+    void rec?.stop(results, a.game.routine.moves).then((r) => recRef.current === rec && setReel(r))
     const auto = run.source.kind === 'bot'
     const meta: RoundMeta = roundMetaRef.current ?? { preset: 'standard', config: scoringFor('standard'), calibration: null, auto }
     setResults(buildResultsView(summary, results, a.game.routine, meta.config.thresholds))
@@ -427,6 +434,9 @@ export default function Play() {
     if (!run) return
     const preset = judgingRef.current
     roundMetaRef.current = { preset, config: scoringFor(preset), calibration: auto ? null : (calRef.current ?? loadCalibration()), auto }
+    recRef.current?.dispose()
+    setReel(null)
+    recRef.current = practice ? null : HighlightRecorder.start({ canvas: document.querySelector<HTMLCanvasElement>('canvas.play-canvas'), video: run.source.video, clock, durationSec: game.durationSec, title: game.analysis.title })
     setActive({ game, monitor: new SyncMonitor(game.routine.song.beats), run, practice })
     setPrepared(null)
     setPaused(false)
@@ -784,6 +794,9 @@ export default function Play() {
     setPrepared(null)
     setResults(null)
     setRound(null)
+    recRef.current?.dispose()
+    recRef.current = null
+    setReel(null)
     setCamError(null)
     setSession({ status: 'idle' })
     setPending(null)
@@ -1346,6 +1359,7 @@ export default function Play() {
               onDownloadLog={roundLog ? () => downloadSessionLog(roundLog) : undefined}
             />
           )}
+          {phase === 'results' && reel && <HighlightReel recording={reel} />}
         </PlayStage>
       )}
     </section>
