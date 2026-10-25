@@ -299,23 +299,25 @@ def test_rooms_expire_after_3_hours_idle(backend: str) -> None:
     t = now_ms()
     ttl = store.ROOM_TTL_MS
     old = store.create_room("Old", t - ttl - 5_000)  # idle for over 3 h already
-    kept = store.create_room("Kept", t - ttl + 60_000)
-    store.get_room(kept.code, kept.token, None, t - ttl + 120_000)  # a poll with a token counts as activity
+    kept = store.create_room("Kept", t - ttl - 60_000)  # created long ago...
+    store.get_room(kept.code, kept.token, None, t - ttl + 60_000)  # ...but a player polled since: still live
     with pytest.raises(HTTPException) as missing:
         store.get_room(old.code, None, None, t)
     assert missing.value.status_code == 404
     assert store.get_room(kept.code, None, None, t).code == kept.code
 
-    store.create_room("Sweeper", t)  # creating a room deletes expired ones, rows and all
+    sweeper = store.create_room("Sweeper", t)  # creating a room deletes expired ones, rows and all
+    assert store.get_room(kept.code, None, None, t).code == kept.code
 
     def leftovers(tx: Tx) -> int:
         row = tx.one("select count(*) as n from df_players where code = :code", code=old.code)
         return int(row["n"]) if row else -1
 
     assert transaction(leftovers) == 0
-    with pytest.raises(HTTPException) as unknown:
-        store.join_room(old.code, "Ghost", t)
-    assert unknown.value.status_code == 404
+    if sweeper.code != old.code:  # codes are random; a freed code may be handed out again
+        with pytest.raises(HTTPException) as unknown:
+            store.join_room(old.code, "Ghost", t)
+        assert unknown.value.status_code == 404
 
 
 def test_chat_pages_and_trim(backend: str) -> None:

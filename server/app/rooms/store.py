@@ -7,8 +7,8 @@ transaction (``app.rooms.db``). State is derived from times, never advanced by a
   connected player has finished or ``MAX_PLAY_MS`` passed; then ``finished``, which sticks
   (``finished_at``) until the host picks a routine or starts again.
 - A player is connected while their last authenticated request is under ``CONNECTED_MS`` old.
-- Rooms expire ``ROOM_TTL_MS`` after the last authenticated request; expired rooms read as 404
-  and are deleted the next time someone creates a room.
+- Rooms expire ``ROOM_TTL_MS`` after the last authenticated request (writes stamp the room, polls
+  the player); expired rooms read as 404 and are deleted the next time someone creates a room.
 """
 
 from __future__ import annotations
@@ -91,13 +91,17 @@ def _live_room(tx: Tx, code: str, now: int, lock: bool) -> Row:
     room = None
     if norm:
         room = tx.lock_room(norm) if lock else tx.one("select * from df_rooms where code = :code", code=norm)
-    if room is None or room["active_at"] < now - ROOM_TTL_MS:
+    if room is None:
         raise _not_found()
+    if room["active_at"] < now - ROOM_TTL_MS:  # polls only touch players, so they count too
+        seen = tx.one("select max(seen_at) as seen from df_players where code = :code", code=room["code"])
+        if not seen or seen["seen"] is None or seen["seen"] < now - ROOM_TTL_MS:
+            raise _not_found()
     return room
 
 
-def _player(tx: Tx, room: Row, token: str | None, now: int) -> Row:
-    """The token's player in this room (401 otherwise); marks them seen and the room active."""
+def _player(tx: Tx, room: Row, token: str | None, now: int, touch_room: bool = True) -> Row:
+    """The token's player in this room (401 otherwise); marks them seen (and the room active, for writes)."""
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing X-Player-Token.")
     player = tx.one(
@@ -105,9 +109,11 @@ def _player(tx: Tx, room: Row, token: str | None, now: int) -> Row:
     )
     if player is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unknown player token for this room.")
-    tx.run("update df_rooms set active_at = :now where code = :code", now=now, code=room["code"])
+    if touch_room:
+        tx.run("update df_rooms set active_at = :now where code = :code", now=now, code=room["code"])
+        room["active_at"] = now
     tx.run("update df_players set seen_at = :now where id = :id", now=now, id=player["id"])
-    room["active_at"] = player["seen_at"] = now
+    player["seen_at"] = now
     return player
 
 
@@ -214,7 +220,11 @@ def create_room(name: str, now: int) -> Created:
 
 def _sweep(tx: Tx, now: int) -> None:
     """Delete expired rooms, then rows whose room is gone (rooms first: see the lock order in app.rooms.db)."""
-    if tx.run("delete from df_rooms where active_at < :cutoff", cutoff=now - ROOM_TTL_MS):
+    expired = (
+        "delete from df_rooms where active_at < :cutoff and not exists"
+        " (select 1 from df_players p where p.code = df_rooms.code and p.seen_at >= :cutoff)"
+    )
+    if tx.run(expired, cutoff=now - ROOM_TTL_MS):
         tx.run("delete from df_players where code not in (select code from df_rooms)")
         tx.run("delete from df_chat where code not in (select code from df_rooms)")
 
@@ -237,9 +247,13 @@ def join_room(code: str, name: str, now: int) -> Joined:
 
 def get_room(code: str, token: str | None, chat_after: int | None, now: int) -> RoomView:
     def run(tx: Tx) -> RoomView:
-        room = _live_room(tx, code, now, lock=token is not None)
+        # Polls don't lock the room row (8 players polling every second would queue on it); they only
+        # touch their own player row. ponytail: the rare poll that settles "finished" then locks the room
+        # after its player row, the reverse of writes; Postgres breaks such a deadlock by failing one
+        # request, which the next poll retries.
+        room = _live_room(tx, code, now, lock=False)
         if token is not None:
-            _player(tx, room, token, now)
+            _player(tx, room, token, now, touch_room=False)
         return _view(tx, room, chat_after, now)
 
     return transaction(run)
