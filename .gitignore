@@ -23,3 +23,8 @@ assets/cache/
 *.log
 .idea/
 .vscode/
+.vercel
+
+# copied in by the Vercel build (vercel.json); the real files live in assets/
+/server/assets/
+/server/_uv/

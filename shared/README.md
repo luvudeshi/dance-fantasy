@@ -114,7 +114,12 @@ Stage 1 endpoints (song analysis; responses match `analysis.schema.json` / `anal
 | POST | `/api/analyze` (multipart `file`, optional form field `title`) | `Analysis`; the upload is stored by content hash |
 | GET | `/api/songs/{file}/analysis` | `Analysis` for a library song |
 | GET | `/api/analysis/{id}` | cached `Analysis` (404 if never analyzed) |
-| GET | `/api/audio/{id}` | an uploaded song's audio, by content hash |
+| GET | `/api/audio/{id}` | an uploaded song's audio, by content hash (on Vercel: may redirect to its Blob URL) |
+| POST | `/api/blob/upload` | Vercel only: `@vercel/blob` client `upload()` token endpoint (`handleUploadUrl`) |
+| POST | `/api/analyze/blob` `{ url, filename?, title? }` | Vercel only: like `/api/analyze`, for a song the browser uploaded to Blob |
+
+Vercel caps request bodies at 4.5 MB, so deployed builds (`VITE_BLOB_UPLOADS=1`) upload to Blob
+first; the two Blob routes answer 404 when `BLOB_READ_WRITE_TOKEN` is unset (local dev).
 
 Add `?refresh=1` to the first two to bypass the cache. Results are cached on disk by
 `sha256(audio bytes)` + `analysisVersion`, so the same file is analyzed once.

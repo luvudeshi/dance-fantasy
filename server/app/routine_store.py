@@ -11,7 +11,7 @@ import logging
 import re
 from pathlib import Path
 
-from app.analysis_store import _atomic_write
+from app.analysis_store import _atomic_write, read_cached
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class RoutineStore:
         """The cached routine JSON, or None if missing or unreadable (it is then regenerated)."""
         path = self.path(routine_id)
         try:
-            data = path.read_bytes()
+            data = read_cached(path)
             if not isinstance(json.loads(data), dict):
                 raise ValueError("not a JSON object")
         except FileNotFoundError:
