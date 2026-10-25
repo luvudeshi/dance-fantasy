@@ -103,8 +103,9 @@ async def _announce(req: AnnouncerRequest) -> AnnouncerReply:
 
 
 @router.post("/announcer")
-async def announcer(req: AnnouncerRequest, settings: SettingsDep) -> AnnouncerReply:
-    """1-3 announcer lines (<= 90 chars each) for the event, each with the id that voices it."""
+async def announcer(req: AnnouncerRequest, request: Request, settings: SettingsDep) -> AnnouncerReply:
+    """1-3 announcer lines (<= 90 chars each) for the event, each with the id that voices it. 429 when too many."""
+    _rate_limit(_line_hits, LINES_RATE_LIMIT, _client(request), "Too many announcer requests; slow down.")
     key = req.model_dump_json()
     now = time.monotonic()
     hit = _cache.get(key)
@@ -127,11 +128,14 @@ async def announcer(req: AnnouncerRequest, settings: SettingsDep) -> AnnouncerRe
 MAX_CONCURRENT_TTS = 2  # per instance; queued requests wait on the event loop, not in a worker thread
 TTS_SLOTS = anyio.CapacityLimiter(MAX_CONCURRENT_TTS)
 RATE_LIMIT = 40  # voice requests per client per window: a game asks for a few per minute
+# A round asks for ~10 sets of lines (intro, prefetched milestones, results); a venue NAT shares one IP.
+LINES_RATE_LIMIT = 120
 RATE_WINDOW_SEC = 60.0
 MAX_TRACKED_CLIENTS = 4096
 VOICE_MAX_AGE_SEC = 24 * 3600
 # ponytail: per-instance sliding window keyed by client IP; a shared limiter (Blob/KV) if abuse spans instances.
 _hits: dict[str, deque[float]] = {}
+_line_hits: dict[str, deque[float]] = {}
 
 
 def _client(request: Request) -> str:
@@ -141,20 +145,18 @@ def _client(request: Request) -> str:
     return request.client.host if request.client else "?"
 
 
-def _rate_limit(client: str) -> None:
-    """429 once ``client`` has made RATE_LIMIT voice requests in the last RATE_WINDOW_SEC."""
+def _rate_limit(hits: dict[str, deque[float]], limit: int, client: str, message: str) -> None:
+    """429 once ``client`` has made ``limit`` requests (tracked in ``hits``) in the last RATE_WINDOW_SEC."""
     now = time.monotonic()
-    if len(_hits) > MAX_TRACKED_CLIENTS:  # forget clients that have gone quiet
-        for quiet in [c for c, q in _hits.items() if not q or q[-1] < now - RATE_WINDOW_SEC]:
-            del _hits[quiet]
-    q = _hits.setdefault(client, deque())
+    if len(hits) > MAX_TRACKED_CLIENTS:  # forget clients that have gone quiet
+        for quiet in [c for c, q in hits.items() if not q or q[-1] < now - RATE_WINDOW_SEC]:
+            del hits[quiet]
+    q = hits.setdefault(client, deque())
     while q and q[0] < now - RATE_WINDOW_SEC:
         q.popleft()
-    if len(q) >= RATE_LIMIT:
+    if len(q) >= limit:
         retry = int(q[0] + RATE_WINDOW_SEC - now) + 1
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS, "Too many voice requests; slow down.", {"Retry-After": str(retry)}
-        )
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, message, {"Retry-After": str(retry)})
     q.append(now)
 
 
@@ -165,7 +167,7 @@ def _rate_limit(client: str) -> None:
 )
 async def announcer_voice(lid: str, request: Request, settings: SettingsDep) -> Response:
     """A line /api/announcer gave out, voiced by the herald. 404 unknown id, 429 too many, 503 no voice."""
-    _rate_limit(_client(request))
+    _rate_limit(_hits, RATE_LIMIT, _client(request), "Too many voice requests; slow down.")
     text = await asyncio.to_thread(known_text, settings.cache_dir, lid)
     if text is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown announcer line.")

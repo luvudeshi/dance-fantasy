@@ -38,6 +38,7 @@ def _no_keys(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
     announcer_api._cache.clear()
     announcer_api._hits.clear()
+    announcer_api._line_hits.clear()
 
 
 @pytest.fixture
@@ -163,8 +164,17 @@ def test_rate_limiter_forgets_quiet_clients(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(announcer_api, "MAX_TRACKED_CLIENTS", 3)
     for i in range(5):
         announcer_api._hits[f"old-{i}"] = announcer_api.deque([-1e9])
-    announcer_api._rate_limit("new")
+    announcer_api._rate_limit(announcer_api._hits, 1, "new", "slow down")
     assert set(announcer_api._hits) == {"new"}
+
+
+def test_announcer_lines_are_rate_limited_per_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(announcer_api, "LINES_RATE_LIMIT", 3)
+    body = {"event": "intro", "context": {"songTitle": "Test Waltz"}}
+    for _ in range(3):
+        assert client.post("/api/announcer", json=body).status_code == 200  # cached repeats count too
+    r = client.post("/api/announcer", json=body)
+    assert r.status_code == 429 and int(r.headers["retry-after"]) >= 1
 
 
 # ---- PCM -> WAV ----------------------------------------------------------------------------------

@@ -44,6 +44,7 @@ def _no_ai_keys(monkeypatch: pytest.MonkeyPatch) -> None:
                  "SERPAPI_API_KEY", "AI_PROVIDER"):  # fmt: skip
         monkeypatch.delenv(name, raising=False)
     announcer_api._cache.clear()
+    announcer_api._line_hits.clear()
 
 
 @pytest.fixture
