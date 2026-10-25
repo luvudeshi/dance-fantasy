@@ -145,5 +145,62 @@ Generated routines put `routineId`, `generator`, `libraryVersion`, `analysisId` 
 `routineId` = hash of analysis id + versions + difficulty + mode + seed); a new seed gives a
 new routine. Keyframes may carry `root` (rendering-only hip offset, see the schema).
 
+Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py`):
+
+| Method | Path | Auth | Body | Returns |
+|---|---|---|---|---|
+| POST | `/api/rooms` | none | `{ name }` | `{ code, playerId, token }`; the creator is the host |
+| POST | `/api/rooms/{code}/join` | none | `{ name }` | `{ playerId, token }`; 409 when 8 players are in |
+| GET | `/api/rooms/{code}?chatAfter=<id>` | optional | | `RoomView`; with a token, marks that player seen |
+| POST | `/api/rooms/{code}/routine` | host | `{ routineId, analysisId, title, difficulty, mode }` | `RoomView`; lobby or finished only (else 409); back to lobby, scores and ready reset |
+| POST | `/api/rooms/{code}/ready` | player | `{ ready: bool }` | `RoomView` |
+| POST | `/api/rooms/{code}/start` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`; lobby or finished only, needs a routine (else 409); resets scores and ready |
+| POST | `/api/rooms/{code}/score` | player | `{ score, combo, maxCombo, accuracy, progress, finished }` | `RoomView`; ignored (no error) unless `playing` |
+| POST | `/api/rooms/{code}/chat` | player | `{ text }` | `RoomView`; 429 after 5 messages in 10 s |
+| POST | `/api/rooms/{code}/leave` | player | none | `{ ok: true }`; the host role passes to the next player, an empty room closes |
+
+```jsonc
+// RoomView
+{ "code": "KQWX", "state": "lobby",      // lobby | countdown | playing | finished
+  "hostId": "Zp3k9QxA", "serverNow": 1761380000000, // epoch ms
+  "startAt": null,                        // epoch ms once started, else null
+  "routine": null,                        // or { routineId, analysisId, title, difficulty, mode }
+  "players": [{ "id": "Zp3k9QxA", "name": "Ana", "isHost": true, "ready": false,
+                "connected": true,        // seen in the last 10 s
+                "score": 0, "combo": 0, "maxCombo": 0, "accuracy": 0, "progress": 0, "finished": false }],
+  "chat": [{ "id": 12, "playerId": "Zp3k9QxA", "name": "Ana", "text": "ready?", "at": 1761379990000 }] }
+```
+
+- **Polling.** Clients poll `GET` about once a second (no WebSockets: the API runs as stateless
+  Vercel Functions). Every write answers with the same `RoomView` as `GET` and accepts the same
+  `?chatAfter=`, so a write doubles as that second's poll. `players` are in join order; sort
+  them for a leaderboard yourself.
+- **Auth.** Writes send the `token` from create/join as the `X-Player-Token` header: 401 when it is
+  missing or not a player of this room (e.g. after `leave`), 403 when a non-host tries a host
+  action. A `GET` with an invalid token is also 401; without a token it is an anonymous viewer
+  (e.g. a big screen) and nobody is marked seen. Keep `playerId`/`token` per room code in
+  `sessionStorage` so a reload rejoins as the same player.
+- **Codes.** 4 letters from `ABCDEFGHJKMNPQRSTUVWXYZ` (no I, L, O); case-insensitive in paths.
+  Unknown, malformed or expired codes are 404. Suggested QR target: `<origin>/#/room?code=KQWX` (the web app owns the route).
+- **Names** (1-24 chars) and chat `text` (1-200) are trimmed with inner whitespace collapsed;
+  control characters are 400. A taken name gets a suffix (`Ana`, `ana 2`).
+- **State is derived from time.** `countdown` while `serverNow < startAt`, then `playing`, then
+  `finished` once every connected player has posted `finished: true` or 10 minutes after
+  `startAt`; `finished` sticks until the host picks a routine or starts again (a rematch).
+  Synced start: start the music at local time `startAt - (serverNow - Date.now() at receipt)`,
+  i.e. correct for clock offset using `serverNow`; half the request's round trip is the error.
+- **Scores.** `score`, `combo`, `maxCombo` are non-negative integers, `accuracy` is 0-100 (percent,
+  like the results screen), `progress` 0-1 through the song; post about once a second while
+  playing and once with `finished: true` at the end (it never goes back to false). Someone who
+  joins mid-song sits it out (`finished: true`, score 0) and plays the next one.
+- **Chat.** Without `chatAfter`, the latest 50 messages; with it, up to 50 messages with
+  `id > chatAfter`, oldest first, so pass the last `id` you have and you never miss one. Rooms
+  keep their last 200 messages.
+- **Lifetime.** A room expires 3 hours after its last authenticated request.
+- **Storage.** Postgres when `DATABASE_URL` is set (Tiger Data on Vercel; TLS is verified unless
+  the URL says `sslmode=disable`, or `sslmode=no-verify`); otherwise SQLite at
+  `<cache_dir>/rooms.sqlite3`. A Vercel deployment without `DATABASE_URL` answers 503 on every
+  rooms route. Tables are `df_rooms`, `df_players`, `df_chat`, created on first use.
+
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
-413 (upload too large).
+413 (upload too large); the rooms routes add 401, 403, 409, 429 and 503 as above.
