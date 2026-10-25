@@ -38,7 +38,7 @@ export interface RoomConn {
   offsetMs: number
   /** last request's failure (cleared by the next success) */
   error: string | null
-  /** 'left': our seat is gone (401); 'missing': unknown or expired room (404). Polling stops. */
+  /** 'left': our seat is gone (401 from older servers); 'missing': unknown or expired room, or no seat (404). Polling stops. */
   gone: 'left' | 'missing' | null
   /** Runs a write with the last chat id we have, applies its RoomView (it doubles as this second's poll). */
   act: (write: (chatAfter: number | undefined) => Promise<RoomView>) => Promise<RoomView>

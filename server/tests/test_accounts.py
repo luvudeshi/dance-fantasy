@@ -353,7 +353,7 @@ def test_partners_and_in_room(backend: str) -> None:
     assert b.post("/api/me/rooms", json={"roomCode": room, "playerToken": joined["token"]}, headers=H).status_code == 200
     # tokens are checked against the rooms store
     bad = c.post("/api/me/rooms", json={"roomCode": room, "playerToken": other_room["token"]}, headers=H)
-    assert bad.status_code == 401
+    assert bad.status_code == 404  # a wrong seat token answers like an unknown room
     assert c.post("/api/me/rooms", json={"roomCode": "ZZZZ", "playerToken": "x"}, headers=H).status_code == 404
     assert c.post("/api/me/rooms", json={"roomCode": room}, headers=H).status_code == 400
 

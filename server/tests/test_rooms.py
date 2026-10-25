@@ -169,21 +169,33 @@ def test_auth_and_unknown_rooms(client: TestClient) -> None:
     ]  # fmt: skip
     for path, body in writes:
         url = f"/api/rooms/{code}/{path}"
-        assert client.post(url, json=body).status_code == 401, path
-        assert client.post(url, json=body, headers=auth("not-a-token")).status_code == 401, path
-        assert client.post(url, json=body, headers=auth(other["token"])).status_code == 401, path
+        assert client.post(url, json=body).status_code == 404, path
+        assert client.post(url, json=body, headers=auth("not-a-token")).status_code == 404, path
+        assert client.post(url, json=body, headers=auth(other["token"])).status_code == 404, path
 
     assert client.post(f"/api/rooms/{code}/routine", json=ROUTINE, headers=auth(guest["token"])).status_code == 403
     assert client.post(f"/api/rooms/{code}/start", headers=auth(guest["token"])).status_code == 403
     assert client.post(f"/api/rooms/{code}/start", headers=auth(host["token"])).status_code == 409  # no routine yet
 
-    assert client.get(f"/api/rooms/{code}", headers=auth("stale")).status_code == 401
+    assert client.get(f"/api/rooms/{code}", headers=auth("stale")).status_code == 404
     assert client.get(f"/api/rooms/{code}", headers=auth(guest["token"])).status_code == 200
     taken = {code, other["code"]}
     missing = next(c for c in ("BCDF", "GHJK", "MNPQ") if c not in taken)
+    rooms_api._misses.clear()  # the token misses above counted toward the throttle too
     for bad in (missing, "AB", "ABCDE", "IIII", "12AB"):
         assert client.get(f"/api/rooms/{bad}").status_code == 404, bad
         assert client.post(f"/api/rooms/{bad}/join", json={"name": "x"}).status_code == 404, bad
+
+
+def test_token_misses_are_throttled_but_seated_players_keep_playing(client: TestClient) -> None:
+    host = client.post("/api/rooms", json={"name": "Host"}).json()
+    code = host["code"]
+    for _ in range(rooms_api.LOOKUP_MISSES):  # a guesser probing with fake tokens: 404 like an unknown room
+        assert client.post(f"/api/rooms/{code}/chat", json={"text": "x"}, headers=auth("fake")).status_code == 404
+    assert client.post(f"/api/rooms/{code}/chat", json={"text": "x"}, headers=auth("fake")).status_code == 429
+    assert client.get(f"/api/rooms/{code}").status_code == 429  # token-less lookups are gated
+    assert client.get(f"/api/rooms/{code}", headers=auth(host["token"])).status_code == 200  # the seat still works
+    assert client.post(f"/api/rooms/{code}/chat", json={"text": "hi"}, headers=auth(host["token"])).status_code == 200
 
 
 def test_room_code_guessing_is_throttled(client: TestClient) -> None:
@@ -272,7 +284,7 @@ def test_leave_moves_host_and_empty_rooms_close(client: TestClient) -> None:
     assert client.post(f"/api/rooms/{code}/leave", headers=auth(host["token"])).json() == {"ok": True}
     room = client.get(f"/api/rooms/{code}", headers=auth(b["token"])).json()
     assert room["hostId"] == b["playerId"] and [p["name"] for p in room["players"]] == ["B", "C"]
-    assert client.get(f"/api/rooms/{code}", headers=auth(host["token"])).status_code == 401
+    assert client.get(f"/api/rooms/{code}", headers=auth(host["token"])).status_code == 404
     client.post(f"/api/rooms/{code}/leave", headers=auth(c["token"]))
     client.post(f"/api/rooms/{code}/leave", headers=auth(b["token"]))
     assert client.get(f"/api/rooms/{code}").status_code == 404
