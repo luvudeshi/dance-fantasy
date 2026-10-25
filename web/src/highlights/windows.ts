@@ -112,8 +112,15 @@ export function pickHighlights(results: readonly JudgedBeat[], options: Partial<
   return picks
 }
 
+/** Consecutive samples further apart in recording time than in song time by this much straddle a pause. */
+const PAUSE_GAP_SEC = 0.25
+/** Samples on each side of a lookup whose offsets are pooled. */
+const SMOOTH_SAMPLES = 30
+
 /**
- * Song time -> recording time, from (songTime, recTime) samples taken while the song plays.
+ * Song time -> recording time, from (songTime, recTime) samples taken while the song plays. The
+ * audio clock ticks in coarse steps, so a lookup uses the median (recTime - songTime) of up to
+ * SMOOTH_SAMPLES neighbours on each side, never across a pause.
  * ponytail: linear scan from the end is fine (one lookup per clip, a few thousand samples).
  */
 export class TimeMap {
@@ -130,18 +137,29 @@ export class TimeMap {
     return this.song.length
   }
 
-  /** Recording time (s) of song time t; extrapolates past either end; null with no samples. */
+  /** Samples i and i+1 straddle a pause (the recording ran on while the song stood still). */
+  private jump(i: number): boolean {
+    return this.rec[i + 1] - this.rec[i] - (this.song[i + 1] - this.song[i]) > PAUSE_GAP_SEC
+  }
+
+  /** Recording time (s) of song time t (>= 0); extrapolates past either end; null with no samples. */
   recTimeAt(t: number): number | null {
     const n = this.song.length
     if (n === 0) return null
     let i = n - 1
     while (i > 0 && this.song[i] > t) i--
-    const s0 = this.song[i]
-    const r0 = this.rec[i]
-    if (t <= s0 || i === n - 1) return Math.max(0, r0 + (t - s0))
-    const s1 = this.song[i + 1]
-    const r1 = this.rec[i + 1]
-    return s1 > s0 ? r0 + ((t - s0) / (s1 - s0)) * (r1 - r0) : r0
+    // t inside a pause's gap belongs to the nearer side
+    if (i < n - 1 && t > this.song[i] && this.jump(i) && t - this.song[i] > this.song[i + 1] - t) i++
+    let lo = i
+    while (lo > 0 && i - lo < SMOOTH_SAMPLES && !this.jump(lo - 1)) lo--
+    let hi = i
+    while (hi < n - 1 && hi - i < SMOOTH_SAMPLES && !this.jump(hi)) hi++
+    const offsets: number[] = []
+    for (let j = lo; j <= hi; j++) offsets.push(this.rec[j] - this.song[j])
+    offsets.sort((a, b) => a - b)
+    const mid = offsets.length >> 1
+    const offset = offsets.length % 2 === 1 ? offsets[mid] : (offsets[mid - 1] + offsets[mid]) / 2
+    return Math.max(0, t + offset)
   }
 }
 
