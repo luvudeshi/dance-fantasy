@@ -51,6 +51,7 @@ LOGIN_IP_LIMIT = (50, 15 * MIN)  # failed logins per IP-ish key
 FRIEND_FAIL_LIMIT = (10, 10 * MIN)  # unknown friend codes per account
 INVITE_LIMIT = (20, 10 * MIN)  # invites sent per account
 ROUND_LIMIT = (120, 60 * MIN)  # rounds recorded per account
+SONG_DAY_LIMIT = (30, DAY)  # rounds recorded per account per song, so one account can't flood a song's board
 
 _ADJECTIVES = ("Golden", "Velvet", "Moonlit", "Twirling", "Starry", "Merry", "Dapper", "Gilded")
 _NOUNS = ("Pumpkin", "Slipper", "Frog", "Wolf", "Lantern", "Spindle", "Wand", "Crown")
@@ -416,6 +417,10 @@ def record_round(token: str | None, body: RoundBody, now: int) -> list[EarnedBad
                          me=me["id"], since=now - ROUND_LIMIT[1])  # fmt: skip
         if int(recent) >= ROUND_LIMIT[0]:
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many rounds recorded. Wait a little.")
+        same = _scalar(tx, "select count(*) from df_rounds where account_id = :me and analysis_id = :aid and at > :since",
+                       me=me["id"], aid=body.analysisId, since=now - SONG_DAY_LIMIT[1])  # fmt: skip
+        if int(same) >= SONG_DAY_LIMIT[0]:
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "That's a lot of rounds of this song today. Try another!")
         tx.run(
             "insert into df_rounds (account_id, at, analysis_id, song_title, score, accuracy, max_combo, stars, mode)"
             " values (:me, :now, :aid, :title, :score, :acc, :combo, :stars, :mode)",

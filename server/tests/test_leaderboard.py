@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -10,17 +11,20 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.accounts import store as accounts
 from app.accounts.db import transaction
 from app.accounts.store import DAY, MIN
+from app.analysis_store import AnalysisStore
 from app.api import leaderboard
 from app.config import get_settings
 from app.leaderboard.store import since
 from app.main import app
 from app.rooms.db import Tx
+from helpers import seed_analysis
 
 BACKENDS = ["sqlite"] + (["postgres"] if os.environ.get("DATABASE_URL") else [])
 H = {"X-DF": "1"}
-SONG, OTHER = "ab" * 32, "cd" * 32
+SONG, OTHER, NEW = "ab" * 32, "cd" * 32, "ef" * 32  # NEW: a song the server never analyzed
 
 
 @pytest.fixture(params=BACKENDS)
@@ -29,6 +33,8 @@ def backend(request: pytest.FixtureRequest, tmp_path: Path, monkeypatch: pytest.
     if request.param == "sqlite":
         monkeypatch.delenv("DATABASE_URL", raising=False)
     get_settings.cache_clear()
+    seed_analysis(get_settings().cache_dir, SONG, "Vibe Ace")
+    seed_analysis(get_settings().cache_dir, OTHER, "Lets Go Fishin")
     yield str(request.param)
     get_settings.cache_clear()
 
@@ -40,10 +46,22 @@ def guest() -> tuple[TestClient, dict[str, Any]]:
     return client, dict(r.json())
 
 
-def play(client: TestClient, score: int, song: str = SONG, title: str = "Vibe Ace", combo: int = 10) -> None:
-    body = {"analysisId": song, "songTitle": title, "score": score, "accuracy": 80.0, "maxCombo": combo, "stars": 3, "mode": "solo"}
-    r = client.post("/api/me/rounds", json=body, headers=H)
-    assert r.status_code == 200, r.text
+def post(client: TestClient, score: int, song: str = SONG, combo: int = 10) -> int:
+    """Record a round; the posted title is junk on purpose: public boards must never show it."""
+    body = {"analysisId": song, "songTitle": "Posted By Client", "score": score, "accuracy": 80.0, "maxCombo": combo,
+            "stars": 3, "mode": "solo"}  # fmt: skip
+    return client.post("/api/me/rounds", json=body, headers=H).status_code
+
+
+def play(client: TestClient, score: int, song: str = SONG, combo: int = 10) -> None:
+    assert post(client, score, song, combo) == 200
+
+
+def library_song(root: Path, name: str) -> str:
+    """A file in the song library (never decoded here); returns its analysisId."""
+    (root / "songs").mkdir(exist_ok=True)
+    (root / "songs" / name).write_bytes(name.encode())
+    return hashlib.sha256(name.encode()).hexdigest()
 
 
 def sql(statement: str, **params: Any) -> None:
@@ -68,7 +86,8 @@ def dancers(backend: str) -> dict[str, tuple[TestClient, dict[str, Any]]]:
     sql("update df_rounds set at = at - 1000 where account_id = :id", id=ana[1]["id"])  # ana danced it first
     play(bo[0], 300, combo=12)
     play(cy[0], 50)
-    play(cy[0], 2_000_000)  # the API takes it; the boards don't
+    play(cy[0], 60)
+    sql("update df_rounds set score = 2000000 where score = 60")  # from before the API capped scores; boards skip it
     sql("update df_rounds set accuracy = 250 where account_id = :id and score = 50", id=cy[1]["id"])
     play(cy[0], 50)
     return {"ana": ana, "bo": bo, "cy": cy}
@@ -96,7 +115,7 @@ def test_you_and_limit(dancers: dict[str, tuple[TestClient, dict[str, Any]]]) ->
 
 def test_empty_and_bad_song(backend: str) -> None:
     client, _ = guest()
-    assert board(client, OTHER) == {"scope": "all", "song": {"analysisId": OTHER, "title": None}, "entries": [], "you": None}
+    assert board(client, NEW) == {"scope": "all", "song": {"analysisId": NEW, "title": None}, "entries": [], "you": None}
     assert client.get("/api/leaderboard/song/nothex").status_code == 400
     assert client.get(f"/api/leaderboard/song/{SONG}", params={"scope": "decade"}).status_code == 400
 
@@ -128,7 +147,7 @@ def test_friends_scope(dancers: dict[str, tuple[TestClient, dict[str, Any]]]) ->
 
 def test_top_dancers(dancers: dict[str, tuple[TestClient, dict[str, Any]]]) -> None:
     (ana_client, ana), (_, bo), (_, cy) = dancers["ana"], dancers["bo"], dancers["cy"]
-    play(ana_client, 40, song=OTHER, title="Lets Go Fishin")
+    play(ana_client, 40, song=OTHER)
     r = ana_client.get("/api/leaderboard/top", params={"scope": "all"})
     assert r.status_code == 200, r.text
     rows = [(e["rank"], e["accountId"], e["total"], e["rounds"], e["bestCombo"], e["isYou"]) for e in r.json()["entries"]]
@@ -139,14 +158,50 @@ def test_top_dancers(dancers: dict[str, tuple[TestClient, dict[str, Any]]]) -> N
     assert len(ana_client.get("/api/leaderboard/top", params={"scope": "all", "limit": 2}).json()["entries"]) == 2
 
 
-def test_songs_picker(dancers: dict[str, tuple[TestClient, dict[str, Any]]]) -> None:
-    play(dancers["ana"][0], 40, song=OTHER, title="Lets Go Fishin")
-    r = TestClient(app).get("/api/leaderboard/songs")
-    assert r.status_code == 200, r.text
-    assert r.json() == [  # no library in this tmp assets dir: songs with rounds, most dancers first
-        {"analysisId": SONG, "title": "Vibe Ace", "dancers": 3},
-        {"analysisId": OTHER, "title": "Lets Go Fishin", "dancers": 1},
+def test_songs_picker(backend: str, tmp_path: Path) -> None:
+    moon, waltz = library_song(tmp_path, "Moon_River.wav"), library_song(tmp_path, "Waltz.wav")
+    (ana, _), (bo, _) = guest(), guest()
+    play(ana, 100, song=moon)
+    play(ana, 100)
+    play(bo, 100)
+    play(bo, 40, song=OTHER)  # bo's own upload: nobody else's picker lists it
+    AnalysisStore(get_settings().cache_dir).analysis_path(OTHER).unlink()  # its title is now unknown
+    picker = lambda c: c.get("/api/leaderboard/songs").json()  # noqa: E731
+    lib = [{"analysisId": moon, "title": "Moon River", "dancers": 1}, {"analysisId": waltz, "title": "Waltz", "dancers": 0}]
+    assert picker(TestClient(app)) == lib
+    assert picker(ana) == lib + [{"analysisId": SONG, "title": "Vibe Ace", "dancers": 2}]
+    assert picker(bo) == lib + [
+        {"analysisId": SONG, "title": "Vibe Ace", "dancers": 2},
+        {"analysisId": OTHER, "title": "Unknown song", "dancers": 1},
     ]
+
+
+def test_titles_come_from_the_server(backend: str, tmp_path: Path) -> None:
+    moon = library_song(tmp_path, "Moon_River.wav")
+    seed_analysis(get_settings().cache_dir, moon, "Re-uploaded As Something Else")
+    client, _ = guest()
+    play(client, 100, song=moon)
+    assert board(client, moon)["song"]["title"] == "Moon River"  # library title wins over the cached one
+    assert board(client)["song"]["title"] == "Vibe Ace"  # cached analysis, not "Posted By Client"
+
+
+def test_implausible_rounds_are_rejected(backend: str, tmp_path: Path) -> None:
+    seed_analysis(get_settings().cache_dir, NEW, beats=10)  # at most 10 + 32 checkpoints of 400 points
+    client, _ = guest()
+    assert post(client, 400 * 42, song=NEW, combo=42) == 200
+    assert post(client, 400 * 42 + 1, song=NEW) == 400
+    assert post(client, 100, song=NEW, combo=43) == 400
+    assert post(client, 100, song="12" * 32) == 400  # never analyzed by this server
+    assert post(client, 5000, song=library_song(tmp_path, "Waltz.wav")) == 200  # library song, not analyzed yet
+
+
+def test_song_day_limit(backend: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(accounts, "SONG_DAY_LIMIT", (2, DAY))
+    client, me = guest()
+    assert [post(client, 100) for _ in range(3)] == [200, 200, 429]
+    assert post(client, 100, song=OTHER) == 200  # other songs are fine
+    sql("update df_rounds set at = at - :d where account_id = :id", d=DAY, id=me["id"])
+    assert post(client, 100) == 200  # a day later
 
 
 def test_rate_limit(backend: str, monkeypatch: pytest.MonkeyPatch) -> None:

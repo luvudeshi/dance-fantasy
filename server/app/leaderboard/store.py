@@ -61,7 +61,7 @@ class BoardEntry(BaseModel):
 
 class SongRef(BaseModel):
     analysisId: str
-    title: str | None  # null until someone records a round of it
+    title: str | None  # library title, else the server's cached analysis title; null when the server has neither
 
 
 class YourRank(BaseModel):
@@ -110,7 +110,7 @@ def _me_id(tx: Tx, token: str | None, now: int) -> str | None:
     return str(me["id"]) if me else None
 
 
-def song_board(token: str | None, analysis_id: str, scope: SongScope, limit: int, now: int) -> SongBoard:
+def song_board(token: str | None, analysis_id: str, title: str | None, scope: SongScope, limit: int, now: int) -> SongBoard:
     def run(tx: Tx) -> SongBoard:
         me = _me_id(tx, token, now)
         if scope == "friends" and me is None:
@@ -130,11 +130,10 @@ def song_board(token: str | None, analysis_id: str, scope: SongScope, limit: int
             " where r.pos <= :n or r.account_id = :me order by r.pos",
             aid=analysis_id, since=since(scope, now), n=limit, me=me,
         )  # fmt: skip
-        title = tx.one("select song_title from df_rounds where analysis_id = :aid order by at desc limit 1", aid=analysis_id)
         mine = next((r for r in rows if r["account_id"] == me), None)
         return SongBoard(
             scope=scope,
-            song=SongRef(analysisId=analysis_id, title=title["song_title"] if title else None),
+            song=SongRef(analysisId=analysis_id, title=title),
             entries=[_entry(r, me) for r in rows if int(r["pos"]) <= limit],
             you=YourRank(rank=int(mine["pos"]), score=int(mine["score"])) if mine else None,
         )
@@ -214,16 +213,20 @@ def top_board(token: str | None, scope: TopScope, limit: int, now: int) -> TopBo
     return transaction(run)
 
 
-def songs_with_rounds() -> list[BoardSong]:
-    """Songs with the most dancers (latest title each), for the Hall of Fame picker."""
+def song_dancers(token: str | None, library: list[str], now: int) -> dict[str, int]:
+    """analysisId -> dancers, for the library songs and the viewer's own songs (never other players' uploads),
+    most dancers first."""
 
-    def run(tx: Tx) -> list[BoardSong]:
+    def run(tx: Tx) -> dict[str, int]:
+        me = _me_id(tx, token, now)
+        lib = ", ".join(f":l{i}" for i in range(len(library))) or "null"
         rows = tx.all(
-            "select analysis_id, count(distinct account_id) as dancers, max(at) as last_at,"
-            " (select r2.song_title from df_rounds r2 where r2.analysis_id = r.analysis_id order by r2.at desc limit 1)"
-            f" as title from df_rounds r where {_SANE} group by analysis_id order by dancers desc, last_at desc limit :n",
-            n=TOP_SONGS,
+            "select analysis_id, count(distinct account_id) as dancers, max(at) as last_at from df_rounds"
+            f" where {_SANE} and (analysis_id in ({lib}) or analysis_id in"
+            " (select analysis_id from df_rounds where account_id = :me))"
+            " group by analysis_id order by dancers desc, last_at desc limit :n",
+            me=me, n=len(library) + TOP_SONGS, **{f"l{i}": aid for i, aid in enumerate(library)},
         )  # fmt: skip
-        return [BoardSong(analysisId=r["analysis_id"], title=r["title"], dancers=int(r["dancers"])) for r in rows]
+        return {r["analysis_id"]: int(r["dancers"]) for r in rows}
 
     return transaction(run)

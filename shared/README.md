@@ -291,7 +291,7 @@ sends the header `X-DF: 1` (403 without it).
 | POST | `/api/me/invites/{id}/dismiss` | none | `{ ok: true }`; 404 unless it was sent to you |
 | POST | `/api/me/rooms` | `{ roomCode, playerToken }` | `{ ok: true }`; records that you played in that room. The token is the one from create/join (404 if it isn't a player of that room or the room is unknown) |
 | GET | `/api/me/partners` | | `Partner[]`: accounts that recorded a room you recorded, last 30 days, most recent first (max 20) |
-| POST | `/api/me/rounds` | `{ analysisId, songTitle, score, accuracy, maxCombo, stars, mode }` | `{ ok: true, newBadges }` (see "Badges endpoints"); `score` and `maxCombo` integers, `accuracy` 0-100, `stars` 0-5 (fractions ok), `mode` `solo`, `party` or `room`; 429 after 120 rounds in an hour |
+| POST | `/api/me/rounds` | `{ analysisId, songTitle, score, accuracy, maxCombo, stars, mode }` | `{ ok: true, newBadges }` (see "Badges endpoints"); `score` and `maxCombo` integers, `accuracy` 0-100, `stars` 0-5 (fractions ok), `mode` `solo`, `party` or `room`; 400 for a song the server never analyzed (library songs excepted) or a `score` above 400 x (song beats + 32) / `maxCombo` above beats + 32; 429 after 120 rounds in an hour or 30 of one song in a day |
 | GET | `/api/me/history?tzOffset=<min>` | | `History`: last 20 rounds and totals. `tzOffset` is `new Date().getTimezoneOffset()` (for the day streak), default 0 |
 
 ```jsonc
@@ -348,10 +348,10 @@ per client IP (429). Rounds with `score` outside 0-1,000,000 or `accuracy` outsi
 |---|---|---|
 | GET | `/api/leaderboard/song/{analysisId}?scope=all\|week\|today\|friends&limit=` | `SongBoard`: each account's best round of that song, ties to whoever danced it first. `friends` is you + your friends (401 without a session) |
 | GET | `/api/leaderboard/top?scope=week\|all&limit=` | `TopBoard`: accounts by total score (default `week`). On Tiger Data it reads the `df_round_daily` continuous aggregate (daily per-account totals, created on first use), else `df_rounds` |
-| GET | `/api/leaderboard/songs` | `BoardSong[]`: library songs, then the 30 most-danced others; `dancers` = accounts with a round |
+| GET | `/api/leaderboard/songs` | `BoardSong[]`: library songs, then (with the cookie) up to 30 songs you danced yourself, never other players' uploads; `dancers` = accounts with a round; `title` "Unknown song" when the server has none |
 
 ```jsonc
-// SongBoard ("title" is null until someone records a round of it; "you" is null without a round in scope)
+// SongBoard ("title": the library title, else the server's cached analysis title, else null; never a posted songTitle; "you" is null without a round in scope)
 { "scope": "all", "song": { "analysisId": "<64 hex>", "title": "Vibe Ace" },
   "entries": [{ "rank": 1, "accountId": "...", "name": "Ana", "avatar": "wolf", "color": "rasp", "score": 48210,
                 "accuracy": 94.0, "maxCombo": 120, "stars": 4.5, "at": 1761380000000, "isYou": false }],

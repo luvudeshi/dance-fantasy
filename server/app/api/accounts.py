@@ -14,6 +14,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 
 from app.accounts import store
+from app.api.leaderboard import library_titles, song_facts
 from app.api.limits import client_ip
 from app.accounts.models import (
     ACCOUNT_ID_PATTERN,
@@ -33,6 +34,10 @@ from app.badges import RoundRecorded
 from app.rooms.models import Ok
 
 COOKIE = "df_session"
+# Most points one checkpoint can give (web/src/game/scoring.ts): perfect 100 x combo cap 2x x signature move 2x.
+MAX_CHECKPOINT_POINTS = 400
+# Checkpoints sit on the song's beats (one per beat at most); a move placed near the end may run this many past them.
+TAIL_BEATS = 32
 COOKIE_MAX_AGE = store.SESSION_MS // 1000
 
 
@@ -149,8 +154,22 @@ def list_partners(request: Request) -> list[Partner]:
     return store.list_partners(_token(request), _now())
 
 
+def check_round(body: RoundBody) -> None:
+    """400 for a round of a song the server never analyzed, or with more points/combo than the song allows."""
+    library = library_titles()
+    _, beats = song_facts(body.analysisId, library)
+    if beats is None:
+        if body.analysisId in library:
+            return  # ponytail: a library song not analyzed on this deployment yet; the boards' 1M filter still holds
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown song: analyze it before recording rounds.")
+    checkpoints = beats + TAIL_BEATS
+    if body.score > MAX_CHECKPOINT_POINTS * checkpoints or body.maxCombo > checkpoints:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That round scores more than this song allows.")
+
+
 @router.post("/me/rounds")
 def record_round(body: RoundBody, request: Request) -> RoundRecorded:
+    check_round(body)
     return RoundRecorded(newBadges=store.record_round(_token(request), body, _now()))
 
 
