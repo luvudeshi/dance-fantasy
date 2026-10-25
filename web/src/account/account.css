@@ -1,0 +1,245 @@
+/* Accounts UI (profile, friends, header chip, invite toast). Composes the df- design system; only
+   layout and the avatar disc live here. */
+
+.acct-page {
+  min-height: calc(100dvh - 60px);
+  overflow-x: clip;
+}
+.acct-page-body {
+  max-width: 78rem;
+  padding-block: clamp(24px, 5vh, 48px) 96px;
+}
+.acct-lede {
+  margin: 0;
+  max-width: 52ch;
+}
+.acct-note {
+  margin: 0;
+  color: var(--df-ink-soft);
+}
+.acct-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: 40px 32px;
+  align-items: start;
+}
+.acct-wide {
+  grid-column: 1 / -1;
+}
+.acct-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+}
+
+/* a sticker on a disc of the player's colour */
+.acct-avatar {
+  --acct-size: 3rem;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--acct-size);
+  height: var(--acct-size);
+  border-radius: 50%;
+  background: var(--acct-c, var(--df-gold));
+  box-shadow:
+    inset -3px -4px 0 rgb(46 36 33 / 0.22),
+    inset 2px 2px 0 rgb(255 250 240 / 0.35);
+  filter: url(#dc-sm);
+}
+.acct-avatar > img {
+  width: 80%;
+  height: 80%;
+}
+.acct-avatar-sm {
+  --acct-size: 2.5rem;
+}
+.acct-avatar-lg {
+  --acct-size: 6.5rem;
+  filter: url(#dc);
+}
+
+.acct-dot {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-right: 2px;
+  border-radius: 50%;
+  background: var(--df-disabled);
+  vertical-align: 0.05em;
+}
+.acct-dot.is-on {
+  background: var(--df-sage-deep);
+  box-shadow: 0 0 0 3px rgb(168 188 139 / 0.55);
+}
+
+/* header chip */
+.acct-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 13rem;
+  min-height: 2.75rem;
+  padding: 2px 14px 2px 3px;
+  border-radius: var(--df-r-pill);
+  background: var(--df-paper);
+  color: var(--df-ink);
+  font-family: var(--df-font-ui);
+  font-weight: 800;
+  font-size: var(--df-text-sm);
+  text-decoration: none;
+  filter: url(#dc-sm);
+  transition: background-color var(--df-dur-fast) var(--df-ease);
+}
+.acct-chip:hover {
+  background: var(--df-cut);
+}
+.acct-chip .acct-avatar {
+  filter: none;
+}
+.acct-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .acct-chip {
+    padding-right: 3px;
+  }
+  .acct-chip-name {
+    display: none;
+  }
+}
+
+/* forms */
+.acct-name-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 10px;
+  align-items: center;
+}
+.acct-name-row > .df-label {
+  grid-column: 1 / -1;
+}
+.acct-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.acct-fieldset > legend {
+  margin-bottom: 10px;
+  padding: 0;
+}
+.acct-swatch-label {
+  cursor: pointer;
+}
+.acct-swatch {
+  display: block;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background: var(--acct-c);
+  box-shadow: var(--df-shadow-lift);
+  transition: box-shadow var(--df-dur-fast) var(--df-ease);
+}
+:checked + .acct-swatch {
+  box-shadow: var(--df-shadow-picked);
+}
+:focus-visible + .acct-swatch,
+:focus-visible + .df-token {
+  outline: 3px solid var(--df-rasp-deep);
+  outline-offset: 4px;
+}
+.acct-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr));
+  gap: 8px 4px;
+  justify-items: center;
+}
+.acct-pick {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.acct-pick .df-token {
+  --df-token-size: 3rem;
+  transition: scale var(--df-dur-fast) var(--df-ease);
+}
+.acct-pick:hover .df-token {
+  scale: 1.08;
+}
+.acct-code-input {
+  font-family: var(--df-font-display);
+  font-weight: 700;
+  font-size: 1.3rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.acct-code-input::placeholder {
+  letter-spacing: 0.12em;
+}
+.acct-code-chip {
+  height: 52px;
+  padding-inline: 16px 20px;
+}
+.acct-code-chip .df-foil {
+  font-size: 1.6rem;
+  letter-spacing: 0.1em;
+}
+.acct-code {
+  font-family: var(--df-font-display);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.acct-link {
+  align-self: flex-start;
+}
+
+/* friends list */
+.acct-friend.is-away .df-item-title {
+  color: var(--df-ink-soft);
+}
+.acct-friend-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+@media (max-width: 480px) {
+  .acct-friend {
+    flex-wrap: wrap;
+  }
+  .acct-friend-actions {
+    width: 100%;
+  }
+}
+
+/* login / claim sheet */
+.acct-sheet-lede {
+  margin: 0;
+}
+
+/* invite toast: the df-notice sticker, with room for two buttons */
+.acct-toast {
+  max-width: 34rem;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+}
+.acct-toast .acct-avatar {
+  filter: none;
+}
+.acct-toast-text {
+  flex: 1;
+  min-width: 0;
+}
