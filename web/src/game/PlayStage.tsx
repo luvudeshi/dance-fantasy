@@ -10,6 +10,7 @@ import { prepareCanvas } from '../lib/canvas'
 import { RateMeter } from '../lib/rateMeter'
 import { useLatest } from '../lib/useLatest'
 import type { GameClock } from './clock'
+import { keeperDebugText } from './createScoreKeeper'
 import { drawHud, drawPip, pipBox } from './hud'
 import { renderIdleStage, renderPlayFrame } from './render'
 import type { GameRun } from './run'
@@ -61,6 +62,7 @@ function debugText(o: {
   t: number
   playing: boolean
   s: SyncStats | null
+  scoring?: string | null
 }): string {
   const { s } = o
   return [
@@ -72,6 +74,7 @@ function debugText(o: {
       : 'drift    –',
     s ? `         beats ${s.beats}  rejected ${s.rejected}` : '',
     s ? `frames   long ${s.longFrames} / ${s.frames}  (worst ${s.maxFrameMs.toFixed(1)} ms)` : '',
+    o.scoring ?? '',
   ].join('\n')
 }
 
@@ -183,6 +186,7 @@ export default function PlayStage(props: Props) {
           t,
           playing: clock.playing,
           s: monitor?.stats() ?? null,
+          scoring: keeperDebugText(active?.run?.keeper),
         })
       }
     }
