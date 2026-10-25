@@ -269,6 +269,7 @@ sends the header `X-DF: 1` (403 without it).
 - **Storage.** Same database as rooms (`df_accounts`, `df_sessions`, `df_friends`, `df_invites`,
   `df_room_members`, `df_hits`, `df_rounds`, created on first use). On Postgres with the
   `timescaledb` extension (Tiger Data), `df_rounds` is a hypertable on `at` (epoch ms, 7-day chunks).
+  Like rooms, a Vercel deployment without `DATABASE_URL` answers 503 here.
 
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large); the rooms routes add 401, 403, 409, 429 and 503 as above, and the

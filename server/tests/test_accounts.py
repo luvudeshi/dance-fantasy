@@ -18,7 +18,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.accounts import store
-from app.accounts.store import DAY, MIN, transaction
+from app.accounts.db import transaction
+from app.accounts.store import DAY, MIN
 from app.config import get_settings
 from app.main import app
 from app.rooms.db import Tx
