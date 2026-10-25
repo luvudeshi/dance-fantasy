@@ -49,19 +49,8 @@ export function SignatureCard({ title, artist = '', className }: { title: string
     )
   }
 
-  if (result.status === 'not-configured') {
-    return (
-      <Panel title="Signature dance" kicker="The royal library is closed tonight" className={`${panelClass} is-quiet`}>
-        <div className="df-signature-wait">
-          <Icon name="key" size="sm" cut="sm" />
-          <div>
-            <p className="df-note">Song search isn’t set up on this server, so the famous steps can’t be looked up.</p>
-            <p className="df-note df-signature-detail">{result.message}</p>
-          </div>
-        </div>
-      </Panel>
-    )
-  }
+  // No search / AI keys on this server: no card at all (players never see setup notes).
+  if (result.status === 'not-configured') return null
 
   if (result.status === 'error') {
     return (

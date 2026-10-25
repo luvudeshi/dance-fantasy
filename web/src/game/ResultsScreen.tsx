@@ -32,6 +32,8 @@ interface Props {
   onMenu?: () => void
   /** Extra panels at the end of the moves column (the song's signature dance). */
   aside?: ReactNode
+  /** The herald's line under the blurb. */
+  herald?: ReactNode
 }
 
 function Stars({ value }: { value: number }) {
@@ -61,7 +63,7 @@ function MovePictogram({ move, mirrored, theme }: { move: Move; mirrored: boolea
 }
 
 export default function ResultsScreen(props: Props) {
-  const { view, moves, mirrored, autoplay, details, onPlayAgain, onNewRoutine, onLobby, onPracticeHardest, onDownloadLog, onLearn, onMenu, aside } = props
+  const { view, moves, mirrored, autoplay, details, onPlayAgain, onNewRoutine, onLobby, onPracticeHardest, onDownloadLog, onLearn, onMenu, aside, herald } = props
   const grade = gradeFor(view.stars)
   const playAgainRef = useRef<HTMLButtonElement>(null)
   // Enter replays straight away (Space stays the stage's pause key, which is off here).
@@ -83,6 +85,7 @@ export default function ResultsScreen(props: Props) {
             {view.blurb}
             {autoplay && ' (The autoplay bot danced this one.)'}
           </p>
+          {herald}
         </header>
 
         <div className="results-grid">

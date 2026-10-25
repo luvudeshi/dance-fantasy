@@ -2,6 +2,12 @@
    ballroom (the coach needs stage lighting), framed as a sticker window on the paper; DOM HUD parts and every
    card are paper stickers. No SVG filter on any ancestor of the canvas (it would re-filter every frame). */
 
+/* The page is an isolated .df-screen under the app's sticky header: lift it above the header while the
+   full-window stage is up, or the header would cover the stage's top bar. */
+.df-screen:has(.play-stage) {
+  z-index: calc(var(--df-z-sticky) + 1);
+}
+
 /* ---------- the window: paper top bar, gold + cream rim, paper all around ---------- */
 .df-screen .play-stage {
   background: var(--df-night-deep);

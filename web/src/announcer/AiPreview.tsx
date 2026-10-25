@@ -46,7 +46,7 @@ export default function AiPreview() {
   }
 
   return (
-    <div className="df-screen">
+    <div className="df-screen" style={{ overflowX: 'clip' }}>
       <Corners />
       <div className="df-twinkles" aria-hidden="true" />
       <div className="df-container df-stack" style={{ '--df-gap': '28px', paddingBlock: 24 } as CSSProperties}>

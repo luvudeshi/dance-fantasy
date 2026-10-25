@@ -8,6 +8,11 @@
 .df-herald-inline {
   max-width: 34rem;
 }
+/* on the results card, under the blurb */
+.results-head .df-herald-inline {
+  margin: 14px auto 4px;
+  text-align: left;
+}
 .df-herald-stage {
   position: fixed;
   left: max(16px, env(safe-area-inset-left));
@@ -89,6 +94,17 @@
 }
 
 @media (max-width: 480px) {
+  /* a slimmer bubble on phones, so the coach stays in view */
+  .df-herald-stage {
+    width: min(19rem, calc(100vw - 32px));
+  }
+  .df-herald-bubble {
+    gap: 10px;
+    padding: 8px 14px 10px 8px;
+  }
+  .df-herald-line {
+    font-size: 0.95rem;
+  }
   .df-herald-crest {
     width: 48px;
     height: 48px;

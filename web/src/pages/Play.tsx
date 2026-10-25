@@ -1220,7 +1220,7 @@ export default function Play() {
           sound={soundOn}
         >
           <RoomLeaderboard routineId={routine?.meta?.routineId} />
-          <HeraldBubble announcer={announcer} />
+          {phase !== 'results' && <HeraldBubble announcer={announcer} />}
           {session.status === 'loading' && (
             <div className="play-overlay">
               <div className="play-card loading">
@@ -1371,6 +1371,7 @@ export default function Play() {
                 window.location.hash = '#/'
               }}
               aside={<SignatureCard title={active.game.analysis.title} artist={active.game.analysis.artist} />}
+              herald={<HeraldBubble announcer={announcer} placement="inline" />}
             />
           )}
         </PlayStage>

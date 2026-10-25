@@ -101,9 +101,7 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
       <div className="df-twinkles" aria-hidden="true" />
       <div className="df-container df-stack rm-page" style={{ '--df-gap': '24px' } as CSSProperties}>
         <header className="df-topbar">
-          <span className="df-brand">
-            Dance <b>Fantasy</b>
-          </span>
+          <h1 className="df-title">The Ballroom</h1>
           <div className="df-cluster" style={{ '--df-gap': '10px' } as CSSProperties}>
             <Badge tone={room.state === 'playing' ? 'rasp' : room.state === 'finished' ? 'gold' : 'sage'}>{STATE_LABEL[room.state]}</Badge>
             <span className="df-code-chip" data-room-code={code}>
