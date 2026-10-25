@@ -138,7 +138,7 @@ export default function Credits() {
               ))}
             </ul>
             <p className="df-note shell-note">
-              The real-dancer moves are 2D clips we derived from the AIST++ annotations (© Google LLC, CC BY 4.0), which are reconstructed
+              The real-dancer moves are 2D clips we derived from AIST++&rsquo;s 3D dance keypoints (© Google LLC, CC BY 4.0), which are reconstructed
               from the AIST Dance Video Database (© AIST; research and non-commercial use only). No AIST videos or music are used, and Dance
               Fantasy is a non-commercial hackathon project. Li, Yang, Ross, Kanazawa, ICCV 2021 · Tsuchida, Fukayama, Hamasaki, Goto, ISMIR
               2019.

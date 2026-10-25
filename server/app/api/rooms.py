@@ -26,6 +26,7 @@ from app.rooms.models import (
     BeatsBody,
     ChatBody,
     Created,
+    DancingBody,
     Heatmap,
     Joined,
     ModeBody,
@@ -124,6 +125,12 @@ def set_routine(
 @router.post("/{code}/ready")
 def set_ready(code: str, body: ReadyBody, token: Token = None, chat_after: ChatAfter = None) -> RoomView:
     return store.set_ready(code, token, body.ready, chat_after, _now())
+
+
+@router.post("/{code}/dancing")
+def set_dancing(code: str, body: DancingBody, token: Token = None, chat_after: ChatAfter = None) -> RoomView:
+    """Dance in the next rounds or only watch (``dancing: false``, e.g. the host's big screen)."""
+    return store.set_dancing(code, token, body.dancing, chat_after, _now())
 
 
 @router.post("/{code}/start")

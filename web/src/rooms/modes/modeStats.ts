@@ -2,7 +2,7 @@
 // the "IN SYNC" burst trigger, team stars and the song's hardest moments.
 
 import { formatScore } from '../../game/results'
-import type { CrewStats, RoomPlayer, RoomView } from '../client'
+import { dancersOf, type CrewStats, type RoomPlayer, type RoomView } from '../client'
 import type { HeatBeat } from './api'
 
 /** The sync bonus multiplier stops growing at this streak (server: 25 x min(streak, 8)). */
@@ -22,9 +22,9 @@ export interface VersusRow {
   rank: number
 }
 
-/** Players by beats won, then score (ties share a rank). */
+/** Dancers (not watchers) by beats won, then score (ties share a rank). */
 export function versusRows(room: Pick<RoomView, 'players' | 'leaderId'>): VersusRow[] {
-  const sorted = [...room.players].sort((a, b) => b.beatsWon - a.beatsWon || b.score - a.score)
+  const sorted = dancersOf(room.players).sort((a, b) => b.beatsWon - a.beatsWon || b.score - a.score)
   const top = Math.max(1, ...sorted.map((p) => p.beatsWon))
   let rank = 0
   return sorted.map((player, i) => {

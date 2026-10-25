@@ -8,7 +8,8 @@
   sweeps a clear angle across the keyframes (robust 5-95 % spread); legs only when they really move; the
   shoulders when the torso leans; always at least two joints.
 * name: genre + a word for the window's most *distinctive* motion (each motion feature is ranked against
-  all kept windows, so the word says what stands out, not what every dance does).
+  all kept windows, so the word says what stands out, not what every dance does). A word the genre name
+  already holds ("Lock Lock", "Street Jazz Jazz Hands") is skipped for the next most distinctive motion.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ TORSO_RANGE = 25.0  # degrees of torso (mid-hip -> mid-shoulder) sweep that scor
 SEATED_ROOT_Y = 0.2  # seated-ok needs the hips to stay this steady (and no scored leg joints)
 SEATED_ROOT_X = 0.35
 DIFFICULTY_CUTS = (0.35, 0.80)
-# motion word -> genre-flavoured words
+# motion word -> genre-flavoured words (one that repeats the genre's name, like LO's "Lock", is skipped: descriptor())
 FLAVOR = {
     ("HO", "Step"): "Shuffle", ("HO", "Bounce"): "Jack", ("HO", "Kick"): "Heel Kick", ("KR", "Step"): "Stomp",
     ("KR", "Arm Wave"): "Arm Swing", ("KR", "Bounce"): "Chest Pop", ("WA", "Arm Wave"): "Whip", ("WA", "Arm Swing"): "Arm Whip",
@@ -176,14 +177,21 @@ def tag_all(cands: Seq[Candidate]) -> None:
     pct = {w: _ranks(np.array([f[w] for f in feats])) for w in words}
     for i, c in enumerate(cands):
         eligible = [w for w in words if feats[i][w] >= WORD_MIN.get(w, -np.inf)]
-        word = max(eligible, key=lambda w: (pct[w][i], w))
-        c.tags["descriptor"] = FLAVOR.get((c.genre, word), word)
+        c.tags["descriptor"] = descriptor(c.genre, sorted(eligible, key=lambda w: (pct[w][i], w), reverse=True))
     score = 0.45 * _ranks(energy) + 0.3 * _ranks(np.array(n_moving, dtype=float)) + 0.25 * _ranks(np.array(legs))
     dcut = np.quantile(score, DIFFICULTY_CUTS)
     for c, e, s in zip(cands, energy, score):
         c.tags["intensity"] = int(1 + np.searchsorted(cuts, e, side="right"))
         c.tags["difficulty"] = "easy" if s < dcut[0] else ("normal" if s < dcut[1] else "hard")
         c.tags["difficultyScore"] = float(s)
+
+
+def descriptor(genre: str, ranked: Seq[str]) -> str:
+    """The genre-flavoured word for the first of ``ranked`` (most distinctive motion first) that doesn't repeat
+    a word of the genre's name: "Lock Lock" says nothing "Lock" doesn't, so that window is a "Lock Pace"."""
+    genre_words = set(GENRE_NAMES.get(genre, genre).lower().split())
+    flavored = [FLAVOR.get((genre, w), w) for w in ranked]
+    return next((w for w in flavored if genre_words.isdisjoint(w.lower().split())), flavored[0])
 
 
 def display_name(c: Candidate) -> str:

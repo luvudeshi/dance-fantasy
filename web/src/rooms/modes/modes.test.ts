@@ -18,6 +18,7 @@ const player = (id: string, over: Partial<RoomPlayer> = {}): RoomPlayer => ({
   progress: 0,
   finished: false,
   beatsWon: 0,
+  dancing: true,
   ...over,
 })
 
@@ -35,6 +36,15 @@ describe('versus', () => {
       ['a', 2, 0.5, false],
       ['c', 2, 0.5, false],
     ])
+  })
+  it('leaves watchers off the standings and the podium', () => {
+    const players = [player('host', { dancing: false }), player('a', { beatsWon: 2, score: 300 }), player('b', { beatsWon: 5 })]
+    expect(versusRows({ leaderId: 'b', players }).map((r) => [r.player.id, r.rank])).toEqual([
+      ['b', 1],
+      ['a', 2],
+    ])
+    expect(modeLine({ mode: 'versus', players, leaderId: 'b', crew }, 'a')).toBe('2nd of 2 · 2 beats won · b leads')
+    expect(modeLine({ mode: 'versus', players, leaderId: 'b', crew }, 'host')).toBe('b leads') // the big screen
   })
   it('has zero-length bars before anyone wins a beat', () => {
     expect(versusRows({ leaderId: null, players: [player('a'), player('b')] }).map((r) => r.share)).toEqual([0, 0])

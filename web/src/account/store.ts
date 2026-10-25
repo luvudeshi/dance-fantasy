@@ -5,6 +5,7 @@
 // ponytail: no separate POST /api/me/heartbeat timer; add one only if the invite poll ever stops while visible.
 
 import { useSyncExternalStore } from 'react'
+import { ApiError } from '../api'
 import { errorMessage } from '../lib/errors'
 import * as api from './client'
 import type { Invite, Me, RoundRecord } from './client'
@@ -14,7 +15,7 @@ export interface AccountState {
   status: 'idle' | 'loading' | 'ready' | 'unavailable'
   me: Me | null
   invites: Invite[]
-  /** The room this tab is in (set by recordRoomPlayed), for "Invite to my room". */
+  /** The room this tab is in (set by recordRoomPlayed, dropped by leftRoom / checkRoom), for "Invite to my room". */
   room: string | null
   error: string | null
 }
@@ -171,6 +172,40 @@ export function leftRoom(): void {
     // nothing remembered
   }
   set({ room: null })
+}
+
+const isMissing = (err: unknown): boolean => err instanceof ApiError && err.status === 404
+
+/**
+ * The remembered room outlives the room itself (only the in-room Leave forgets it): ask the server and
+ * forget it like leftRoom() once it answers 404 (closed or expired). Resolves the room still remembered.
+ * Never throws; offline or rate-limited keeps the room until the next check.
+ */
+export async function checkRoom(): Promise<string | null> {
+  const code = state.room
+  if (!code) return null
+  try {
+    await api.peekRoom(code)
+  } catch (err) {
+    if (!isMissing(err)) console.warn('[account] room check failed', err)
+    else if (state.room === code) leftRoom()
+  }
+  return state.room
+}
+
+/**
+ * "Invite to my room". The server answers 404 for a room that has closed (and for someone who isn't
+ * your friend): when the room is gone, forget it and say so.
+ */
+export async function inviteToRoom(friendId: string, roomCode: string): Promise<void> {
+  try {
+    await api.inviteFriend(friendId, roomCode)
+  } catch (err) {
+    if (isMissing(err) && (await checkRoom()) !== roomCode) {
+      throw new ApiError(`Room ${roomCode} has closed. Open or join a room to invite friends.`, 404, false, { cause: err })
+    }
+    throw err
+  }
 }
 
 /** Add a finished round to the history (values are clamped to what the server accepts). Never throws. */

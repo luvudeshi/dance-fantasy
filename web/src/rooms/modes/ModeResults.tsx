@@ -3,7 +3,7 @@ import { formatScore, rankTitle, scoreBand } from '../../game/results'
 import { errorMessage, isAbortError } from '../../lib/errors'
 import { Button, Notice, Sparkle, Token } from '../../theme/components'
 import { Icon } from '../../theme/Icon'
-import { avatarFor, type RoomView } from '../client'
+import { avatarFor, dancersOf, type RoomView } from '../client'
 import { getHeatmap, type HeatBeat } from './api'
 import { beatsWonLabel, hardestMoments, teamStars, versusRows } from './modeStats'
 import './modes.css'
@@ -50,7 +50,8 @@ function Stars({ stars }: { stars: number }) {
 }
 
 function CrewResult({ room, totalBeats }: { room: RoomView; totalBeats?: number }) {
-  const { crew, players } = room
+  const { crew } = room
+  const players = dancersOf(room.players)
   const stars = teamStars(players, crew, totalBeats)
   return (
     <div className="dfm-crew-result df-stack">

@@ -79,7 +79,9 @@ function NameTags({ players, meId }: { players: readonly RoomPlayer[]; meId: str
                 {p.name}
                 {p.id === meId && <span className="rm-tag-you"> (you)</span>}
               </span>
-              <span className="df-tag-role">{p.ready ? 'ready!' : !p.connected ? 'away' : p.isHost ? 'the host' : 'getting ready'}</span>
+              <span className="df-tag-role">
+                {p.ready ? 'ready!' : !p.connected ? 'away' : !p.dancing ? 'watching' : p.isHost ? 'the host' : 'getting ready'}
+              </span>
             </figcaption>
           </figure>
         </li>
@@ -91,7 +93,8 @@ function NameTags({ players, meId }: { players: readonly RoomPlayer[]; meId: str
 export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat; onGone: (why: 'left' | 'missing') => void }) {
   const { room, chat, offsetMs, error, gone, act } = useRoom(code, seat.token)
   const [toast, setToast] = useState<string | null>(null)
-  const [dancing, setDancing] = useState(true)
+  /** The "I'm dancing too" switch while its write is on the way (optimistic); null: show the server's. */
+  const [dancingWish, setDancingWish] = useState<boolean | null>(null)
   const [draft, setDraft] = useState('')
   const [picking, setPicking] = useState(false)
   const wide = useSyncExternalStore(subscribeWide, isWide)
@@ -138,6 +141,7 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
   const readyCount = room.players.filter((p) => p.ready).length
   const startLocal = room.startAt !== null ? room.startAt - offsetMs : null
   const begun = storedRound()?.serverStartAt === room.startAt
+  const dancing = dancingWish ?? me?.dancing ?? true
   const goesIn = dancing && me !== undefined && !me.finished && !begun
   const showCountdown =
     room.routine !== null && startLocal !== null && (room.state === 'countdown' || (room.state === 'playing' && goesIn))
@@ -146,6 +150,11 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
   const go = (): void => {
     if (!goesIn || !room.routine || room.startAt === null || startLocal === null) return
     beginRoomRound({ code, routineId: room.routine.routineId, serverStartAt: room.startAt, startAt: startLocal })
+  }
+  const setDancing = (next: boolean): void => {
+    setDancingWish(next)
+    // Success shows the server's answer, a failure (toast) the server's value from before.
+    void attempt((after) => roomWrites.dancing(code, seat.token, next, after)).finally(() => setDancingWish(null))
   }
   const pick = async (r: RoomRoutine): Promise<void> => {
     await act((after) => roomWrites.routine(code, seat.token, r, after))
@@ -176,7 +185,13 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
     </div>
   )
   const dancingToggle = isHost && (
-    <Toggle checked={dancing} onChange={setDancing} label="I’m dancing too" hint={dancing ? undefined : 'This screen shows the live board'} />
+    <Toggle
+      checked={dancing}
+      onChange={setDancing}
+      disabled={!between}
+      label="I’m dancing too"
+      hint={dancing ? undefined : 'This screen shows the live board'}
+    />
   )
   const buttons = (
     <>
@@ -384,7 +399,10 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
                         {p.name}
                         {p.id === seat.playerId && <span className="df-note"> (you)</span>}
                       </span>
-                      <span className="df-item-meta">{p.isHost ? 'Host' : p.connected ? 'Here' : 'Away'}</span>
+                      <span className="df-item-meta">
+                        {p.isHost ? 'Host' : p.connected ? 'Here' : 'Away'}
+                        {!p.dancing && ' · watching'}
+                      </span>
                     </span>
                     <span className="df-item-end">
                       {p.ready ? <Badge tone="sage">Ready</Badge> : <Badge>Not yet</Badge>}

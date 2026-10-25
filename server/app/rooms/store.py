@@ -4,8 +4,10 @@ Every function takes ``now`` (epoch ms) so the timing rules are testable, and ru
 transaction (``app.rooms.db``). State is derived from times, never advanced by a timer:
 
 - ``lobby``: no start time. ``countdown``: now < startAt. ``playing``: after startAt until every
-  connected player has finished or ``MAX_PLAY_MS`` passed; then ``finished``, which sticks
+  connected dancer has finished or ``MAX_PLAY_MS`` passed; then ``finished``, which sticks
   (``finished_at``) until the host picks a routine or starts again (``start`` / ``rematch``).
+- A player who isn't dancing (``dancing = 0``: watching, e.g. the host's big screen) never holds up
+  a round, posts no beats or scores, and counts in neither crew sync, the team score nor the leader.
 - Versus and crew scoring from per-beat judgements live in ``app.rooms.modes``.
 - A player is connected while their last authenticated request is under ``CONNECTED_MS`` old.
 - Rooms expire ``ROOM_TTL_MS`` after the last authenticated request (writes stamp the room, polls
@@ -139,7 +141,7 @@ def _state(room: Row, players: list[Row], now: int) -> RoomState:
         return "countdown"
     if room["finished_at"] is not None or now >= start + MAX_PLAY_MS:
         return "finished"
-    if all(p["finished"] for p in players if _connected(p, now)):
+    if all(p["finished"] for p in players if _connected(p, now) and p["dancing"]):
         return "finished"
     return "playing"
 
@@ -171,6 +173,7 @@ def _view(tx: Tx, room: Row, chat_after: int | None, now: int) -> RoomView:
             code=room["code"], after=chat_after, n=CHAT_PAGE,
         )  # fmt: skip
     won = modes.beats_won(tx, room)
+    dancers = [p for p in players if p["dancing"]]
     return RoomView(
         code=room["code"],
         state=state,
@@ -179,8 +182,8 @@ def _view(tx: Tx, room: Row, chat_after: int | None, now: int) -> RoomView:
         startAt=room["start_at"],
         routine=RoutineChoice.model_validate_json(room["routine"]) if room["routine"] else None,
         mode=room["mode"],
-        leaderId=modes.leader([(p["id"], won.get(p["id"], 0), int(p["score"])) for p in players]),
-        crew=modes.crew_stats(room, sum(int(p["score"]) for p in players)),
+        leaderId=modes.leader([(p["id"], won.get(p["id"], 0), int(p["score"])) for p in dancers]),
+        crew=modes.crew_stats(room, sum(int(p["score"]) for p in dancers)),
         players=[
             PlayerView(
                 id=p["id"],
@@ -195,6 +198,7 @@ def _view(tx: Tx, room: Row, chat_after: int | None, now: int) -> RoomView:
                 progress=float(p["progress"]),
                 finished=bool(p["finished"]),
                 beatsWon=won.get(p["id"], 0),
+                dancing=bool(p["dancing"]),
             )  # fmt: skip
             for p in players
         ],
@@ -326,10 +330,21 @@ def set_ready(code: str, token: str | None, ready: bool, chat_after: int | None,
     return _write(code, token, chat_after, now, change)
 
 
+def set_dancing(code: str, token: str | None, dancing: bool, chat_after: int | None, now: int) -> RoomView:
+    def change(tx: Tx, room: Row, player: Row, state: RoomState) -> None:
+        if state not in ("lobby", "finished"):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Wait for this song to finish before switching.")
+        tx.run("update df_players set dancing = :dancing where id = :id", dancing=int(dancing), id=player["id"])
+
+    return _write(code, token, chat_after, now, change)
+
+
 def _begin(tx: Tx, room: Row, now: int) -> None:
     """A new round of the room's routine in ``COUNTDOWN_MS``: scores, ready and sync reset (old beats stay for heatmaps)."""
     if not room["routine"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "Pick a routine first.")
+    if not any(p["dancing"] for p in _players(tx, room["code"])):  # else the round would end before it began
+        raise HTTPException(status.HTTP_409_CONFLICT, "Nobody is dancing yet: wait for a dancer or dance too.")
     start_at = now + COUNTDOWN_MS
     tx.run("update df_rooms set start_at = :at, finished_at = null where code = :code", at=start_at, code=room["code"])
     tx.run(_RESET_PLAYERS, code=room["code"])
@@ -359,10 +374,11 @@ def rematch(code: str, token: str | None, chat_after: int | None, now: int) -> R
 
 def post_beats(code: str, token: str | None, beats: list[BeatJudgement], chat_after: int | None, now: int) -> RoomView:
     def change(tx: Tx, room: Row, player: Row, state: RoomState) -> None:
-        if state != "playing" or player["finished"]:
-            return  # like scores: ignored outside the song, and once you've finished it
+        if state != "playing" or player["finished"] or not player["dancing"]:
+            return  # like scores: ignored outside the song, once you've finished it, and from watchers
         modes.insert_beats(tx, room, player["id"], beats, now)
-        active = [p["id"] for p in _players(tx, room["code"]) if _connected(p, now) and not p["finished"]]
+        players = _players(tx, room["code"])
+        active = [p["id"] for p in players if _connected(p, now) and p["dancing"] and not p["finished"]]
         modes.advance_sync(tx, room, active)
 
     return _write(code, token, chat_after, now, change)
@@ -370,8 +386,8 @@ def post_beats(code: str, token: str | None, beats: list[BeatJudgement], chat_af
 
 def post_score(code: str, token: str | None, body: ScoreBody, chat_after: int | None, now: int) -> RoomView:
     def change(tx: Tx, room: Row, player: Row, state: RoomState) -> None:
-        if state != "playing":
-            return  # late or early packets are ignored; the response's state tells the client why
+        if state != "playing" or not player["dancing"]:
+            return  # late or early packets (and a watcher's) are ignored; the response's state tells the client why
         tx.run(
             "update df_players set score = :score, combo = :combo, max_combo = :max_combo, accuracy = :accuracy,"
             " progress = :progress, finished = :finished where id = :id",

@@ -21,7 +21,7 @@ from scripts.aist.project import J, prepare_sequence, project_window
 from scripts.aist.safe_load import UnsafePickleError, load_keypoints, parse_name, safe_loads
 from scripts.aist.segment import Candidate, keyframe_times, sequence_windows
 from scripts.aist.selection import SelectConfig, mirror_pose, nn_transition, select_genre
-from scripts.aist.tags import tag_all
+from scripts.aist.tags import FLAVOR, GENRE_NAMES, descriptor, display_name, tag_all
 from scripts.aist.tempo import estimate_tempo
 
 FPS = 60.0
@@ -288,6 +288,7 @@ def test_export_contract(tmp_path: Path) -> None:
     assert size == path.stat().st_size and json.loads(path.read_text()) == doc
     names = [c["name"] for c in doc["clips"]]
     assert len(set(names)) == len(names)  # repeated names are numbered
+    assert not [n for n in names if stutters(n)]
     # contract violations are caught
     broken = json.loads(json.dumps(doc))
     broken["clips"][0]["keyframes"] = [k for k in broken["clips"][0]["keyframes"] if k["t"] != 0.5]
@@ -296,6 +297,23 @@ def test_export_contract(tmp_path: Path) -> None:
     assert any("on-beat" in e or "half a beat" in e for e in errs) and any("bad id" in e for e in errs)
     with pytest.raises(ValueError):
         write_document(broken, tmp_path / "broken.json")
+
+
+def stutters(name: str) -> bool:
+    """A word said twice in a row, like "Lock Lock 2"."""
+    words = name.lower().split()
+    return any(a == b for a, b in zip(words, words[1:]))
+
+
+def test_names_skip_a_word_the_genre_already_says() -> None:
+    # locking's word for "Arm Wave" is "Lock", the genre itself: the next most distinctive motion names it
+    assert descriptor("LO", ["Arm Wave", "Bounce", "Step"]) == "Pace"
+    assert descriptor("JS", ["Arm Wave", "Point"]) == "Point"  # not "Street Jazz Jazz Hands"
+    assert descriptor("LO", ["Arm Swing", "Arm Wave"]) == "Wrist Roll" and descriptor("HO", ["Step"]) == "Shuffle"
+    for genre, word in FLAVOR:
+        c = make_candidate(f"g{genre}_sFM_cAll_d01_m{genre}0_ch01", 0, 4, neutral_seq(len(keyframe_times(4))))
+        c.tags = {"descriptor": descriptor(genre, [word, "Sway"])}
+        assert not stutters(display_name(c)) and display_name(c).startswith(GENRE_NAMES[genre] + " ")
 
 
 def test_mirror_pose_is_a_geometric_mirror() -> None:
@@ -315,3 +333,12 @@ def test_committed_clip_file_matches_contract() -> None:
     assert validate_document(doc) == []
     assert path.stat().st_size < 4 * 1024 * 1024
     assert len({c["genre"] for c in doc["clips"]}) == 10
+
+
+def test_committed_clip_names_are_unique_and_never_stutter() -> None:
+    path = REPO_ROOT / "assets" / "moves" / "aist_clips.json"
+    if not path.exists():
+        pytest.skip("assets/moves/aist_clips.json not built yet")
+    names = [c["name"] for c in json.loads(path.read_text())["clips"]]
+    assert len(set(names)) == len(names)
+    assert [n for n in names if stutters(n)] == []  # e.g. "Lock Lock 2"

@@ -173,13 +173,14 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
 | GET | `/api/rooms/{code}?chatAfter=<id>` | optional | | with a seat token: `RoomView`, and marks that player seen (401 for a token not in this room); without one only `{ code, state, playerCount, mode }` (no players, no chat) |
 | POST | `/api/rooms/{code}/routine` | host | `{ routineId, analysisId, title, difficulty, mode }` | `RoomView`; the routine must be one this server generated for that `analysisId` (else 404); lobby or finished only (else 409); back to lobby, scores, ready and crew sync reset |
 | POST | `/api/rooms/{code}/ready` | player | `{ ready: bool }` | `RoomView` |
-| POST | `/api/rooms/{code}/start` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`; lobby or finished only, needs a routine (else 409); resets scores, ready and crew sync |
+| POST | `/api/rooms/{code}/dancing` | player | `{ dancing: bool }` | `RoomView`; `false` = only watching (e.g. the host's big screen), kept across rounds until switched back; lobby or finished only (else 409) |
+| POST | `/api/rooms/{code}/start` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`; lobby or finished only, needs a routine and at least one dancer (else 409); resets scores, ready and crew sync |
 | POST | `/api/rooms/{code}/score` | player | `{ score, combo, maxCombo, accuracy, progress, finished }` | `RoomView`; ignored (no error) unless `playing` |
 | POST | `/api/rooms/{code}/chat` | player | `{ text }` | `RoomView`; 429 after 5 messages in 10 s |
 | POST | `/api/rooms/{code}/leave` | player | none | `{ ok: true }`; the host role passes to the next player, an empty room closes |
 | POST | `/api/rooms/{code}/mode` | host | `{ mode: "versus" \| "crew" }` | `RoomView`; lobby or finished only (else 409); kept across routines and rematches; new rooms are `versus` |
 | POST | `/api/rooms/{code}/beats` | player | `{ beats: [{ beat, score, grade }] }` (0-64) | `RoomView`; per-beat judgements, about once a second; ignored (no error) unless `playing` and you haven't posted `finished: true` |
-| POST | `/api/rooms/{code}/rematch` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`, same routine and mode; finished only (else 409); scores, ready, beats and sync reset |
+| POST | `/api/rooms/{code}/rematch` | host | none | `RoomView` in `countdown`, `startAt = serverNow + 5000`, same routine and mode; finished only, needs at least one dancer (else 409); scores, ready, beats and sync reset |
 | GET | `/api/songs/{analysisId}/heatmap` | none | | `{ analysisId, beats: [{ beat, avgScore, samples }] }` by beat: each room round's average score on the beat (clamped to 0-100), averaged over rounds, so every round weighs the same; `samples` is the number of rounds. The song's hardest moments are the lowest `avgScore` |
 
 Guessing codes: 20 lookups of unknown codes (404 on `GET /api/rooms/{code}` or `/join`) in a minute make
@@ -195,9 +196,10 @@ every lookup from that client answer 429 (with `Retry-After`) until the minute i
   "players": [{ "id": "Zp3k9QxA", "name": "Ana", "isHost": true, "ready": false,
                 "connected": true,        // seen in the last 10 s
                 "score": 0, "combo": 0, "maxCombo": 0, "accuracy": 0, "progress": 0, "finished": false,
-                "beatsWon": 0 }],         // versus: beats where this player had the best score
+                "beatsWon": 0,            // versus: beats where this player had the best score
+                "dancing": true }],       // false: only watching (see "Watchers")
   "leaderId": null,                       // versus: most beatsWon, then score; null on a tie or before any beat
-  "crew": { "teamScore": 0,               // everyone's score + syncBonus
+  "crew": { "teamScore": 0,               // every dancer's score + syncBonus
             "syncBonus": 0, "syncedBeats": 0, "syncStreak": 0, "bestSyncStreak": 0,
             "lastSyncBeat": null },        // beat index of the latest synced beat
   "chat": [{ "id": 12, "playerId": "Zp3k9QxA", "name": "Ana", "text": "ready?", "at": 1761379990000 }] }
@@ -217,7 +219,7 @@ every lookup from that client answer 429 (with `Retry-After`) until the minute i
 - **Names** (1-24 chars) and chat `text` (1-200) are trimmed with inner whitespace collapsed;
   control characters are 400. A taken name gets a suffix (`Ana`, `ana 2`).
 - **State is derived from time.** `countdown` while `serverNow < startAt`, then `playing`, then
-  `finished` once every connected player has posted `finished: true` or 10 minutes after
+  `finished` once every connected dancer has posted `finished: true` or 10 minutes after
   `startAt`; `finished` sticks until the host picks a routine or starts again (a rematch).
   Synced start: start the music at local time `startAt - (serverNow - Date.now() at receipt)`,
   i.e. correct for clock offset using `serverNow`; half the request's round trip is the error.
@@ -232,11 +234,15 @@ every lookup from that client answer 429 (with `Retry-After`) until the minute i
   sent keeps its first judgement, so retrying a failed call is safe. Beats further than the song
   can have reached (8 a second since `startAt`, plus 32) are dropped. Both modes' numbers are
   computed in every room; `mode` says which one to show.
+- **Watchers.** A player with `dancing: false` (set with `POST .../dancing`; everyone joins dancing)
+  stays in `players` and can still chat, and a watching host still picks the song and starts the
+  round, but they never hold up `finished`, their scores and beats are ignored, and they count in
+  neither crew sync, `teamScore` nor `leaderId`. Clients leave them off the live board, podium and results.
 - **Versus.** Each beat goes to the best score on it (ties count for everyone tied; a beat everyone
   scored 0 goes to nobody); `beatsWon` counts them this round. `leaderId` is the player with the
   most beats won, then the higher `score`.
-- **Crew.** A beat is in sync when every *active* dancer (connected and not finished; so not
-  someone who left, dropped out for 10 s, or joined mid-song) judged it `good` or `perfect`.
+- **Crew.** A beat is in sync when every *active* dancer (connected, dancing and not finished; so not
+  a watcher or someone who left, dropped out for 10 s, or joined mid-song) judged it `good` or `perfect`.
   Beats are decided in order once every active dancer has sent that far, or the furthest one is
   16 beats ahead (whoever hasn't sent it then breaks the sync), and never change after that. A
   beat nobody active judged is skipped. Each synced beat adds `25 x min(syncStreak, 8)` to
