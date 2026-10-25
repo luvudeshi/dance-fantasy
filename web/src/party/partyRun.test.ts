@@ -22,6 +22,7 @@ const FPS = 30
 function play(dancers: SyntheticDancer[], makeKeeper: MakeKeeper = classicKeeper) {
   const feed = new SyntheticPeopleFeed(track, dancers)
   const tracker = new PartyTracker(feed, dancers.length)
+  tracker.attach()
   let nowMs = 0
   const run = new PartyRun({ tracker, players: partyPlayers(dancers.length), checkpoints, config: DEFAULT_SCORING, makeKeeper, isPlaying: () => true, now: () => nowMs })
   const end = routine.song.durationSec
@@ -124,6 +125,7 @@ describe('PartyRun', () => {
   it('does not score while paused but still tracks who is there', () => {
     const feed = new SyntheticPeopleFeed(track, dancers)
     const tracker = new PartyTracker(feed, 3)
+    tracker.attach()
     let nowMs = 0
     const run = new PartyRun({ tracker, players: partyPlayers(3), checkpoints, config: DEFAULT_SCORING, isPlaying: () => false, now: () => nowMs })
     for (let k = 0; k < 300; k++) {

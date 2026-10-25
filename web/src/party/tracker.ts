@@ -182,15 +182,21 @@ export class PartyTracker {
   private state: TrackState
   private last: TrackedFrame | null = null
   private readonly listeners = new Set<(t: TrackedFrame) => void>()
-  private readonly unsubscribe: () => void
+  private readonly feed: PeopleFeed
   private readonly mirrored: boolean
   readonly players: number
 
+  /** Pure: nothing is subscribed until attach() (so it can be created during render). */
   constructor(feed: PeopleFeed, players: number, opts: { mirrored?: boolean } = {}) {
+    this.feed = feed
     this.players = players
     this.mirrored = opts.mirrored ?? true
     this.state = emptyTrack(players)
-    this.unsubscribe = feed.onPeople((f) => this.update(f))
+  }
+
+  /** Starts following the feed; returns the detach function (an effect's cleanup). */
+  attach(): () => void {
+    return this.feed.onPeople((f) => this.update(f))
   }
 
   /** Feeds one camera frame (the feed subscription calls this; tests may too). */
@@ -234,8 +240,4 @@ export class PartyTracker {
     this.state = emptyTrack(this.players)
   }
 
-  dispose(): void {
-    this.unsubscribe()
-    this.listeners.clear()
-  }
 }

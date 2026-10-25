@@ -135,7 +135,7 @@ describe('trackPeople', () => {
     expect(r.assign).toEqual([null, 0])
   })
 
-  it('subscribes to a feed and stops on dispose', () => {
+  it('follows a feed between attach and detach', () => {
     const cbs = new Set<(f: PartyFrame) => void>()
     const feed: PeopleFeed = {
       onPeople: (cb) => {
@@ -145,10 +145,12 @@ describe('trackPeople', () => {
       latestPeople: () => null,
     }
     const t = new PartyTracker(feed, 2)
+    expect(cbs.size).toBe(0)
+    const detach = t.attach()
     const seen: number[] = []
     t.onTracked((x) => seen.push(x.detected))
     for (const cb of cbs) cb(frame(0, [person(0.3)]))
-    t.dispose()
+    detach()
     expect(cbs.size).toBe(0)
     expect(seen).toEqual([1])
     expect(t.latest()?.detected).toBe(1)
