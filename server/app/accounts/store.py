@@ -72,6 +72,22 @@ def _hit(tx: Tx, bucket: str, now: int) -> None:
     tx.run("insert into df_hits (bucket, at) values (:b, :now)", b=bucket, now=now)
 
 
+def spend(bucket: str, limit: tuple[int, int], now: int) -> bool:
+    """Count one use of ``bucket`` (shared by every instance); False, counting nothing, once ``limit``
+    (n, window ms; window <= a day) is used up.
+
+    ponytail: count-then-insert, so concurrent instances can overshoot by the requests in flight.
+    """
+
+    def run(tx: Tx) -> bool:
+        if _limited(tx, bucket, limit, now):
+            return False
+        _hit(tx, bucket, now)
+        return True
+
+    return transaction(run)
+
+
 def _lookup(tx: Tx, token: str | None, now: int) -> Row | None:
     """The session's account (plus ``session_hash``), stamped as seen; None for a missing/unknown/expired token."""
     if not token or len(token) > 100:

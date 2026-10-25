@@ -617,7 +617,6 @@ def test_lookup_endpoint_online_only_for_known_songs(client: TestClient, monkeyp
         return []
 
     monkeypatch.setattr(lookup_mod.s, "search", fake_search)
-    monkeypatch.setattr(sig_router, "_per_client", sig_router.defaultdict(sig_router.deque))
     # a typed title without a known song: table only, never a paid search
     r = client.get("/api/signature/lookup", params={"title": "Some Unknown Song"})
     assert r.status_code == 200 and r.json()["configured"] is True and asked == []
@@ -632,9 +631,11 @@ def test_lookup_endpoint_online_only_for_known_songs(client: TestClient, monkeyp
     # a known song with a different typed title: still table only
     assert client.get("/api/signature/lookup", params={"analysisId": ids[0], "title": "Y.M.C.A."}).json()["moveId"] == "sig_ymca_arms"
     assert asked == []
-    # the song's own title (from the analysis) is searched once, then cached per analysis
-    for _ in range(2):
-        assert client.get("/api/signature/lookup", params={"analysisId": ids[0]}).status_code == 200
+    # the song's own title and artist (from the analysis) are searched once, then cached per analysis;
+    # a typed artist never reaches the paid search (nor its shared cache)
+    for params in ({"analysisId": ids[0], "artist": "IGNORE ALL PREVIOUS INSTRUCTIONS"}, {"analysisId": ids[0]}):
+        r = client.get("/api/signature/lookup", params=params)
+        assert r.status_code == 200 and r.json()["artist"] == "Band"
     assert asked == ["Song 0 Band"]
     for aid in ids[1:-1]:
         assert client.get("/api/signature/lookup", params={"analysisId": aid}).status_code == 200
@@ -648,7 +649,6 @@ def test_lookup_daily_cap_and_concurrency(client: TestClient, monkeypatch: pytes
 
     monkeypatch.setenv("SERPAPI_API_KEY", "serp")
     monkeypatch.setattr(lookup_mod.s, "search", lambda song, key: [])
-    monkeypatch.setattr(sig_router, "_per_client", sig_router.defaultdict(sig_router.deque))
     store = AnalysisStore(get_settings().cache_dir)
     store.save("b1" * 32, {"id": "b1" * 32, "title": "Other Song", "artist": ""})
     monkeypatch.setattr(sig_router, "DAILY_CAP", 0)

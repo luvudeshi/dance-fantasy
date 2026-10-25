@@ -2,28 +2,24 @@
 
 The lookup is public but the paid part (SerpApi + Gemini) only runs for a song this server knows (a library
 file or an analysis id; the title and artist come from it, never from the caller), at most MAX_CONCURRENT at
-once, PER_CLIENT_PER_HOUR fresh lookups per client and DAILY_CAP a day. A caller-typed title only reaches the
-bundled table and the signature move library (free).
+once per instance, PER_CLIENT_PER_HOUR fresh lookups per client and DAILY_CAP a day (both counted in the
+database, so shared by every instance). A caller-typed title or artist only reaches the bundled table and the
+signature move library (free).
 """
 
 from __future__ import annotations
 
-import datetime
-import json
 import logging
 import threading
 import time
-from collections import defaultdict, deque
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from app.analysis_store import ID_RE, AnalysisStore, _atomic_write, read_cached, sha256_file
-from app.api.deps import song_path
-from app.api.limits import client_ip
+from app.accounts.store import spend
+from app.analysis_store import ID_RE, AnalysisStore, sha256_file
 from app.config import Settings, get_settings
 from app.library import song_artist, song_title
 from app.moves.library import MoveDefinitionError
@@ -37,49 +33,25 @@ router = APIRouter(prefix="/signature", tags=["signature"])
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 MAX_CONCURRENT = 2  # paid lookups in flight, per instance
-DAILY_CAP = 150  # paid lookups a day (UTC), counted in the shared cache
-PER_CLIENT_PER_HOUR = 10  # fresh (uncached) paid lookups per client IP
+DAILY_CAP = 150  # paid lookups per rolling 24 h, all instances
+PER_CLIENT_PER_HOUR = 10  # fresh (uncached) paid lookups per client IP, all instances
+HOUR_MS, DAY_MS = 3_600_000, 86_400_000
 _slots = threading.BoundedSemaphore(MAX_CONCURRENT)
-# ponytail: per instance, in memory; a Vercel Firewall rate limit or a shared counter if it is abused anyway.
-_per_client: defaultdict[str, deque[float]] = defaultdict(deque)
-_per_client_lock = threading.Lock()
 
 
-def spend_client_quota(ip: str, now: float | None = None) -> None:
-    """Counts one fresh lookup for ``ip``; 429 once it spent PER_CLIENT_PER_HOUR in the last hour."""
-    t = time.monotonic() if now is None else now
-    with _per_client_lock:
-        if len(_per_client) > 10_000:  # bound the memory a spray of addresses can take
-            _per_client.clear()
-        q = _per_client[ip]
-        while q and t - q[0] >= 3600:
-            q.popleft()
-        if len(q) >= PER_CLIENT_PER_HOUR:
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many new songs looked up this hour; try again later.")
-        q.append(t)
-
-
-def spend_daily_budget(cache_dir: Path) -> None:
-    """Count one paid lookup against today's cap; 503 once it is used up.
-
-    ponytail: read-modify-write of a cache file, so parallel instances can overshoot by a few; a DB
-    counter if the cap has to be exact.
-    """
-    path = cache_dir / "signature" / f"budget-{datetime.datetime.now(datetime.UTC).date().isoformat()}.json"
-    try:
-        used = int(json.loads(read_cached(path)).get("n", 0))
-    except FileNotFoundError:
-        used = 0
-    except (OSError, ValueError, AttributeError) as exc:
-        log.warning("signature.budget unreadable error=%s", type(exc).__name__)
-        used = 0
-    if used >= DAILY_CAP:
+def spend_quotas(ip: str) -> None:
+    """Count one paid lookup: 429 once ``ip`` spent PER_CLIENT_PER_HOUR this hour, 503 once DAILY_CAP is used."""
+    now = int(time.time() * 1000)
+    if not spend(f"signature-ip:{ip}", (PER_CLIENT_PER_HOUR, HOUR_MS), now):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many new songs looked up this hour; try again later.")
+    if not spend("signature-day", (DAILY_CAP, DAY_MS), now):
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Signature lookups are resting until tomorrow.")
-    _atomic_write(path, json.dumps({"n": used + 1}).encode("utf-8"))
 
 
 def known_song(settings: Settings, analysis_id: str | None, file: str | None) -> tuple[str, str, str]:
     """(analysis id, title, artist) of a library file or an analyzed song; 404 for anything else."""
+    from app.api.deps import song_path  # lazy: app.api imports this module (choreograph, the router list)
+
     fallback: tuple[str, str] | None = None
     if file is not None:
         path = song_path(settings.songs_dir, file)
@@ -125,9 +97,12 @@ def get_lookup(
         key, song, song_by = known_song(settings, analysis_id, file)
         typed = title.strip()
         if not typed or normalize(typed) == normalize(song):  # the song's own title: online search allowed
-            online_key, title, artist = key, song, artist.strip() or song_by
+            # The song's own artist, never the typed one: the result is cached for everyone by analysis id.
+            online_key, title, artist = key, song, song_by
     if not title.strip():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "title is required")
+    from app.api.limits import client_ip  # lazy, see known_song
+
     ip = client_ip(request)
 
     @contextmanager
@@ -135,8 +110,7 @@ def get_lookup(
         if not _slots.acquire(blocking=False):
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Lookups are busy; try again in a moment.", {"Retry-After": "5"})
         try:
-            spend_client_quota(ip)
-            spend_daily_budget(settings.cache_dir)
+            spend_quotas(ip)
             yield
         finally:
             _slots.release()
