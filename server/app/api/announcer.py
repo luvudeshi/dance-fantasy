@@ -1,25 +1,40 @@
-"""POST /api/announcer: short fairy-tale ballroom announcer lines for a game event.
+"""POST /api/announcer: short fairy-tale ballroom announcer lines for a game event, and their voice.
 
 AI lines (app.ai: Muse, then Gemini) when a key is set and a model answers in time, else a varied pick from
 the canned bank (app.ai.prompts.CANNED). Always answers within ~2.5 s. Identical requests within
-CACHE_TTL_SEC get the same answer without a second model call.
+CACHE_TTL_SEC get the same answer without a second model call. Every line comes with an id (sha256 of its
+text) that GET /api/announcer/voice/{id} voices (app.ai.voice): only lines this endpoint gave out.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
-from typing import Literal
+from collections import deque
+from typing import Annotated, Literal
 
-from fastapi import APIRouter
+import anyio
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.ai.prompts import ANNOUNCER_SYSTEM, AnnouncerEvent, announcer_details, announcer_user, canned_lines, parse_lines
-from app.ai.provider import AIUnavailable, configured, generate_text
+from app.ai.prompts import (
+    ANNOUNCER_SYSTEM,
+    AnnouncerEvent,
+    announcer_details,
+    announcer_user,
+    canned_lines,
+    line_id,
+    parse_lines,
+)
+from app.ai.provider import AIUnavailable, configured, env, generate_text
+from app.ai.voice import VoiceUnavailable, cached_wav, known_text, remember, synthesize, voice_name
+from app.config import Settings, get_settings
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["ai"])
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 DEADLINE_SEC = 2.1  # the providers' share; the thread hop and canned fallback fit in the rest
 HARD_CAP_SEC = 2.3  # wall clock, even if a socket read drips past its own timeout
@@ -48,9 +63,19 @@ class AnnouncerRequest(BaseModel):
     context: AnnouncerContext
 
 
+class VoiceLine(BaseModel):
+    id: str  # sha256 of text: GET /api/announcer/voice/{id}
+    text: str
+
+
 class AnnouncerReply(BaseModel):
     lines: list[str]
+    items: list[VoiceLine]  # the same lines, with their ids
     source: Literal["muse", "gemini", "canned"]
+
+
+def _reply(lines: list[str], source: Literal["muse", "gemini", "canned"]) -> AnnouncerReply:
+    return AnnouncerReply(lines=lines, items=[VoiceLine(id=line_id(t), text=t) for t in lines], source=source)
 
 
 # ponytail: per-instance dict, oldest-first eviction; a shared cache only matters if many instances repeat calls.
@@ -72,22 +97,91 @@ async def _announce(req: AnnouncerRequest) -> AnnouncerReply:
             log.info("announcer.canned reason=%s", type(exc).__name__)
         else:
             if lines := parse_lines(raw):
-                return AnnouncerReply(lines=lines, source=source)
+                return _reply(lines, source)
             log.info("announcer.canned reason=unusable_reply")
-    return AnnouncerReply(lines=canned_lines(req.event, details), source="canned")
+    return _reply(canned_lines(req.event, details), "canned")
 
 
 @router.post("/announcer")
-async def announcer(req: AnnouncerRequest) -> AnnouncerReply:
-    """1-3 announcer lines (<= 90 chars each) for the event."""
+async def announcer(req: AnnouncerRequest, settings: SettingsDep) -> AnnouncerReply:
+    """1-3 announcer lines (<= 90 chars each) for the event, each with the id that voices it."""
     key = req.model_dump_json()
     now = time.monotonic()
     hit = _cache.get(key)
     if hit is not None and hit[0] > now:
         return hit[1]
     reply = await _announce(req)
+    try:
+        await asyncio.to_thread(remember, settings.cache_dir, reply.lines)
+    except Exception as exc:  # disk or Blob: the lines still show; the page falls back to its own voice
+        log.warning("announcer.remember ok=false error=%s", type(exc).__name__)
     _cache.pop(key, None)  # an expired entry: re-insert at the end so eviction stays oldest-first
     if len(_cache) >= CACHE_MAX:
         _cache.pop(next(iter(_cache)))  # dicts keep insertion order: this is the oldest entry
     _cache[key] = (time.monotonic() + CACHE_TTL_SEC, reply)
     return reply
+
+
+# ---- voice ---------------------------------------------------------------------------------------
+
+MAX_CONCURRENT_TTS = 2  # per instance; queued requests wait on the event loop, not in a worker thread
+TTS_SLOTS = anyio.CapacityLimiter(MAX_CONCURRENT_TTS)
+RATE_LIMIT = 40  # voice requests per client per window: a game asks for a few per minute
+RATE_WINDOW_SEC = 60.0
+MAX_TRACKED_CLIENTS = 4096
+VOICE_MAX_AGE_SEC = 24 * 3600
+# ponytail: per-instance sliding window keyed by client IP; a shared limiter (Blob/KV) if abuse spans instances.
+_hits: dict[str, deque[float]] = {}
+
+
+def _client(request: Request) -> str:
+    # Vercel's edge sets x-real-ip to the caller's address (a client can't spoof it there); elsewhere the socket.
+    if os.environ.get("VERCEL") and (ip := request.headers.get("x-real-ip")):
+        return ip
+    return request.client.host if request.client else "?"
+
+
+def _rate_limit(client: str) -> None:
+    """429 once ``client`` has made RATE_LIMIT voice requests in the last RATE_WINDOW_SEC."""
+    now = time.monotonic()
+    if len(_hits) > MAX_TRACKED_CLIENTS:  # forget clients that have gone quiet
+        for quiet in [c for c, q in _hits.items() if not q or q[-1] < now - RATE_WINDOW_SEC]:
+            del _hits[quiet]
+    q = _hits.setdefault(client, deque())
+    while q and q[0] < now - RATE_WINDOW_SEC:
+        q.popleft()
+    if len(q) >= RATE_LIMIT:
+        retry = int(q[0] + RATE_WINDOW_SEC - now) + 1
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, "Too many voice requests; slow down.", {"Retry-After": str(retry)}
+        )
+    q.append(now)
+
+
+@router.get(
+    "/announcer/voice/{lid}",
+    response_class=Response,
+    responses={200: {"content": {"audio/wav": {}}, "description": "The line, voiced (WAV, 16-bit mono)."}},
+)
+async def announcer_voice(lid: str, request: Request, settings: SettingsDep) -> Response:
+    """A line /api/announcer gave out, voiced by the herald. 404 unknown id, 429 too many, 503 no voice."""
+    _rate_limit(_client(request))
+    text = await asyncio.to_thread(known_text, settings.cache_dir, lid)
+    if text is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown announcer line.")
+    voice = voice_name()
+    wav = await asyncio.to_thread(cached_wav, settings.cache_dir, lid, voice)
+    if wav is None:
+        if not env("GEMINI_API_KEY"):
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The announcer voice needs GEMINI_API_KEY on the server.")
+        async with TTS_SLOTS:
+            # Re-check: a request for the same line may have voiced it while this one waited for a slot.
+            wav = await asyncio.to_thread(cached_wav, settings.cache_dir, lid, voice)
+            if wav is None:
+                try:
+                    wav = await asyncio.to_thread(synthesize, settings.cache_dir, lid, text, voice)
+                except VoiceUnavailable as exc:
+                    raise HTTPException(
+                        status.HTTP_503_SERVICE_UNAVAILABLE, "The announcer voice is unavailable right now; try again."
+                    ) from exc
+    return Response(wav, media_type="audio/wav", headers={"Cache-Control": f"public, max-age={VOICE_MAX_AGE_SEC}"})
