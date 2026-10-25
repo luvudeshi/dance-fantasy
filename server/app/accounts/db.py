@@ -80,6 +80,12 @@ create table if not exists df_rounds (
   mode text not null
 );
 create index if not exists df_rounds_account_idx on df_rounds (account_id, at);
+create table if not exists df_badges (
+  account_id text not null,
+  badge_id text not null,
+  earned_at bigint not null,
+  primary key (account_id, badge_id)
+);
 """
 
 _ready: set[str] = set()

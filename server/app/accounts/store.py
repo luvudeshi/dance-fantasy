@@ -32,6 +32,7 @@ from app.accounts.models import (
     RoundBody,
     Stats,
 )
+from app.badges import EarnedBadge, evaluate_badges
 from app.rooms import store as rooms
 from app.rooms.db import Row, Tx
 
@@ -223,6 +224,7 @@ def claim(token: str | None, username: str, password: str, now: int) -> tuple[Me
         tx.run("update df_accounts set username = :u, pw_hash = :pw where id = :id", u=username, pw=pw_hash, id=me["id"])
         _end_session(tx, token)  # new privileges, new session token
         me["username"] = username
+        evaluate_badges(tx, me["id"], now)
         return _me(tx, me), _new_session(tx, me["id"], now)
 
     return _authed(token, now, run)
@@ -297,6 +299,8 @@ def add_friend(token: str | None, code: str, now: int) -> Friend:
             " on conflict do nothing",
             a=me["id"], b=other["id"], now=now,
         )  # fmt: skip
+        evaluate_badges(tx, me["id"], now)
+        evaluate_badges(tx, other["id"], now)
         return next(f for f in _friends(tx, me["id"], now) if f.id == other["id"])
 
     return _authed(token, now, run)
@@ -404,8 +408,10 @@ def list_partners(token: str | None, now: int) -> list[Partner]:
 # --- round history (a hypertable on Tiger Data) ----------------------------------------------------
 
 
-def record_round(token: str | None, body: RoundBody, now: int) -> None:
-    def run(tx: Tx, me: Row) -> None:
+def record_round(token: str | None, body: RoundBody, now: int) -> list[EarnedBadge]:
+    """Store the round; returns the badges it newly earned."""
+
+    def run(tx: Tx, me: Row) -> list[EarnedBadge]:
         recent = _scalar(tx, "select count(*) from df_rounds where account_id = :me and at > :since",
                          me=me["id"], since=now - ROUND_LIMIT[1])  # fmt: skip
         if int(recent) >= ROUND_LIMIT[0]:
@@ -416,8 +422,9 @@ def record_round(token: str | None, body: RoundBody, now: int) -> None:
             me=me["id"], now=now, aid=body.analysisId, title=body.songTitle, score=body.score, acc=body.accuracy,
             combo=body.maxCombo, stars=body.stars, mode=body.mode,
         )  # fmt: skip
+        return evaluate_badges(tx, me["id"], now)
 
-    _authed(token, now, run)
+    return _authed(token, now, run)
 
 
 def day_streak(days: set[int], today: int) -> int:

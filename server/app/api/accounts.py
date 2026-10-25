@@ -29,6 +29,7 @@ from app.accounts.models import (
     RoomRecordBody,
     RoundBody,
 )
+from app.badges import RoundRecorded
 from app.rooms.models import Ok
 
 COOKIE = "df_session"
@@ -149,9 +150,8 @@ def list_partners(request: Request) -> list[Partner]:
 
 
 @router.post("/me/rounds")
-def record_round(body: RoundBody, request: Request) -> Ok:
-    store.record_round(_token(request), body, _now())
-    return Ok()
+def record_round(body: RoundBody, request: Request) -> RoundRecorded:
+    return RoundRecorded(newBadges=store.record_round(_token(request), body, _now()))
 
 
 @router.get("/me/history")
