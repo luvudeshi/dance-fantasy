@@ -17,7 +17,6 @@ function rig(): Rig {
   const log: string[] = []
   const loads: string[] = []
   const slow = new Map<string, number | 'fail'>()
-  const byId = new Map<string, string>()
   const runFor = (label: string, signal: AbortSignal): Promise<void> =>
     new Promise((resolve) => {
       log.push(`start ${label}`)
@@ -30,13 +29,11 @@ function rig(): Rig {
       }
     })
   const deps: VoiceDeps<string> = {
-    hash: async (text) => {
-      const id = await sha256Hex(text)
-      if (id) byId.set(id, text)
-      return id
-    },
+    // WebCrypto resolves on a thread pool, outside fake time: the queue tests use a microtask-only stand-in
+    // (sha256Hex itself is checked against the server's ids above).
+    hash: (text) => Promise.resolve(`id:${text}`),
     load: (id) => {
-      const text = byId.get(id) ?? id
+      const text = id.replace(/^id:/, '')
       loads.push(text)
       const s = slow.get(text)
       if (s === 'fail') return Promise.reject(new Error('HTTP 404'))
