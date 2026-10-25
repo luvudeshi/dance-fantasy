@@ -85,9 +85,6 @@ export function roomRoundFor(routineId: unknown, includeDone = false): RoomRound
   return r && routineId === r.routineId && (includeDone || !r.done) ? r : null
 }
 
-/** A room round is on (not finished on this device): Play skips rehearsal and calibration for it. */
-export const inRoomRound = (): boolean => roomRoundFor(storedRound()?.routineId) !== null
-
 /** Resolves when this routine's room round starts the song (right away for solo play or when late). */
 export function waitForRoomStart(routineId: unknown): Promise<void> {
   const wait = (roomRoundFor(routineId)?.songAt ?? 0) - Date.now()

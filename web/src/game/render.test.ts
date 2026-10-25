@@ -90,4 +90,17 @@ describe('judgment pop placement', () => {
       expect(y).toBeGreaterThanOrEqual(L.coachArea.y)
     }
   })
+
+  it('centres "PERFECT!" over the head on a phone so none of it runs off the stage', () => {
+    for (const [w, h] of [[390, 844], [360, 740]]) {
+      const L = playLayout(w, h, true)
+      const textW = popTextWidth(popFontSize(L.coachArea.h))
+      for (const root of [[0, 0], [-1.5, 0], [1.5, 0]] as [number, number][]) {
+        const { anchor, align } = popPlacement(NEUTRAL_POSE, root, L)
+        expect(align).toBe('center')
+        expect(anchor[0] - textW / 2).toBeGreaterThanOrEqual(L.coachArea.x)
+        expect(anchor[0] + textW / 2).toBeLessThanOrEqual(L.coachArea.x + L.coachArea.w)
+      }
+    }
+  })
 })

@@ -106,18 +106,27 @@ export async function fetchSignature(song: SignatureSong, signal?: AbortSignal, 
 }
 
 const signatures = new Map<string, Promise<SignatureResult>>()
+/** The server said it has no keys: every later lookup gets this answer without a request (no 404 per song). */
+let notConfigured: SignatureResult | null = null
+let seenOk = false
+
+/** A lookup has come back with a signature (the server is configured): worth showing a loading card. */
+export const signaturesSeen = (): boolean => seenOk
 
 /** The cache key of a song (also the card's React-ish identity). */
 export const signatureKey = (song: SignatureSong): string => ('analysisId' in song ? `a:${song.analysisId}` : `f:${song.file}`)
 
 /** fetchSignature, shared and kept per song unless it failed. */
 export function loadSignature(song: SignatureSong): Promise<SignatureResult> {
+  if (notConfigured) return Promise.resolve(notConfigured)
   const key = signatureKey(song)
   const hit = signatures.get(key)
   if (hit) return hit
   const p = fetchSignature(song)
   signatures.set(key, p)
   void p.then((r) => {
+    if (r.status === 'not-configured') notConfigured = r
+    if (r.status === 'ok') seenOk = true
     if (r.status === 'error' && signatures.get(key) === p) signatures.delete(key)
   })
   return p

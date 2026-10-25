@@ -63,7 +63,7 @@ import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
 import { createReelSession, reelEnabled, ReelLauncher } from '../reel'
-import { finishRoomRound, inRoomRound, reportRoomBeat, roomRoundFor, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
+import { finishRoomRound, reportRoomBeat, roomRoundFor, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
 import RoomLeaderboard from '../rooms/RoomLeaderboard'
 import { getSettings } from '../settings'
 import { Corners } from '../theme/components'
@@ -159,6 +159,8 @@ interface Launch {
   firstStep: SessionStep
   title: string
   subtitle: string
+  /** a saved routine (a room round plays one: no rehearsal, no calibration) */
+  routineId?: string
 }
 
 export default function Play() {
@@ -233,6 +235,7 @@ export default function Play() {
   const soundOn = autoplay ? autoSfx : sfxOn
   const soundOnRef = useLatest(soundOn)
   const judgingRef = useLatest(judging)
+  const inRoom = roomRoundFor(active?.game.routine.meta?.routineId) !== null // no R / Restart: it would desync the round
   useRoomReporter(active?.game.routine.meta?.routineId, () => {
     const a = activeRef.current
     return a?.run && phaseRef.current === 'game' ? { keeper: a.run.keeper, songTime: clock.songTime(), durationSec: a.game.durationSec } : null
@@ -354,7 +357,7 @@ export default function Play() {
     const run = a?.run
     if (!a || !run || phaseRef.current !== 'game') return
     const summary = run.finish(a.game.routine, a.game.durationSec)
-    const inRoom = roomRoundFor(a.game.routine.meta?.routineId) !== null
+    const wasRoomRound = roomRoundFor(a.game.routine.meta?.routineId) !== null
     finishRoomRound(a.game.routine.meta?.routineId, summary)
     console.log(a.monitor.summary())
     const results = run.keeper.results()
@@ -363,7 +366,7 @@ export default function Play() {
     setResults(buildResultsView(summary, results, a.game.routine, meta.config.thresholds))
     if (!auto) {
       const { score, maxCombo, stars } = summary.state
-      void recordRound({ analysisId: a.game.analysis.id, songTitle: a.game.analysis.title, score, accuracy: summary.accuracy, maxCombo, stars, mode: inRoom ? 'room' : 'solo' })
+      void recordRound({ analysisId: a.game.analysis.id, songTitle: a.game.analysis.title, score, accuracy: summary.accuracy, maxCombo, stars, mode: wasRoomRound ? 'room' : 'solo' })
     }
     announcer.results(summary)
     setRound({
@@ -525,7 +528,8 @@ export default function Play() {
     setLinked(null) // a waiting deep link is superseded by whatever starts now
     const auto = autoplay
     playAutoRef.current = auto
-    const reh = inRoomRound() ? 'none' : effectiveRehearsal(rehearsal, auto)
+    const roomRound = roomRoundFor(l.routineId) !== null
+    const reh = roomRound ? 'none' : effectiveRehearsal(rehearsal, auto)
     setRunRehearsal(reh)
     practiceNextRef.current = reh === 'practice'
     setPending({ title: l.title, subtitle: l.subtitle })
@@ -545,7 +549,7 @@ export default function Play() {
       if (!game || sessionRef.current !== ac) return
       setPrepared(game)
       shelve(game)
-      const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal || inRoomRound(), calibrated: calRef.current !== null })
+      const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal || roomRound, calibrated: calRef.current !== null })
       dispatch({ type: 'prepared', calibrate, rehearsal: reh })
       if (reh === 'watch') beginPreview(game)
       else if (!calibrate) void warmup(game)
@@ -566,6 +570,7 @@ export default function Play() {
     launch({
       load: (deps, on, signal) => prepareFromRoutine(routineId, deps, on, signal, hint),
       firstStep: 'findingRoutine',
+      routineId,
       title: entry?.title ?? 'Your routine',
       subtitle: entry ? setupLabel(entry) : `routine ${routineId}`,
     })
@@ -858,7 +863,7 @@ export default function Play() {
         break
       case 'r':
       case 'R':
-        if (!e.repeat) restart()
+        if (!e.repeat && !inRoom) restart()
         break
       case 'm':
       case 'M':
@@ -926,7 +931,7 @@ export default function Play() {
   const watchInstead =
     runRehearsal === 'practice' ? (
       <button type="button" onClick={switchToWatch}>
-        👀 Just watch it first
+        Just watch it first
       </button>
     ) : null
 
@@ -1033,11 +1038,7 @@ export default function Play() {
               </span>
             )}
           </label>
-          {choice?.kind === 'library' && (
-            <div style={{ marginTop: 20 }}>
-              <SignatureCard song={{ file: choice.file }} title={choiceTitle(choice)} />
-            </div>
-          )}
+          {choice?.kind === 'library' && <SignatureCard className="lobby-signature" song={{ file: choice.file }} title={choiceTitle(choice)} />}
         </div>
 
         <div className="lobby-card">
@@ -1091,7 +1092,7 @@ export default function Play() {
                 onChange={(e) => setSeed(Math.trunc(Number(e.target.value)) || 0)}
               />
               <button type="button" onClick={() => setSeed(randomSeed())} title="A different routine for the same song">
-                🎲 New seed
+                New seed
               </button>
             </div>
           </div>
@@ -1305,7 +1306,7 @@ export default function Play() {
                   <>
                     {watchInstead}
                     <button type="button" onClick={switchToAutoplay}>
-                      🤖 No camera? Let the bot dance
+                      No camera? Let the bot dance
                     </button>
                     <button type="button" onClick={exitToLobby}>
                       Lobby
@@ -1339,7 +1340,7 @@ export default function Play() {
                   </button>
                   {watchInstead}
                   <button type="button" onClick={switchToAutoplay}>
-                    🤖 Let the bot dance
+                    Let the bot dance
                   </button>
                   <button type="button" onClick={exitToLobby}>
                     Lobby
@@ -1349,7 +1350,7 @@ export default function Play() {
             </div>
           )}
           {paused && isRunning(phase) && (
-            <PauseMenu onResume={togglePause} onRestart={restart} onQuit={exitToLobby} onSkip={isRehearsing(phase) ? endRehearsal : undefined} />
+            <PauseMenu onResume={togglePause} onRestart={inRoom ? undefined : restart} onQuit={exitToLobby} onSkip={isRehearsing(phase) ? endRehearsal : undefined} />
           )}
           {phase === 'ready' && active && (
             <div className="play-overlay dim-bg">
@@ -1370,7 +1371,7 @@ export default function Play() {
                     {runRehearsal === 'practice' ? 'Practice again' : 'Watch again'}
                   </button>
                   <button type="button" onClick={newRoutine} title="Same song and setup, a new seed">
-                    🎲 New routine
+                    New routine
                   </button>
                   <button type="button" onClick={exitToLobby}>
                     Lobby

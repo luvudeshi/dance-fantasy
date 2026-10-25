@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.ai import prompts
@@ -285,3 +286,13 @@ def test_signature_lookups_are_capped(client: TestClient, monkeypatch: pytest.Mo
 def test_song_files_still_route(client: TestClient) -> None:
     assert client.get("/api/songs").status_code == 200
     assert client.get("/api/songs/nope.wav").status_code == 404
+
+
+def test_signature_paid_lookups_are_capped_per_hour(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(signature_api, "_fresh", signature_api.deque())
+    for _ in range(signature_api.FRESH_PER_HOUR):
+        signature_api.spend_lookup(now=100.0)
+    with pytest.raises(HTTPException) as exc:
+        signature_api.spend_lookup(now=200.0)
+    assert exc.value.status_code == 429
+    signature_api.spend_lookup(now=100.0 + 3600)  # an hour later the window has room again

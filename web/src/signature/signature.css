@@ -3,6 +3,9 @@
 .df-signature {
   max-width: 56rem;
 }
+.lobby-signature {
+  margin-top: 20px;
+}
 .df-signature h3 {
   margin: 0;
 }

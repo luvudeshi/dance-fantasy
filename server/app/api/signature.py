@@ -20,7 +20,9 @@ import http.client
 import json
 import logging
 import threading
+import time
 import urllib.request
+from collections import deque
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from itertools import zip_longest
@@ -64,6 +66,23 @@ NOT_FOUND = "We couldn't find a well-known dance for this song online."
 MAX_CONCURRENT = 2  # SerpApi + LLM lookups in flight, per instance
 DAILY_CAP = 150  # paid lookups a day (UTC), counted in the shared cache
 _slots = threading.BoundedSemaphore(MAX_CONCURRENT)
+# The endpoint is public: cap the paid lookups (2 SerpApi searches + 1 model call each) so a script varying `title`
+# can't drain the monthly search quota. Cached songs don't count.
+# ponytail: per instance, in memory; a Vercel Firewall rate limit or a shared counter if it is abused anyway.
+FRESH_PER_HOUR = 40
+_fresh: deque[float] = deque()
+_fresh_lock = threading.Lock()
+
+
+def spend_lookup(now: float | None = None) -> None:
+    """Counts one paid lookup; 429 once FRESH_PER_HOUR were spent on this instance in the last hour."""
+    t = time.monotonic() if now is None else now
+    with _fresh_lock:
+        while _fresh and t - _fresh[0] >= 3600:
+            _fresh.popleft()
+        if len(_fresh) >= FRESH_PER_HOUR:
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many new songs looked up this hour; try again later.")
+        _fresh.append(t)
 
 
 class Source(BaseModel):
@@ -242,6 +261,7 @@ def get_signature(
         cached = _load(path)  # a lookup that just finished may have cached this song
         if cached is not None:
             return cached.model_copy(update={"suggestedMoveIds": filter_move_ids(cached.suggestedMoveIds, lookup)})
+        spend_lookup()  # this instance's hourly cap
         _spend_daily_budget(settings.cache_dir)
         result = _look_up(title, artist, serp_key, library.moves, lookup)
         _atomic_write(path, result.model_dump_json(exclude_none=True).encode("utf-8"))

@@ -8,7 +8,6 @@ import {
   followScroll,
   formatTime,
   groupColor,
-  groupHue,
   isDownbeatIndex,
   maxScrollSec,
   niceTimeStep,
@@ -155,41 +154,21 @@ describe('sectionAt', () => {
   })
 })
 
-/** WCAG relative luminance of #rrggbb. */
-function luminance(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => {
-    const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-  })
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-
 describe('groupColor', () => {
   const letters = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i))
 
-  it('is stable and distinct for A..Z', () => {
+  it('is stable, case-insensitive and distinct for the first 8 groups', () => {
     const colors = letters.map(groupColor)
-    expect(new Set(colors).size).toBe(26)
+    expect(new Set(colors.slice(0, 8)).size).toBe(8)
     expect(letters.map(groupColor)).toEqual(colors)
     expect(groupColor('b')).toBe(groupColor('B'))
+    expect(groupColor('I')).toBe(groupColor('A')) // the palette repeats after 8
     for (const c of colors) expect(c).toMatch(/^#[0-9a-f]{6}$/)
   })
 
-  it('keeps the first groups far apart in hue', () => {
-    const hues = letters.slice(0, 8).map(groupHue)
-    for (let i = 0; i < hues.length; i++) {
-      for (let j = i + 1; j < hues.length; j++) {
-        const d = Math.abs(hues[i] - hues[j]) % 360
-        expect(Math.min(d, 360 - d)).toBeGreaterThanOrEqual(30)
-      }
-    }
-  })
-
-  it('is readable on the dark background (WCAG contrast >= 4.5)', () => {
-    const bg = luminance('#070a18')
-    for (const c of letters.map(groupColor)) {
-      expect((luminance(c) + 0.05) / (bg + 0.05)).toBeGreaterThanOrEqual(4.5)
-    }
+  it('only uses the storybook palette (no rainbow hues)', () => {
+    const palette = new Set(['#c04f66', '#a3c3d8', '#a8bc8b', '#dbb35e', '#e6939f', '#56789a', '#d2e3ec', '#f2db94'])
+    for (const c of [...letters, '??', 'intro'].map(groupColor)) expect(palette.has(c)).toBe(true)
   })
 
   it('handles off-contract groups and alpha', () => {

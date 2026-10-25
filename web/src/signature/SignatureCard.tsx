@@ -13,6 +13,7 @@ import {
   moveNames,
   safeUrl,
   signatureKey,
+  signaturesSeen,
   type Signature,
   type SignatureResult,
   type SignatureSong,
@@ -46,7 +47,9 @@ export function SignatureCard({ song, title, className }: { song: SignatureSong;
   const result = loaded?.key === key ? loaded.result : null
   const panelClass = `df-signature${className ? ` ${className}` : ''}`
 
+  // Until one lookup has worked, wait quietly: without keys the card never shows, so no panel flashes in and out.
   if (!result) {
+    if (!signaturesSeen()) return null
     return (
       <Panel title="Signature dance" kicker="The scribes are searching…" className={panelClass} aria-busy="true">
         <div className="df-signature-wait">

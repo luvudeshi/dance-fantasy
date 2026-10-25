@@ -202,25 +202,25 @@ _pg_ready: set[str] = set()
 _pg_lock = threading.Lock()
 
 
-def ssl_context(query: str) -> ssl.SSLContext | None:
-    """TLS for a DATABASE_URL query, honoring sslmode as libpq reads it (None = plain TCP for sslmode=disable).
+def ssl_context_for(url: str) -> ssl.SSLContext | None:
+    """TLS with certificate checks unless sslmode=disable (a local Postgres).
 
-    Tiger Cloud signs with its own CA (ca.timescale.com), not a public one, and its connection strings say
-    "require": encrypted, certificate not checked (what psql does, and Tiger's documented default).
-    verify-ca / verify-full check the server against DATABASE_CA_CERT (PEM text, e.g. the chain from the Tiger
-    console) or, without it, the public roots (certifi). Use verify-full in production once that chain is set.
+    Hosted Postgres such as Tiger Cloud presents a publicly trusted certificate (Google Trust Services), so its usual
+    "sslmode=require" URL verifies: never map require to CERT_NONE, that hands the password to a man in the middle.
+    "no-verify" (node-postgres' spelling) is the explicit opt-out. DATABASE_CA_CERT (PEM text) adds a private CA,
+    and verify-ca checks the chain without the host name, as in libpq.
     """
-    sslmode = parse_qs(query).get("sslmode", ["require"])[0]
+    sslmode = parse_qs(urlparse(url).query).get("sslmode", ["require"])[0]
     if sslmode == "disable":
         return None
-    if sslmode in ("verify-ca", "verify-full"):
-        ca_pem = os.environ.get("DATABASE_CA_CERT")
-        ctx = ssl.create_default_context(cadata=ca_pem) if ca_pem else ssl.create_default_context(cafile=certifi.where())
-        ctx.check_hostname = sslmode == "verify-full"
-        return ctx
-    ctx = ssl.create_default_context()  # allow / prefer / require / no-verify (node-postgres' spelling)
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    ctx = ssl.create_default_context(cafile=certifi.where())  # the function image's system CA path may not exist
+    if ca_pem := os.environ.get("DATABASE_CA_CERT"):
+        ctx.load_verify_locations(cadata=ca_pem)
+    if sslmode == "verify-ca":
+        ctx.check_hostname = False
+    elif sslmode == "no-verify":
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
     return ctx
 
 
@@ -228,7 +228,7 @@ def _pg_connect(url: str) -> pg8000.dbapi.Connection:
     u = urlparse(url)
     if u.scheme not in ("postgres", "postgresql"):
         raise ValueError("DATABASE_URL must be a postgres:// or postgresql:// URL")
-    ctx = ssl_context(u.query)
+    ctx = ssl_context_for(url)
     return pg8000.dbapi.connect(
         user=unquote(u.username or ""),
         password=unquote(u.password) if u.password else None,
