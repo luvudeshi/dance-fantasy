@@ -13,7 +13,7 @@ const CANVAS_FACES = ['600 16px Figtree', '800 16px Figtree', '800 16px Fraunces
  * loaded and never triggers the download itself, so main.tsx mounts the app after this: no frame or cached
  * cue card is drawn in a fallback face.
  */
-export function canvasFontsReady(timeoutMs = 2000): Promise<void> {
+export function canvasFontsReady(timeoutMs = 1000): Promise<void> {
   if (typeof document === 'undefined' || !('fonts' in document)) return Promise.resolve()
   const loaded = Promise.all(CANVAS_FACES.map((f) => document.fonts.load(f)))
     .then(() => document.fonts.ready)
