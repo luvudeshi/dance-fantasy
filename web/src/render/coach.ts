@@ -7,6 +7,8 @@
 import { JOINTS, type JointName, type LimbName, type Pose2D, type Vec2 } from '@shared/skeleton'
 import type { Ctx2D } from '../pose/draw'
 import { bodyToScreen } from '../pose/normalize'
+import type { Coach3dImage } from '../render3d/coach3d'
+import { tryRenderCoach3d } from '../render3d/load'
 import { figureBodyView, headCircle, highlightedLimbs, type FigureView } from './stickFigure'
 
 export type CoachView = FigureView
@@ -413,6 +415,36 @@ function drawGlowLayer(ctx: Ctx2D, passes: readonly GlowPass[], box: { x0: numbe
   return true
 }
 
+/** The glow an image casts (the 3D coach): its blurred silhouette in `color`, at low resolution, under it. */
+function drawImageGlow(ctx: Ctx2D, img: Coach3dImage, color: string, blur: number, k: number): void {
+  const pad = blur * 1.6 + 2
+  const x0 = img.x - pad
+  const y0 = img.y - pad
+  const w = img.w + 2 * pad
+  const f = k / GLOW_DOWNSCALE
+  const lw = Math.ceil(w * f)
+  const lh = Math.ceil((img.h + 2 * pad) * f)
+  if (!(lw > 0 && lh > 0) || lw > 4096 || lh > 4096) return
+  const layer = glowContext(lw, lh)
+  if (!layer) return
+  const g = layer.ctx
+  g.setTransform(1, 0, 0, 1, 0, 0)
+  g.clearRect(0, 0, lw + 1, lh + 1)
+  // Shadow only: draw the image one layer-width off to the left and cast its shadow back into place
+  // (shadow offsets ignore the transform: layer pixels).
+  g.setTransform(f, 0, 0, f, -x0 * f, -y0 * f)
+  g.shadowColor = color
+  g.shadowOffsetX = w * f
+  // A wide halo plus a tighter core (one shadow alone reads fainter than the 2D glow under a fill).
+  for (const b of [blur, blur * 0.45]) {
+    g.shadowBlur = b * f
+    g.drawImage(img.src, 0, 0, img.sw, img.sh, img.x - w, img.y, img.w, img.h)
+  }
+  g.shadowOffsetX = 0
+  g.shadowBlur = 0
+  ctx.drawImage(layer.canvas, 0, 0, lw, lh, x0, y0, lw / f, lh / f)
+}
+
 /** Screen bounding box of the primitives. */
 function primBounds(prims: readonly CoachPrim[]): { x0: number; y0: number; x1: number; y1: number } {
   let x0 = Number.POSITIVE_INFINITY
@@ -459,6 +491,14 @@ export function drawCoach(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachView,
   const k = deviceScale(ctx)
   const bodyGlow: GlowPass = { path, color: withAlpha(theme.glow, 0.85 + 0.15 * pulse), blur: s * (0.3 + 0.22 * pulse) * glow }
   const accentGlow: GlowPass = { path: accent, color: withAlpha(theme.accent, 0.9), blur: s * 0.12 * glow }
+
+  // The 3D princess (Settings > dancer3d, WebGL, lazily loaded) replaces the silhouette, glowing the same way.
+  const img = tryRenderCoach3d(ctx, pose, root, view, { theme, pulse, highlightJoints: opts.highlightJoints ?? [], crown: opts.crown !== false })
+  if (img) {
+    if (glow > 0) drawImageGlow(ctx, img, bodyGlow.color, bodyGlow.blur, k)
+    ctx.drawImage(img.src, 0, 0, img.sw, img.sh, img.x, img.y, img.w, img.h)
+    return
+  }
 
   ctx.save()
   // 1) Outer glow (one low-res blurred pass for body + accents), then the silhouette: one fill
