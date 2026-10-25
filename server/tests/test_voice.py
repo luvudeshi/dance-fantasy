@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app.ai.prompts import CANNED, CANNED_BY_ID, COMBO_MILESTONES, MAX_LINE, line_id
+from app.ai.prompts import CANNED, CANNED_BY_ID, COMBO_MILESTONES, MAX_LINE, announcer_details, canned_lines, line_id
 from app.ai.voice import (
     DEFAULT_VOICE,
     LEAD_PAD_SEC,
@@ -78,6 +78,13 @@ def test_fixed_canned_lines_have_stable_known_ids() -> None:
 def test_canned_bank_has_a_dozen_lines_per_event_and_no_mishearable_phrases() -> None:
     assert all(len(bank) >= 12 for bank in CANNED.values())
     assert not any("hear ye" in t.lower() for bank in CANNED.values() for t in bank)
+
+
+def test_results_lines_never_repeat_a_number() -> None:
+    details = announcer_details({"songTitle": "S", "playerName": "Ella", "score": 84210, "stars": 4, "accuracy": 91, "maxCombo": 42})
+    for _ in range(300):
+        lines = canned_lines("results", details)
+        assert len(lines) == 3 and sum("84,210" in line for line in lines) <= 1 and sum("42" in line for line in lines) <= 1
 
 
 def test_announcer_returns_ids_and_remembers_the_lines_it_gave_out(client: TestClient, cache_dir: Path) -> None:

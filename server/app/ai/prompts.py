@@ -285,8 +285,16 @@ def canned_lines(event: AnnouncerEvent, details: Mapping[str, str]) -> list[str]
         voiced = [t for t in usable if line_id(fill(t)) in CANNED_BY_ID]
         first = random.choice([t for t in voiced if _fields(t)] or voiced or usable)
     named = [t for t in usable if _fields(t) and t != first]
-    rest = random.sample(named, min(count - 1, len(named)))
-    rest += random.sample([t for t in fixed if t != first], count - 1 - len(rest))
+    random.shuffle(named)
+    rest: list[str] = []
+    said: set[str] = set()  # one line per number: never the score twice
+    for t in named:
+        facts = _fields(t) - {"song", "name"}
+        if len(rest) < count - 1 and not facts & said:
+            rest.append(t)
+            said |= facts
+    others = [t for t in fixed if t != first]
+    rest += random.sample(others, min(count - 1 - len(rest), len(others)))
     return [fill(t) for t in (first, *rest)]
 
 
