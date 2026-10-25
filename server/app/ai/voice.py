@@ -36,8 +36,9 @@ from app.analysis_store import ID_RE, _atomic_write, read_cached
 
 log = logging.getLogger(__name__)
 
-# First answer wins; the lite model is the fallback when the main one is missing, busy or failing.
-TTS_MODELS = ("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts")
+# First answer wins; the lite model is the fallback when the main one is missing, busy or failing. The 2.5
+# model is a last resort with its own quota (free tier: about 10 requests a day per model) and same voices.
+TTS_MODELS = ("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-2.5-flash-preview-tts")
 # Chosen by a listening test by proxy (same herald line, six candidates, a Gemini listener plus pitch and
 # loudness stats): Fenrir rated energy 9 / warmth 9, said the words exactly, had the widest pitch movement
 # (17 semitones) and the punchiest delivery. Puck ad-libbed an "Oh,"; Zephyr was flatter and slurred a word.

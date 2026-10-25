@@ -14,9 +14,10 @@ import logging
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from itertools import zip_longest
 from pathlib import Path
 
-from app.ai.prompts import CANNED_BY_ID
+from app.ai.prompts import CANNED, CANNED_BY_ID, RESULTS_BY_TIER, line_id
 from app.ai.voice import VoiceUnavailable, cached_wav, synthesize, voice_name
 from app.config import get_settings
 
@@ -39,7 +40,11 @@ def main() -> int:
     cache_dir = get_settings().cache_dir
     voice = voice_name()
     made = cached = 0
-    todo = dict(CANNED_BY_ID)
+    # Round-robin over the banks (first fixed line of every event, then the second, ...), so a small quota
+    # still leaves every event with voiced lines; the count-only combo lines come last.
+    banks = [[t for t in bank if line_id(t) in CANNED_BY_ID] for bank in (*CANNED.values(), *RESULTS_BY_TIER.values())]
+    order = [t for row in zip_longest(*banks) for t in row if t is not None]
+    todo = {line_id(t): t for t in order} | CANNED_BY_ID
     # TTS quotas are per minute and small: lines that fail (429) are retried in later passes after a pause.
     for attempt in range(args.passes):
         if attempt:
