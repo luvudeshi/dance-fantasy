@@ -28,6 +28,8 @@ import wave
 from collections.abc import Iterable
 from pathlib import Path
 
+import numpy as np
+
 from app.ai.prompts import CANNED_BY_ID, line_id
 from app.ai.provider import GEMINI_BASE, _describe, _post, env
 from app.analysis_store import ID_RE, _atomic_write, read_cached
@@ -39,10 +41,21 @@ TTS_MODELS = ("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts")
 # ponytail: picked by the prebuilt voice's published character ("Upbeat"), since the listening test could
 # not run (see the PR notes); swap with GEMINI_TTS_VOICE after one, no code change.
 DEFAULT_VOICE = "Puck"
-DIRECTION = "Say this like an ecstatic royal herald announcing the star of the ball, big energy, smiling: "
+# The delivery direction. A plain "Say this like ...: <line>" prefix gets read aloud by these models; the
+# director's-notes layout keeps everything above TRANSCRIPT as direction only (checked by transcribing takes).
+DIRECTION = """# AUDIO PROFILE: The Royal Herald
+## THE SCENE: A glittering fairy-tale ballroom at midnight. The herald announces the star of the ball to a cheering royal court.
+### DIRECTOR'S NOTES
+Style: Say this like an ecstatic royal herald announcing the star of the ball: big energy, warm, smiling the whole time.
+Pace: Quick and punchy, no long pauses. Speak the transcript exactly, word for word, adding nothing.
+#### TRANSCRIPT
+"""
 TTS_TIMEOUT_SEC = 20.0
-DEFAULT_RATE = 24_000  # Gemini TTS: 16-bit mono PCM at 24 kHz
+DEFAULT_RATE = 24_000  # Gemini TTS: 16-bit mono at 24 kHz, as a WAV or as raw PCM (audio/L16;rate=24000)
 _RATE_RE = re.compile(r"rate=(\d+)")
+SILENCE = 0.02  # of full scale: quieter than this at either end is trimmed, so a line starts speaking at once
+LEAD_PAD_SEC = 0.08  # kept before the first loud sample (soft onsets like "h")
+TAIL_PAD_SEC = 0.15
 
 
 class VoiceUnavailable(RuntimeError):
@@ -122,6 +135,30 @@ def sample_rate(mime: object) -> int:
     return int(match.group(1)) if match else DEFAULT_RATE
 
 
+def to_pcm(data: bytes, mime: object) -> tuple[bytes, int]:
+    """(16-bit mono PCM, rate) from the model's audio: a WAV container or raw PCM. ValueError for other WAVs."""
+    if data[:4] != b"RIFF":
+        return data, sample_rate(mime)
+    try:
+        with wave.open(io.BytesIO(data), "rb") as w:
+            if (w.getnchannels(), w.getsampwidth()) != (1, 2):
+                raise ValueError(f"unexpected WAV: {w.getnchannels()} channels, {8 * w.getsampwidth()}-bit")
+            return w.readframes(w.getnframes()), w.getframerate()
+    except (wave.Error, EOFError) as exc:
+        raise ValueError(f"unreadable WAV ({exc})") from exc
+
+
+def trim_silence(pcm: bytes, rate: int) -> bytes:
+    """PCM without the quiet lead-in and tail (keeping a short pad), so playback starts on the first word."""
+    y = np.frombuffer(pcm[: len(pcm) - len(pcm) % 2], dtype="<i2")
+    loud = np.flatnonzero(np.abs(y.astype(np.int32)) > SILENCE * 32767)
+    if loud.size == 0:
+        return y.tobytes()
+    start = max(0, int(loud[0]) - int(LEAD_PAD_SEC * rate))
+    end = min(len(y), int(loud[-1]) + 1 + int(TAIL_PAD_SEC * rate))
+    return y[start:end].tobytes()
+
+
 def tts(key: str, text: str, voice: str, model: str, timeout: float = TTS_TIMEOUT_SEC) -> bytes:
     """One Gemini TTS call: the line spoken with the herald direction, as WAV bytes."""
     body = {
@@ -135,9 +172,9 @@ def tts(key: str, text: str, voice: str, model: str, timeout: float = TTS_TIMEOU
     for part in doc["candidates"][0]["content"]["parts"]:
         inline = part.get("inlineData") if isinstance(part, dict) else None
         if isinstance(inline, dict) and isinstance(inline.get("data"), str):
-            pcm = base64.b64decode(inline["data"])
-            if pcm:
-                return pcm_to_wav(pcm, sample_rate(inline.get("mimeType")))
+            pcm, rate = to_pcm(base64.b64decode(inline["data"]), inline.get("mimeType"))
+            if pcm := trim_silence(pcm, rate):
+                return pcm_to_wav(pcm, rate)
     raise ValueError("no audio in the reply")
 
 
