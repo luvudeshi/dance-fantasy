@@ -81,7 +81,7 @@ def test_cli_writes_wav_and_sidecar(tmp_path) -> None:
     assert (info.samplerate, info.channels, info.subtype) == (SR, 1, "PCM_16")
     sidecar = json.loads(out.with_suffix(".json").read_text())
     assert sidecar["title"] == "CLI Song"
-    assert sidecar["artist"] == "Midnight Ball test synth"
+    assert sidecar["artist"] == "Dance Fantasy test synth"
     assert sidecar["license"] == "CC0 (generated)"
     assert sidecar["source"] == "server/scripts/make_sample_song.py"
     assert sidecar["bpm"] == 100.0 and sidecar["firstBeatSec"] == 0.0

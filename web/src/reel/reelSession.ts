@@ -143,7 +143,7 @@ export class ReelSession {
   }
 
   get title(): string {
-    return this.game?.analysis.title ?? 'Midnight Ball'
+    return this.game?.analysis.title ?? 'Dance Fantasy'
   }
 
   get sharing(): boolean {

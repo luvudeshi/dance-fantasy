@@ -2,6 +2,7 @@
 // (×N COMBO counter, Perfect/Good pops, slow-mo bars, caption) and the title / awards cards.
 // Big type and high contrast for a projector. Timing comes from timeline.ts.
 
+import { STORY_FONT as STORY, UI_FONT as SANS } from '../theme/fonts' // Fraunces, Figtree
 import type { Award } from './awards'
 import { overlayAt, type Segment } from './timeline'
 import type { ClipMeta } from './types'
@@ -11,8 +12,6 @@ export const REEL_H = 720
 
 const GOLD = '#fde68a'
 const CYAN = '#7dd3fc'
-const STORY = "Georgia, 'Times New Roman', serif"
-const SANS = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
 
 function background(ctx: CanvasRenderingContext2D): void {
   const g = ctx.createRadialGradient(REEL_W / 2, REEL_H * 0.35, 40, REEL_W / 2, REEL_H / 2, REEL_W * 0.75)

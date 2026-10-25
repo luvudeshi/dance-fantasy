@@ -363,7 +363,7 @@ def write_song(path: Path, y: np.ndarray, sr: int, info: dict, title: str) -> No
     sf.write(path, y, sr, subtype="PCM_16")
     sidecar = {
         "title": title,
-        "artist": "Midnight Ball test synth",
+        "artist": "Dance Fantasy test synth",
         "license": "CC0 (generated)",
         "source": "server/scripts/make_sample_song.py",
         **info,

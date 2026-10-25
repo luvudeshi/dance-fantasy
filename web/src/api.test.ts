@@ -106,7 +106,7 @@ const ANALYSIS: Analysis = {
   id: 'a'.repeat(64),
   analysisVersion: 1,
   title: 'Synth Ball 120',
-  artist: 'Midnight Ball test synth',
+  artist: 'Dance Fantasy test synth',
   source: { kind: 'library', file: 'synth_120bpm.wav' },
   audioUrl: '/api/songs/synth_120bpm.wav',
   durationSec: 4,
