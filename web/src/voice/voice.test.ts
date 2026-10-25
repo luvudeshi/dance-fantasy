@@ -201,5 +201,10 @@ describe('speech fallback voice', () => {
     expect(pickSpeechVoice([v('Thomas', 'fr-FR'), v('Samantha', 'en-US'), v('Daniel', 'en-GB')])?.name).toBe('Daniel')
     expect(pickSpeechVoice([v('Thomas', 'fr-FR'), v('Samantha', 'en-US')])?.name).toBe('Samantha')
     expect(pickSpeechVoice([v('Thomas', 'fr-FR')])).toBeNull()
+    // natural voices beat robotic ones, British first
+    expect(pickSpeechVoice([v('Daniel', 'en-GB'), v('Google US English', 'en-US')])?.name).toBe('Google US English')
+    expect(pickSpeechVoice([v('Microsoft Aria Online (Natural)', 'en-US'), v('Microsoft Ryan Online (Natural)', 'en-GB')])?.name).toBe(
+      'Microsoft Ryan Online (Natural)',
+    )
   })
 })

@@ -14,6 +14,7 @@ const CREST: Record<AnnouncerEvent, IconName> = {
   intro: 'crown',
   combo: 'dance-shoe',
   streak_broken: 'slipper',
+  cheer: 'music-note',
   perfect_run: 'crown',
   results: 'crown',
 }

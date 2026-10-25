@@ -10,7 +10,7 @@ import type { ResultsSummary } from '../game/scoring'
 import { prefetchVoice, speak as speakVoice, stopVoice } from '../voice/voice'
 import { getAnnouncerPrefs, type AnnouncerPrefs } from './prefs'
 
-export type AnnouncerEvent = 'intro' | 'combo' | 'streak_broken' | 'perfect_run' | 'results'
+export type AnnouncerEvent = 'intro' | 'combo' | 'streak_broken' | 'cheer' | 'perfect_run' | 'results'
 
 export interface AnnouncerContext {
   songTitle: string
@@ -33,10 +33,12 @@ export interface AnnouncerReply {
   source: 'muse' | 'gemini' | 'canned'
 }
 
-/** Combo counts the herald calls out: 10, 25, then every 50. */
-export const isComboMilestone = (n: number): boolean => n === 10 || n === 25 || (n > 0 && n % 50 === 0)
+/** Combo counts the herald calls out: 5, 10, 15, 20, 25, then every 25 (server COMBO_MILESTONES voices these). */
+export const isComboMilestone = (n: number): boolean => (n > 0 && n <= 25 && n % 5 === 0) || (n > 0 && n % 25 === 0)
 /** A streak at least this long gets a "chin up" when it breaks. */
-export const STREAK_MIN = 10
+export const STREAK_MIN = 5
+/** After this long without a line during the song, the herald cheers anyway (real dancers break combos often). */
+export const QUIET_MS = 14_000
 /** How long an in-game moment waits for the server before the local line (the moment is gone soon after). */
 export const IN_GAME_WAIT_MS = 900
 /** Intro and results can wait longer: the server answers within ~2.5 s. */
@@ -88,6 +90,11 @@ const LOCAL: Record<AnnouncerEvent, readonly ((c: AnnouncerContext) => string)[]
     (c) => `${c.combo ?? 'So many'} in a row! The royal court is on its feet!`,
     () => 'Unstoppable! Your slippers are practically glowing!',
     () => 'Magic in motion! That combo is pure fairy dust!',
+  ],
+  cheer: [
+    () => 'Keep those feet moving! The whole court is dancing with you!',
+    () => 'Look at those royal moves! Keep going!',
+    () => 'The night is young and you are SHINING!',
   ],
   streak_broken: [
     () => 'A little stumble! Even Cinderella lost a slipper. Back in step!',
@@ -214,6 +221,7 @@ export interface AnnouncerOptions {
   prefs?: () => AnnouncerPrefs
   speak?: (line: string) => void
   stop?: () => void
+  now?: () => number
 }
 
 /** How long a line stays up: long enough to read (and to be spoken at ~15 chars/s). */
@@ -223,6 +231,7 @@ export function createAnnouncer(opts: AnnouncerOptions = {}): Announcer {
   const prefs = opts.prefs ?? getAnnouncerPrefs
   const speak = opts.speak ?? speakLine
   const stop = opts.stop ?? stopSpeaking
+  const now = opts.now ?? (() => performance.now())
   const listeners = new Set<() => void>()
   /** Prefetched requests by event + context; a settled one holds its lines (null: failed). */
   const pending = new Map<string, Promise<string[] | null>>()
@@ -233,6 +242,8 @@ export function createAnnouncer(opts: AnnouncerOptions = {}): Announcer {
   let current: HeraldLine | null = null
   let queue: { line: string; event: AnnouncerEvent }[] = []
   let timer: ReturnType<typeof setTimeout> | undefined
+  /** When the herald last spoke (or was asked to): the quiet-spell cheer counts from here. */
+  let lastLineAt = 0
 
   const notify = (): void => {
     for (const l of listeners) l()
@@ -251,6 +262,7 @@ export function createAnnouncer(opts: AnnouncerOptions = {}): Announcer {
     current = item ? { ...item, key: ++seq } : null
     notify()
     if (!item) return
+    lastLineAt = now()
     if (prefs().voice) speak(item.line)
     timer = setTimeout(next, holdMs(item.line))
   }
@@ -281,6 +293,7 @@ export function createAnnouncer(opts: AnnouncerOptions = {}): Announcer {
 
   const announce = (event: AnnouncerEvent, extra: Partial<AnnouncerContext>, waitMs: number): void => {
     if (!base || !prefs().enabled) return
+    lastLineAt = now()
     const ctx = { ...base, ...extra }
     const key = keyOf(event, ctx)
     const prefetched = ready.get(key)
@@ -327,10 +340,16 @@ export function createAnnouncer(opts: AnnouncerOptions = {}): Announcer {
       announce('intro', {}, SCENE_WAIT_MS)
       prefetch('combo', { combo: nextMilestone(0) })
       prefetch('streak_broken')
+      prefetch('cheer')
     },
     onResults(results, comboBefore) {
       const moment = comboMoment(results, comboBefore)
-      if (!moment) return
+      if (!moment) {
+        if (current || now() - lastLineAt < QUIET_MS) return
+        announce('cheer', {}, IN_GAME_WAIT_MS)
+        prefetch('cheer')
+        return
+      }
       if (moment.event === 'combo') {
         announce('combo', { combo: moment.combo }, IN_GAME_WAIT_MS)
         prefetch('combo', { combo: nextMilestone(moment.combo) })

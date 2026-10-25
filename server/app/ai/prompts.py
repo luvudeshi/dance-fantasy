@@ -12,10 +12,12 @@ import math
 import random
 import re
 import string
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from typing import Any, Literal
 
-AnnouncerEvent = Literal["intro", "combo", "streak_broken", "perfect_run", "results"]
+AnnouncerEvent = Literal["intro", "combo", "streak_broken", "cheer", "perfect_run", "results"]
+# Moments during the song: they need a line that plays at once, so they get the recorded canned lines.
+IN_GAME_EVENTS: frozenset[AnnouncerEvent] = frozenset({"combo", "streak_broken", "cheer"})
 MAX_LINE = 90
 MAX_LINES = 3
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
@@ -76,6 +78,7 @@ EVENT_PROMPTS: dict[AnnouncerEvent, str] = {
     "intro": "The song is about to start. Throw open the ballroom doors and hype the dancer up.",
     "combo": "The dancer just landed a combo of moves in a row. Go wild for it.",
     "streak_broken": "The dancer just lost their combo. Cheer them straight back into the rhythm, kindly.",
+    "cheer": "The dancer is in the middle of the song. Keep their energy up and cheer them on.",
     "perfect_run": "The dancer finished the song with a perfect or near-perfect run. Celebrate like a royal parade.",
     "results": "The song is over. Announce the final result with fanfare, matched to how well they did.",
 }
@@ -132,6 +135,20 @@ CANNED: dict[AnnouncerEvent, tuple[str, ...]] = {
         "You've got this, {name}! The whole court is cheering for you!",
         "{name}, the ball is far from over! Back into the rhythm!",
         "What a {combo}-move run! Now let's build an even bigger one!",
+    ),
+    "cheer": (
+        "Keep those feet moving! The whole court is dancing with you!",
+        "Beautiful! The orchestra is playing just for you!",
+        "Look at those royal moves! Keep going!",
+        "The night is young and you are SHINING!",
+        "Twirl, step, sparkle! You are the star of this ball!",
+        "Big moves, big smiles! The kingdom loves it!",
+        "The fairy godmother is tapping her wand to the beat!",
+        "What grace! The royal portrait painter can't keep up!",
+        "Every step brings you closer to the crown! Dance on!",
+        "The castle is rocking! Don't stop now!",
+        "Keep it up, {name}! The ballroom is glowing!",
+        "{score} points and counting! Keep dancing!",
     ),
     "perfect_run": (
         "FLAWLESS! Not a single step out of place!",
@@ -192,7 +209,7 @@ RESULTS_BY_TIER: dict[ResultsTier, tuple[str, ...]] = {
         "Every great dancer starts with one step. Let's go again!",
     ),
 }
-CANNED_COUNT: dict[AnnouncerEvent, int] = {"intro": 2, "combo": 1, "streak_broken": 1, "perfect_run": 2, "results": 3}
+CANNED_COUNT: dict[AnnouncerEvent, int] = {"intro": 2, "combo": 1, "streak_broken": 1, "cheer": 1, "perfect_run": 2, "results": 3}
 
 
 def line_id(text: str) -> str:
@@ -204,8 +221,9 @@ def _fields(template: str) -> set[str]:
     return {name for _, name, _, _ in string.Formatter().parse(template) if name}
 
 
-# The combo counts the game calls out (web: 10, 25, then every 50), so count-only combo lines can be voiced ahead.
-COMBO_MILESTONES = (10, 25, 50, 100, 150, 200)
+# The combo counts the game calls out (web announcer.ts isComboMilestone: 5, 10, 15, 20, 25, then every 25), so
+# count-only combo lines can be voiced ahead.
+COMBO_MILESTONES = (5, 10, 15, 20, 25, 50, 75, 100, 125, 150, 175, 200)
 
 # Every canned line with fixed text, by id: the field-free ones plus the count-only combo lines at each
 # milestone. Their ids are stable, they need no line store, and scripts/pregen_voice.py voices them all.
@@ -259,11 +277,15 @@ def results_tier(stars: str | None) -> ResultsTier | None:
     return "high" if int(stars) >= 4 else "mid" if int(stars) >= 2 else "low"
 
 
-def canned_lines(event: AnnouncerEvent, details: Mapping[str, str]) -> list[str]:
+def canned_lines(
+    event: AnnouncerEvent, details: Mapping[str, str], voiced: Collection[str] = (), avoid: Collection[str] = ()
+) -> list[str]:
     """A varied pick from the canned bank, filled from ``details`` (templates needing a missing field are skipped).
 
-    The first line is one with fixed text (CANNED_BY_ID), so it is already voiced and plays at once; the rest
-    use the player's name, the song and the numbers when known. Results open with a line for the star tier.
+    The first line is one with fixed text (CANNED_BY_ID), so it can be voiced ahead and plays at once; when
+    ``voiced`` (ids with recorded audio) is given, it is one of those. The rest use the player's name, the song
+    and the numbers when known. Results open with a line for the star tier. ``avoid`` (lines just said) are
+    skipped as the first line while anything else qualifies.
     """
     def fill(template: str) -> str:
         return clip(template.format_map(details), MAX_LINE)
@@ -273,10 +295,13 @@ def canned_lines(event: AnnouncerEvent, details: Mapping[str, str]) -> list[str]
     fixed = [t for t in usable if not _fields(t)]
     tier = results_tier(details.get("stars")) if event == "results" else None
     if tier is not None:
-        first = random.choice(RESULTS_BY_TIER[tier])
+        first = random.choice([t for t in RESULTS_BY_TIER[tier] if line_id(t) in voiced] or RESULTS_BY_TIER[tier])
     else:  # a pre-voiced line, one that says the count if there is one ("10 in a row!")
-        voiced = [t for t in usable if line_id(fill(t)) in CANNED_BY_ID]
-        first = random.choice([t for t in voiced if _fields(t)] or voiced or usable)
+        fixed_text = [t for t in usable if line_id(fill(t)) in CANNED_BY_ID]
+        recorded = [t for t in fixed_text if line_id(fill(t)) in voiced]
+        pool = recorded or fixed_text
+        pool = [t for t in pool if fill(t) not in avoid] or pool
+        first = random.choice([t for t in pool if _fields(t)] or pool or usable)
     named = [t for t in usable if _fields(t) and t != first]
     random.shuffle(named)
     rest: list[str] = []
