@@ -82,6 +82,7 @@
 /* ---------- the two setup cards ---------- */
 .df-screen .lobby-grid {
   gap: 28px;
+  align-items: start;
 }
 .df-screen .lobby-card {
   gap: 16px;

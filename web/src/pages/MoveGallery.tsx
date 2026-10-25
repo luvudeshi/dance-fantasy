@@ -340,9 +340,9 @@ export default function MoveGallery() {
   const setFilter = <K extends keyof MoveFilters>(k: K, v: MoveFilters[K]): void => setFilters((f) => ({ ...f, [k]: v }))
 
   return (
-    <section className="page move-gallery">
+    <section className="page move-gallery df-screen">
       <h2 className="page-title">
-        Moves <span className="dim">every step the princesses know · click one for a closer look</span>
+        Move Book <span className="dim">every step the princesses know · click one for a closer look</span>
       </h2>
       <div className="panel gallery-head">
         <h2 className="analysis-title">
