@@ -13,6 +13,7 @@ api_router.include_router(analyze.router)
 api_router.include_router(choreograph.router)
 api_router.include_router(moves.router)
 api_router.include_router(rooms.router)
+api_router.include_router(rooms.heatmap_router)
 api_router.include_router(announcer.router)
 
 __all__ = ["api_router"]
