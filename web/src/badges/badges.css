@@ -1,0 +1,263 @@
+/* Badges: tier rings (gold and silver from the kit's medals; bronze is new), the profile shelf, the detail card
+   and the "Badge unlocked!" toast. */
+.bdg-gold {
+  --bdg-ring: var(--df-gold);
+  --bdg-ring-shade: var(--df-gold-shade);
+  --bdg-ring-light: var(--df-gold-light);
+}
+.bdg-silver {
+  --bdg-ring: var(--df-blue-light);
+  --bdg-ring-shade: var(--df-blue-shade);
+  --bdg-ring-light: var(--df-glass);
+}
+.bdg-bronze {
+  --bdg-ring: #d29d6c;
+  --bdg-ring-shade: #a66a3f;
+  --bdg-ring-light: #ecc8a0;
+}
+
+/* ---------- seal: a sticker on its tier ring ---------- */
+.bdg-seal {
+  --bdg-size: 5.25rem;
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--bdg-size);
+  height: var(--bdg-size);
+  border-radius: 50%;
+  background: var(--bdg-ring);
+  box-shadow:
+    inset -4px -5px 0 var(--bdg-ring-shade),
+    inset 3px 3px 0 var(--bdg-ring-light);
+  filter: url(#dc);
+  transition:
+    rotate var(--df-dur) var(--df-ease),
+    scale var(--df-dur) var(--df-ease);
+}
+.bdg-seal::before {
+  content: '';
+  position: absolute;
+  inset: 13%;
+  border-radius: 50%;
+  background: var(--df-paper) var(--df-paper-tex);
+  box-shadow: var(--df-shadow-well);
+}
+.bdg-seal > img {
+  position: relative;
+  width: 68%;
+  height: 68%;
+}
+.bdg-seal-sm {
+  --bdg-size: 4.25rem;
+}
+.bdg-seal-lg {
+  --bdg-size: 8rem;
+}
+.bdg-seal.is-locked {
+  background: none;
+  box-shadow: inset 0 0 0 3px var(--df-rule);
+  filter: none;
+}
+.bdg-seal.is-locked::before {
+  inset: 9%;
+  border: 2px dashed var(--df-rule);
+  background: none;
+  box-shadow: none;
+}
+.bdg-seal.is-locked > img {
+  filter: brightness(0); /* the sticker's silhouette, very faint */
+  opacity: 0.14;
+}
+
+/* ---------- shelf ---------- */
+.bdg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.25rem), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bdg-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 16px 8px 14px;
+  border: 0;
+  border-radius: var(--df-r-md);
+  background: none;
+  color: var(--df-ink);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color var(--df-dur-fast) var(--df-ease);
+}
+.bdg-tile:hover {
+  background: var(--df-cut);
+}
+.bdg-tile:hover .bdg-seal {
+  rotate: -5deg;
+  scale: 1.05;
+}
+li:nth-child(odd) > .bdg-tile:not(.is-locked) .bdg-seal {
+  rotate: -3deg;
+}
+li:nth-child(even) > .bdg-tile:not(.is-locked) .bdg-seal {
+  rotate: 2deg;
+}
+.bdg-name {
+  margin-top: 4px;
+  font-family: var(--df-font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 650;
+  font-size: 1.02rem;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.bdg-meta {
+  font-size: var(--df-text-xs);
+  font-weight: 700;
+  color: var(--df-ink-soft);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.is-locked .bdg-name {
+  color: var(--df-ink-soft);
+}
+.bdg-bar {
+  display: block;
+  width: min(7rem, 80%);
+  height: 7px;
+  overflow: hidden;
+  border-radius: var(--df-r-pill);
+  background: var(--df-ground-deep);
+  box-shadow: var(--df-shadow-well);
+}
+.bdg-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--df-rasp-deep);
+}
+
+/* ---------- detail card (in a Modal) ---------- */
+.bdg-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 24px;
+}
+.bdg-detail-body {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.bdg-detail-desc {
+  margin: 0;
+  font-family: var(--df-font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-size: var(--df-text-lg);
+  line-height: 1.35;
+}
+.bdg-detail .bdg-bar {
+  width: min(14rem, 100%);
+}
+
+/* ---------- "Badge unlocked!" toast, at the top (InviteToast owns the bottom) ---------- */
+.bdg-toast-region {
+  position: fixed;
+  inset: max(1rem, env(safe-area-inset-top)) 0 auto;
+  z-index: var(--df-z-toast);
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.bdg-toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(32rem, 100%);
+  padding: 12px 12px 12px 14px;
+  border-radius: var(--df-r-lg);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  box-shadow: inset 0 0 0 3px var(--bdg-ring);
+  rotate: -1.2deg;
+  filter: url(#dc);
+  pointer-events: auto;
+  animation: bdg-drop 520ms var(--df-ease);
+}
+.bdg-toast .bdg-seal {
+  animation: df-pop 640ms var(--df-ease) 140ms both;
+}
+.bdg-toast-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.bdg-toast-kicker {
+  font-size: var(--df-text-sm);
+}
+.bdg-toast-name {
+  font-family: var(--df-font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 700;
+  font-size: var(--df-text-lg);
+  line-height: 1.15;
+}
+.bdg-toast-meta {
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--df-ink-soft);
+}
+.bdg-toast-more {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: var(--df-r-pill);
+  background: var(--df-rasp-deep);
+  color: var(--df-on-rasp);
+  font-weight: 800;
+  font-size: var(--df-text-xs);
+}
+.bdg-spark {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  color: var(--bdg-ring-shade);
+  animation: df-twinkle 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.bdg-spark-1 {
+  top: -9px;
+  left: 18px;
+}
+.bdg-spark-2 {
+  top: 50%;
+  left: -10px;
+  width: 13px;
+  height: 13px;
+  animation-delay: 0.45s;
+}
+.bdg-spark-3 {
+  right: 46px;
+  bottom: -8px;
+  width: 15px;
+  height: 15px;
+  animation-delay: 0.9s;
+}
+@keyframes bdg-drop {
+  from {
+    opacity: 0;
+    translate: 0 -28px;
+    scale: 0.92;
+  }
+}
