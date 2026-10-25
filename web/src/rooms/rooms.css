@@ -4,6 +4,7 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow-x: clip; /* panel corner stickers poke ~3 px past a phone's 16 px gutter */
 }
 .rm-page {
   padding-block: 8px 0;

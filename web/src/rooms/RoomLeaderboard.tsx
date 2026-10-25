@@ -39,7 +39,7 @@ function Overlay({ code, songAt }: { code: string; songAt: number }) {
         </p>
       ) : (
         room && (
-          <p className="rm-overlay-line">
+          <p className={`rm-overlay-line${room.mode === 'crew' ? ' dfm-phone-only' : ''}`}>
             {finished ? 'Final: ' : ''}
             {modeLine(room, meId)}
           </p>

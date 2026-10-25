@@ -474,6 +474,13 @@
   }
 }
 
+/* the crew's one-line summary repeats the HUD on wider screens */
+@media (min-width: 600px) {
+  .dfm-phone-only {
+    display: none;
+  }
+}
+
 @media (max-width: 520px) {
   .dfm-podium {
     gap: 6px;
@@ -487,8 +494,5 @@
   }
   .dfm-burst-ribbon {
     font-size: 1.3rem;
-  }
-  .dfm-heat .df-panel-sticker {
-    right: -2px; /* keep the rotated sticker inside a 16 px gutter */
   }
 }

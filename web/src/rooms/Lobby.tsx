@@ -164,7 +164,7 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
           </div>
 
           <div className="rm-col">
-            <Panel title={room.mode === 'crew' ? 'Crew: dance as one' : 'Versus: who dances best?'} kicker="Tonight’s dance" sticker={room.mode === 'crew' ? 'party' : 'trophy'} className="rm-mode">
+            <Panel title={room.mode === 'crew' ? 'Crew: dance as one' : 'Versus: who dances best?'} kicker="Tonight’s dance" sticker="dance-shoe" className="rm-mode">
               <ModePicker
                 mode={room.mode}
                 canPick={isHost && between}
