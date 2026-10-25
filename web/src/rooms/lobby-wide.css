@@ -1,0 +1,291 @@
+/* Wide lobby (>= 1024px, Lobby.tsx `wide`): Body Double's host LOBBY. The code in a tall magic mirror on the
+   left; "The Ballroom", the join URL and the QR calling card, name tags, the song scroll and the call to action on
+   the right. */
+/* status, code chip and Leave sit over the mirror (no extra row above the composition) */
+.rm-wide-bar {
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
+}
+.rm-wide-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 32px clamp(24px, 3vw, 56px);
+  align-items: start;
+}
+.rm-wide-main {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2.2vh, 28px);
+  min-width: 0;
+  min-height: calc(100dvh - 9rem); /* the call to action lands at the bottom of the window */
+}
+
+/* the tall magic mirror holding the code (mirror-tall.svg over an oval of night glass) */
+.rm-mirror {
+  position: relative;
+  width: min(100%, calc((100dvh - 9rem) * 0.85));
+  margin-inline: auto;
+  aspect-ratio: 622.4 / 732.4;
+  container-type: inline-size;
+  filter: url(#dc-lg);
+}
+.rm-mirror-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.rm-mirror-glass {
+  position: absolute;
+  left: 16.2%;
+  top: 18.7%;
+  width: 67.5%;
+  height: 65%;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--df-night);
+  box-shadow:
+    inset 14px 18px 0 rgb(120 160 200 / 0.12),
+    inset -18px -22px 0 rgb(0 0 0 / 0.22);
+}
+.rm-mirror-glass > * {
+  position: absolute;
+  margin: 0;
+}
+.rm-glare {
+  border-radius: var(--df-r-pill);
+  background: rgb(255 250 240 / 0.1);
+  rotate: -38deg;
+}
+.rm-glare-1 {
+  left: 5%;
+  top: 18%;
+  width: 40%;
+  height: 4%;
+}
+.rm-glare-2 {
+  left: 10%;
+  top: 25%;
+  width: 26%;
+  height: 1.6%;
+}
+.rm-glint {
+  color: var(--df-gold-light);
+  opacity: 0.8;
+}
+.rm-glint-1 {
+  left: 72%;
+  top: 20%;
+  width: 6%;
+}
+.rm-glint-2 {
+  left: 22%;
+  top: 70%;
+  width: 4%;
+  animation-delay: 0.8s;
+}
+.rm-mirror-voice {
+  inset-inline: 0;
+  top: 24%;
+  text-align: center;
+  font-size: 4.8cqw;
+  color: #f1e3bf;
+}
+.rm-mirror-code {
+  inset-inline: 0;
+  top: 35%;
+  text-align: center;
+}
+.rm-mirror-code .df-foil {
+  font-size: 19.6cqw;
+  line-height: 1;
+  letter-spacing: 0.035em;
+  filter: url(#foil) drop-shadow(0 4px 0 #152338);
+}
+.rm-mirror-flourish {
+  left: 50%;
+  top: 65%;
+  width: 57%;
+  translate: -50% 0;
+}
+.rm-mirror-note {
+  inset-inline: 0;
+  top: 76%;
+  text-align: center;
+  font-size: 3.7cqw;
+  font-weight: 600;
+  color: #d9e4ec;
+}
+
+/* "The Ballroom" + where to join, with the QR on a tilted calling card */
+.rm-wide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.rm-wide-titles {
+  min-width: 0;
+  margin: 0;
+}
+.rm-wide-titles .df-kicker {
+  margin: 0 0 -0.25rem 0.5rem;
+}
+.rm-wide-title {
+  font-size: clamp(3.6rem, min(7vw, 10vh), 6.6rem);
+}
+.rm-wide-enter {
+  max-width: 30rem;
+  margin: 12px 0 0;
+  font-size: clamp(1.05rem, 1.45vw, 1.4rem);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--df-ink-soft);
+}
+.rm-wide-enter b {
+  font-weight: 700;
+  color: var(--df-ink);
+  overflow-wrap: anywhere;
+}
+.rm-calling {
+  position: relative;
+  flex: none;
+  width: clamp(9.5rem, min(15vw, 24vh), 14rem);
+  margin-top: 16px;
+  rotate: 4deg;
+}
+.rm-calling-card {
+  padding: 16px 16px 20px;
+  text-align: center;
+}
+.rm-calling-note {
+  margin: 8px 0 0;
+  font-weight: 700;
+  font-size: clamp(1rem, 1.3vw, 1.2rem);
+  color: var(--df-ink);
+}
+.rm-calling-pin {
+  position: absolute;
+  left: -22px;
+  top: -18px;
+  rotate: -12deg;
+}
+
+/* the dancers as name tags */
+.rm-hall {
+  margin: 0 0 0 4px;
+  font-size: clamp(1.4rem, 2vw, 2rem);
+  color: var(--df-ink);
+}
+.rm-hall-count {
+  margin-left: 12px;
+  font-family: var(--df-font-ui);
+  font-style: normal;
+  font-weight: 700;
+  font-size: clamp(1rem, 1.3vw, 1.3rem);
+  color: var(--df-gold-text);
+}
+.rm-tags {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 12px;
+}
+.rm-tags li {
+  rotate: -2deg;
+}
+.rm-tags li:nth-child(even) {
+  rotate: 2deg;
+}
+.rm-tags li.is-away {
+  opacity: 0.6;
+}
+.rm-tags figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 7rem;
+}
+.rm-tags .df-tag {
+  width: 100%;
+}
+.rm-tag-you {
+  font-family: var(--df-font-ui);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+
+/* the song on a parchment scroll; the call to action bottom right, like "Begin the tale" */
+.rm-wide-foot {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 28px 32px;
+  margin-top: auto;
+  padding-bottom: 16px;
+}
+.rm-song-scroll {
+  flex: 0 1 21rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-block: 22px 18px;
+  rotate: -1.5deg;
+}
+.rm-song-scroll .df-voice {
+  font-size: 1.2rem;
+}
+.rm-song-title {
+  margin: 0;
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-weight: 700;
+  font-size: 1.6rem;
+  line-height: 1.1;
+  color: var(--df-ink);
+}
+.rm-song-tower {
+  position: absolute;
+  right: -30px;
+  top: -40px;
+  rotate: 8deg;
+}
+.rm-wide-go {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  text-align: right;
+}
+.rm-go-line {
+  font-size: clamp(1.2rem, 1.6vw, 1.6rem);
+}
+.rm-go-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+.rm-go-row > .df-btn-lg {
+  min-height: 4.5rem;
+  padding-inline: 32px;
+  font-size: clamp(1.2rem, 1.7vw, 1.6rem);
+}
+@media (max-height: 820px) {
+  .rm-wide-title {
+    font-size: 4.2rem;
+  }
+  .rm-calling {
+    width: 9.5rem;
+  }
+}
+.rm-song-scroll .df-switch {
+  margin-top: 6px;
+}
