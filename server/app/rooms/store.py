@@ -5,7 +5,8 @@ transaction (``app.rooms.db``). State is derived from times, never advanced by a
 
 - ``lobby``: no start time. ``countdown``: now < startAt. ``playing``: after startAt until every
   connected player has finished or ``MAX_PLAY_MS`` passed; then ``finished``, which sticks
-  (``finished_at``) until the host picks a routine or starts again.
+  (``finished_at``) until the host picks a routine or starts again (``start`` / ``rematch``).
+- Versus and crew scoring from per-beat judgements live in ``app.rooms.modes``.
 - A player is connected while their last authenticated request is under ``CONNECTED_MS`` old.
 - Rooms expire ``ROOM_TTL_MS`` after the last authenticated request (writes stamp the room, polls
   the player); expired rooms read as 404 and are deleted the next time someone creates a room.

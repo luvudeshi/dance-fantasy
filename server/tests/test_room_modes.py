@@ -7,12 +7,15 @@ tests pass explicit times; players count as connected for 10 s after their last 
 from __future__ import annotations
 
 import secrets
+import sqlite3
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from test_rooms import ROUTINE, SCORE, auth, backend, client, now_ms, rewind_start  # noqa: F401 - fixtures
 
+from app.config import get_settings
 from app.rooms import modes, store
 from app.rooms.db import Tx, transaction
 from app.rooms.models import BeatJudgement, Created, Joined, RoomMode, RoomView, RoutineChoice, ScoreBody
@@ -240,6 +243,25 @@ def test_heatmap_averages_each_beat_across_rooms(backend: str) -> None:
     assert heat.analysisId == routine.analysisId
     assert [(b.beat, b.avgScore, b.samples) for b in heat.beats] == [(0, 90.0, 2), (1, 30.0, 3), (2, 66.0, 1)]
     assert modes.heatmap(secrets.token_hex(32)).beats == []
+
+
+def test_an_older_rooms_table_gains_the_new_columns(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ASSETS_DIR", str(tmp_path))
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    get_settings.cache_clear()
+    path = get_settings().cache_dir / "rooms.sqlite3"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    t = now_ms()
+    con = sqlite3.connect(path)
+    con.executescript(
+        "create table df_rooms (code text primary key, host_id text not null, routine text, start_at bigint,"
+        " finished_at bigint, created_at bigint not null, active_at bigint not null);"
+        f"insert into df_rooms values ('KQWX', 'old-host', null, null, null, {t}, {t});"
+    )
+    con.close()
+    view = store.get_room("KQWX", None, None, t)  # the first request adds the columns
+    assert view.mode == "versus" and view.crew.syncedBeats == 0 and view.crew.lastSyncBeat is None
+    get_settings.cache_clear()
 
 
 def test_modes_over_http(client: TestClient) -> None:
