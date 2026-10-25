@@ -339,6 +339,30 @@ sends the header `X-DF: 1` (403 without it).
   `timescaledb` extension (Tiger Data), `df_rounds` is a hypertable on `at` (epoch ms, 7-day chunks).
   Like rooms, a Vercel deployment without `DATABASE_URL` answers 503 here.
 
+Leaderboard endpoints (the Hall of Fame, `#/hall`; `server/app/leaderboard/store.py`). Public GETs read
+`df_rounds` + `df_accounts`; the `df_session` cookie, when sent, sets `isYou`/`you`. 240 reads a minute
+per client IP (429). Rounds with `score` outside 0-1,000,000 or `accuracy` outside 0-100 are ignored.
+`today` is since midnight UTC, `week` the last 7 UTC days (today included). `limit` is 1-50 (default 10).
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/leaderboard/song/{analysisId}?scope=all\|week\|today\|friends&limit=` | `SongBoard`: each account's best round of that song, ties to whoever danced it first. `friends` is you + your friends (401 without a session) |
+| GET | `/api/leaderboard/top?scope=week\|all&limit=` | `TopBoard`: accounts by total score (default `week`). On Tiger Data it reads the `df_round_daily` continuous aggregate (daily per-account totals, created on first use), else `df_rounds` |
+| GET | `/api/leaderboard/songs` | `BoardSong[]`: library songs, then the 30 most-danced others; `dancers` = accounts with a round |
+
+```jsonc
+// SongBoard ("title" is null until someone records a round of it; "you" is null without a round in scope)
+{ "scope": "all", "song": { "analysisId": "<64 hex>", "title": "Vibe Ace" },
+  "entries": [{ "rank": 1, "accountId": "...", "name": "Ana", "avatar": "wolf", "color": "rasp", "score": 48210,
+                "accuracy": 94.0, "maxCombo": 120, "stars": 4.5, "at": 1761380000000, "isYou": false }],
+  "you": { "rank": 3, "score": 41500 } }
+// TopBoard
+{ "scope": "week", "entries": [{ "rank": 1, "accountId": "...", "name": "Ana", "avatar": "wolf", "color": "rasp",
+                                 "total": 84367, "rounds": 2, "bestCombo": 120, "isYou": false }] }
+// BoardSong
+{ "analysisId": "<64 hex>", "title": "Vibe Ace", "dancers": 7 }
+```
+
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large); the rooms routes add 403, 409, 429 and 503 as above, and the
 accounts routes 401, 403, 404, 409 and 429.

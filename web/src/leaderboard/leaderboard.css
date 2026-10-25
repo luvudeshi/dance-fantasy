@@ -1,0 +1,246 @@
+/* Hall of Fame (#/hall) and the compact song card. Composes the df- design system; only layout, the
+   podium and the rank number live here. */
+
+.lb-page {
+  min-height: calc(100dvh - 60px);
+  overflow-x: clip;
+}
+.lb-body {
+  max-width: 78rem;
+  padding-block: clamp(24px, 5vh, 48px) 96px;
+}
+.lb-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 32px;
+}
+.lb-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(100%, 24rem);
+}
+.lb-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 40px 32px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .lb-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.lb-tabs {
+  margin-bottom: 4px;
+}
+@media (max-width: 520px) {
+  .lb-tabs {
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 4px;
+  }
+  .lb-tabs .df-tab {
+    padding: 0 10px;
+    font-size: var(--df-text-xs);
+    white-space: nowrap;
+  }
+}
+.lb-note {
+  margin: 0;
+  color: var(--df-ink-soft);
+}
+.lb-you {
+  color: var(--df-rasp-deep);
+  font-family: var(--df-font-ui);
+  font-weight: 800;
+  font-size: 0.8em;
+}
+
+/* ---------- podium: 2nd | 1st | 3rd, rank 1 tallest ---------- */
+.lb-podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  text-align: center;
+}
+.lb-step-1 {
+  grid-column: 2;
+  grid-row: 1;
+}
+.lb-step-2 {
+  grid-column: 1;
+  grid-row: 1;
+}
+.lb-step-3 {
+  grid-column: 3;
+  grid-row: 1;
+}
+.lb-crown {
+  margin-bottom: -18px;
+  z-index: 1;
+}
+.lb-step-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 6px;
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-weight: 650;
+  font-size: var(--df-text-lg);
+}
+.lb-step-score {
+  font-size: var(--df-text-xl);
+  color: var(--df-ink);
+}
+.lb-step-meta {
+  font-size: var(--df-text-xs);
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+.lb-plinth {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-radius: var(--df-r-md) var(--df-r-md) var(--df-r-xs) var(--df-r-xs);
+  background: var(--df-ground-deep);
+  box-shadow: var(--df-shadow-well);
+}
+.lb-step-1 .lb-plinth {
+  height: 8.5rem;
+  background: var(--df-parchment);
+}
+.lb-step-2 .lb-plinth {
+  height: 6rem;
+}
+.lb-step-3 .lb-plinth {
+  height: 4.5rem;
+}
+.lb-step.is-you .lb-plinth {
+  box-shadow:
+    var(--df-shadow-well),
+    inset 0 0 0 3px var(--df-rasp-deep);
+}
+@media (max-width: 520px) {
+  .lb-podium {
+    gap: 6px;
+  }
+  .lb-step .acct-avatar-lg {
+    --acct-size: 4rem;
+  }
+  .lb-step-name {
+    font-size: var(--df-text-md);
+  }
+  .lb-step-score {
+    font-size: var(--df-text-lg);
+  }
+  .lb-step-meta {
+    display: none;
+  }
+  .lb-step-1 .lb-plinth {
+    height: 6rem;
+  }
+  .lb-step-2 .lb-plinth {
+    height: 4.25rem;
+  }
+  .lb-step-3 .lb-plinth {
+    height: 3.25rem;
+  }
+}
+
+/* ---------- ranked rows ---------- */
+.lb-list {
+  gap: 8px;
+}
+.lb-row {
+  min-height: 3.5rem;
+  padding-block: 6px;
+}
+.lb-rank {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2.5rem;
+  font-size: var(--df-text-lg);
+  color: var(--df-ink-soft);
+}
+.lb-row .df-item-end {
+  font-size: var(--df-text-lg);
+}
+.lb-yours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: var(--df-r-md);
+  box-shadow: inset 0 0 0 3px var(--df-rasp-deep);
+}
+.lb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 8px 8px;
+  text-align: center;
+}
+.lb-empty-line {
+  max-width: 34ch;
+  margin: 0;
+  font-size: var(--df-text-lg);
+}
+
+/* ---------- compact card (lobby, results) ---------- */
+.lb-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lb-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lb-card-title {
+  margin: 0;
+  font-size: var(--df-text-lg);
+}
+.lb-placed {
+  margin: 0;
+  color: var(--df-rasp-deep);
+  font-size: var(--df-text-xl);
+  font-weight: 700;
+  line-height: 1.15;
+}
+.lb-card .lb-row {
+  min-height: 3rem;
+  padding: 4px 10px;
+  gap: 10px;
+}
+.lb-card .lb-row .df-item-title {
+  font-size: 1rem;
+}
+.lb-card .lb-row .df-item-end {
+  font-size: var(--df-text-md);
+}
