@@ -78,13 +78,25 @@ describe('TimeMap', () => {
     expect(m.recTimeAt(10)).toBeCloseTo(9)
   })
 
-  it('interpolates and skips a pause (no samples while paused)', () => {
+  it('maps each side of a pause by its own offset (no samples while paused)', () => {
     const m = new TimeMap()
     for (let i = 0; i <= 10; i++) m.push(i, i) // song 0..10 at rec 0..10
     for (let i = 10; i <= 20; i++) m.push(i + 0.1, i + 30.1) // 30 s pause, then on
     expect(m.recTimeAt(5.5)).toBeCloseTo(5.5)
+    expect(m.recTimeAt(10)).toBeCloseTo(10)
+    expect(m.recTimeAt(10.09)).toBeCloseTo(40.09)
     expect(m.recTimeAt(15.1)).toBeCloseTo(45.1)
     expect(m.size).toBe(22)
+  })
+
+  it('smooths a coarse audio clock', () => {
+    const m = new TimeMap()
+    // 30 fps frames at rec = song + 0.8, but the song clock only moves every 100 ms
+    for (let f = 0; f < 600; f++) {
+      const rec = f / 30 + 0.8
+      m.push(Math.floor((rec - 0.8) * 10) / 10, rec)
+    }
+    for (const t of [3, 7.25, 12.5]) expect(m.recTimeAt(t)).toBeCloseTo(t + 0.85, 1)
   })
 
   it('ignores non-finite samples', () => {

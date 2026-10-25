@@ -18,7 +18,7 @@
 }
 
 .hl-glass {
-  max-height: min(60dvh, 34rem);
+  max-height: min(50dvh, 34rem);
   margin-inline: auto;
   width: 100%;
 }
@@ -64,4 +64,13 @@
   bottom: max(16px, env(safe-area-inset-bottom));
   translate: -50% 0;
   z-index: 6;
+}
+
+@media (max-width: 600px) {
+  .hl-launch {
+    left: auto;
+    right: 16px;
+    translate: none;
+    font-size: var(--df-text-sm);
+  }
 }

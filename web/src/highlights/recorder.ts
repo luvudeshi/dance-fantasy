@@ -140,7 +140,8 @@ export class HighlightRecorder {
     if (this.clock.playing) this.map.push(this.clock.songTime(), (now - this.t0) / 1000)
   }
 
-  /** Stage letterboxed into the recording, webcam inset bottom-left (mirrored, like the stage). */
+  /** Stage letterboxed into the recording; webcam inset top-left, where the stage's HTML top bar
+   *  (not in the canvas) leaves room; mirrored, like the stage. */
   private draw(): void {
     const { ctx, out, src } = this
     const W = out.width
@@ -155,11 +156,10 @@ export class HighlightRecorder {
     }
     const v = this.video
     if (!v || v.readyState < 2 || v.videoWidth === 0) return
-    const bw = Math.round(Math.min(W, H) * (W >= H ? 0.42 : 0.5))
+    const bw = Math.round(Math.min(W, H) * (W >= H ? 0.34 : 0.45))
     const bh = Math.round((bw * v.videoHeight) / v.videoWidth)
-    const m = Math.round(Math.min(W, H) * 0.035)
-    const x = m
-    const y = H - bh - m
+    const x = Math.round(Math.min(W, H) * 0.035)
+    const y = x
     ctx.save()
     ctx.beginPath()
     ctx.roundRect(x, y, bw, bh, 10)
