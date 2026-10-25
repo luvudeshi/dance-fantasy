@@ -201,24 +201,23 @@ _pg_lock = threading.Lock()
 
 
 def ssl_context(query: str) -> ssl.SSLContext | None:
-    """TLS for a DATABASE_URL query, honoring sslmode as libpq reads it (None = plain TCP for sslmode=disable).
+    """TLS for a DATABASE_URL query (None = plain TCP, only for sslmode=disable, e.g. a local Postgres).
 
-    Tiger Cloud signs with its own CA (ca.timescale.com), not a public one, and its connection strings say
-    "require": encrypted, certificate not checked (what psql does, and Tiger's documented default).
-    verify-ca / verify-full check the server against DATABASE_CA_CERT (PEM text, e.g. the chain from the Tiger
-    console) or, without it, the public roots (certifi). Use verify-full in production once that chain is set.
+    Every other mode verifies the server: chain + hostname, against DATABASE_CA_CERT (PEM text) when set, else the
+    public roots (certifi). Tiger Cloud serves a publicly trusted certificate (Google Trust Services) once a new
+    service has been up ~30 min, so its "sslmode=require" URL verifies. Never map require to CERT_NONE: that hands
+    the password to a man in the middle. "no-verify" (node-postgres' spelling) is the only explicit opt-out.
     """
     sslmode = parse_qs(query).get("sslmode", ["require"])[0]
     if sslmode == "disable":
         return None
-    if sslmode in ("verify-ca", "verify-full"):
-        ca_pem = os.environ.get("DATABASE_CA_CERT")
-        ctx = ssl.create_default_context(cadata=ca_pem) if ca_pem else ssl.create_default_context(cafile=certifi.where())
-        ctx.check_hostname = sslmode == "verify-full"
-        return ctx
-    ctx = ssl.create_default_context()  # allow / prefer / require / no-verify (node-postgres' spelling)
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
+    ca_pem = os.environ.get("DATABASE_CA_CERT")
+    ctx = ssl.create_default_context(cadata=ca_pem) if ca_pem else ssl.create_default_context(cafile=certifi.where())
+    if sslmode == "verify-ca":
+        ctx.check_hostname = False
+    elif sslmode == "no-verify":
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
     return ctx
 
 
