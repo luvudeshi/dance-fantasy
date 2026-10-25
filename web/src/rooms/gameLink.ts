@@ -10,8 +10,8 @@ import { useLatest } from '../lib/useLatest'
 import type { ResultsSummary, ScoreKeeper } from '../game/scoring'
 import { loadSeat, roomWrites, type ScoreBody } from './client'
 
-/** From GO (startAt) to the first beat of the count-in on every device. */
-export const ROUND_LEAD_MS = 8000
+/** From GO (startAt) to the song start on every device: loading the routine, the audio and the camera model. */
+export const ROUND_LEAD_MS = 10_000
 /** A stored round older than this is ignored (the server ends rounds 10 min after startAt). */
 const ROUND_MAX_AGE_MS = 15 * 60 * 1000
 const ROUND_KEY = 'dance-fantasy.room.round'
@@ -108,12 +108,21 @@ export function createScoreReporter(send: (s: ScoreBody) => Promise<unknown>, ga
   let pending: ScoreBody | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
   let closed = false
+  // One post at a time, in order: the server keeps the last score it receives, so a live post
+  // still in flight must not land after the finished one.
+  let chain: Promise<void> = Promise.resolve()
   const post = (s: ScoreBody, triesLeft: number): void => {
     last = Date.now()
-    send(s).catch((err: unknown) => {
-      console.warn('room score not sent', err)
-      if (s.finished && triesLeft > 1) setTimeout(() => post(s, triesLeft - 1), gapMs)
-    })
+    chain = chain.then(
+      () =>
+        send(s).then(
+          () => undefined,
+          (err: unknown) => {
+            console.warn('room score not sent', err)
+            if (s.finished && triesLeft > 1) setTimeout(() => post(s, triesLeft - 1), gapMs)
+          },
+        ),
+    )
   }
   const flush = (): void => {
     timer = undefined

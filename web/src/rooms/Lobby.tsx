@@ -204,7 +204,7 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
           </div>
         </div>
 
-        <div className="df-dock rm-dock">
+        <div className={`df-dock rm-dock${room.state === 'finished' ? ' rm-dock-static' : ''}`}>
           <div className="df-cluster rm-dock-row" style={{ '--df-gap': '12px' } as CSSProperties}>
             {me && between && (
               <Button

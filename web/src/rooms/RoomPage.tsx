@@ -138,7 +138,7 @@ function Entry({ code, joining, notice, onSeated }: { code: string | null; joini
               onChange={(e) => setName(e.target.value)}
               maxLength={24}
               autoComplete="nickname"
-              placeholder="Cinderella"
+              placeholder="e.g. Cinderella"
               autoFocus={!joining || code !== null}
             />
           </label>

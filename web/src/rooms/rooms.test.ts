@@ -90,6 +90,23 @@ describe('score reporter', () => {
     expect(sent.map((s) => s.score)).toEqual([1, 10])
   })
 
+  it('keeps posts in order: the finished one waits for a live post still in flight', async () => {
+    const calls: number[] = []
+    let release: () => void = () => undefined
+    const r = createScoreReporter((s) => {
+      calls.push(s.score)
+      return s.finished ? Promise.resolve() : new Promise<void>((resolve) => (release = resolve))
+    })
+    r.report(body(1))
+    await vi.advanceTimersByTimeAsync(0)
+    r.report(body(2, true))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).toEqual([1])
+    release()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).toEqual([1, 2])
+  })
+
   it('sends the finished score at once, retries it, then ignores later reports', async () => {
     let fails = 1
     const r = createScoreReporter(async (s) => {
