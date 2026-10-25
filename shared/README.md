@@ -150,8 +150,13 @@ fallback (`AI_PROVIDER=gemini` swaps them). Prompts and model output are never l
 
 | Method | Path | Returns |
 |---|---|---|
-| POST | `/api/announcer` (JSON `AnnouncerRequest`) | `{ lines: string[], source: "muse" \| "gemini" \| "canned" }`: 1-3 lines, each ≤ 90 chars |
+| POST | `/api/announcer` (JSON `AnnouncerRequest`) | `{ lines: string[], items: { id, text }[], source: "muse" \| "gemini" \| "canned" }`: 1-3 lines, each ≤ 90 chars; `items` are the same lines with ids |
+| GET | `/api/announcer/voice/{id}` | `audio/wav` (16-bit mono, 24 kHz): the line voiced by the herald (Gemini TTS, cached forever). 404 unless `/api/announcer` gave that line out, 429 over 40 requests/min per client, 503 not cached and no `GEMINI_API_KEY` (or TTS down) |
 | GET | `/api/songs/signature?title=&artist=` | `Signature` (below); 404 without `SERPAPI_API_KEY` + an LLM key (unless cached), 502 search failed, 503 no usable AI answer |
+
+A line's `id` is the sha256 hex of its UTF-8 text, so a client holding only the text can compute it
+(web/src/voice). The voice route never takes text: it only voices lines the announcer returned (fixed canned
+lines are pre-voiced by `server/scripts/pregen_voice.py`; `GEMINI_TTS_VOICE` picks the voice).
 
 ```ts
 // POST /api/announcer. Always 200 within ~2.5 s: no key, a slow model or a bad reply gives canned lines

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -30,25 +31,36 @@ def _voice(cache_dir: Path, lid: str, text: str, voice: str) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--jobs", type=int, default=2, help="concurrent TTS calls (default 2, like the server)")
+    parser.add_argument("--passes", type=int, default=30, help="retry rounds for lines that failed (default 30)")
+    parser.add_argument("--pause", type=float, default=30.0, help="seconds between rounds (default 30)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s %(message)s")
 
     cache_dir = get_settings().cache_dir
     voice = voice_name()
-    made = cached = failed = 0
-    with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        jobs = {pool.submit(_voice, cache_dir, lid, text, voice): lid for lid, text in CANNED_BY_ID.items()}
-        for job in jobs:
-            try:
-                if job.result():
-                    made += 1
-                else:
-                    cached += 1
-            except VoiceUnavailable as exc:
-                failed += 1
-                print(f"line {jobs[job][:12]}: {exc}", file=sys.stderr)
-    print(f"voice={voice} lines={len(CANNED_BY_ID)} voiced={made} already_cached={cached} failed={failed} -> {cache_dir / 'voice'}")
-    return 1 if failed else 0
+    made = cached = 0
+    todo = dict(CANNED_BY_ID)
+    # TTS quotas are per minute and small: lines that fail (429) are retried in later passes after a pause.
+    for attempt in range(args.passes):
+        if attempt:
+            print(f"{len(todo)} lines left, retrying in {args.pause:g}s", file=sys.stderr, flush=True)
+            time.sleep(args.pause)
+        failed: dict[str, str] = {}
+        with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+            jobs = {pool.submit(_voice, cache_dir, lid, text, voice): lid for lid, text in todo.items()}
+            for job, lid in jobs.items():
+                try:
+                    if job.result():
+                        made += 1
+                    else:
+                        cached += 1
+                except VoiceUnavailable:
+                    failed[lid] = todo[lid]
+        todo = failed
+        if not todo:
+            break
+    print(f"voice={voice} lines={len(CANNED_BY_ID)} voiced={made} already_cached={cached} failed={len(todo)} -> {cache_dir / 'voice'}")
+    return 1 if todo else 0
 
 
 if __name__ == "__main__":

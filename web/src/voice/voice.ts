@@ -183,9 +183,10 @@ async function loadClip(id: string, signal: AbortSignal): Promise<AudioBuffer> {
 
 async function playClip(buffer: AudioBuffer, signal: AbortSignal): Promise<void> {
   const ctx = audioContext()
-  if (ctx.state !== 'running') {
+  const running = (): boolean => ctx.state === 'running' // a call, so the check after the await isn't narrowed away
+  if (!running()) {
     await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 300))])
-    if (ctx.state !== 'running') throw new Error('audio is locked until the page is clicked')
+    if (!running()) throw new Error('audio is locked until the page is clicked')
   }
   const source = ctx.createBufferSource()
   source.buffer = buffer

@@ -38,9 +38,10 @@ log = logging.getLogger(__name__)
 
 # First answer wins; the lite model is the fallback when the main one is missing, busy or failing.
 TTS_MODELS = ("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts")
-# ponytail: picked by the prebuilt voice's published character ("Upbeat"), since the listening test could
-# not run (see the PR notes); swap with GEMINI_TTS_VOICE after one, no code change.
-DEFAULT_VOICE = "Puck"
+# Chosen by a listening test by proxy (same herald line, six candidates, a Gemini listener plus pitch and
+# loudness stats): Fenrir rated energy 9 / warmth 9, said the words exactly, had the widest pitch movement
+# (17 semitones) and the punchiest delivery. Puck ad-libbed an "Oh,"; Zephyr was flatter and slurred a word.
+DEFAULT_VOICE = "Fenrir"
 # The delivery direction. A plain "Say this like ...: <line>" prefix gets read aloud by these models; the
 # director's-notes layout keeps everything above TRANSCRIPT as direction only (checked by transcribing takes).
 DIRECTION = """# AUDIO PROFILE: The Royal Herald
