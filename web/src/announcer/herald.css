@@ -1,0 +1,100 @@
+/* The herald's speech bubble (Herald.tsx). A paper sticker with a gold crest medallion; it pops in per
+   line. Over the game it uses the filter-free die-cut (--df-shadow-lift) so the live canvas is never
+   re-filtered. */
+
+.df-herald {
+  pointer-events: none;
+}
+.df-herald-inline {
+  max-width: 34rem;
+}
+.df-herald-stage {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  /* just above the cue strip, which render.ts playLayout() sizes as 12 + clamp(64, 14% h, 124) + 50 px */
+  bottom: calc(74px + clamp(64px, 14vh, 124px) + env(safe-area-inset-bottom));
+  z-index: 120; /* above the full-window stage (z 100) wherever it is mounted */
+  width: min(27rem, calc(100vw - 32px));
+}
+
+.df-herald-bubble {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  padding: 12px 20px 14px 12px;
+  border-radius: var(--df-r-lg);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  box-shadow: var(--df-shadow-lift);
+  rotate: -1.5deg;
+  transform-origin: 10% 100%;
+  animation: df-pop var(--df-dur-slow) var(--df-ease) both;
+}
+/* the speech-bubble tail, cut from the same paper */
+.df-herald-bubble::after {
+  content: '';
+  position: absolute;
+  left: 34px;
+  bottom: -11px;
+  width: 22px;
+  height: 22px;
+  background: var(--df-paper);
+  box-shadow: 4px 4px 0 0 var(--df-cut);
+  rotate: 45deg;
+  border-radius: 0 0 6px 0;
+}
+
+.df-herald-crest {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--df-gold-light), var(--df-gold) 60%, var(--df-gold-shade));
+  box-shadow: var(--df-shadow-medal), 0 0 0 3px var(--df-cut);
+  rotate: 4deg;
+}
+.df-herald-streak_broken .df-herald-crest {
+  background: radial-gradient(circle at 35% 30%, var(--df-blue-light), var(--df-blue) 60%, var(--df-blue-shade));
+}
+
+.df-herald-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.df-herald-who {
+  font-family: var(--df-font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: var(--df-fvs-voice);
+  font-size: var(--df-text-sm);
+  color: var(--df-gold-text);
+}
+.df-herald-line {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-weight: 650;
+  font-size: clamp(1.05rem, 2.2vw, var(--df-text-lg));
+  line-height: 1.3;
+  text-wrap: pretty;
+}
+.df-herald-combo .df-herald-line,
+.df-herald-perfect_run .df-herald-line {
+  color: var(--df-rasp-deep);
+}
+
+@media (max-width: 480px) {
+  .df-herald-crest {
+    width: 48px;
+    height: 48px;
+  }
+  .df-herald-crest img {
+    width: 34px;
+    height: 34px;
+  }
+}
