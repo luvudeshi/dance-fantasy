@@ -1,8 +1,6 @@
 import { useId, useState } from 'react'
-import { errorMessage } from '../../lib/errors'
-import { Notice } from '../../theme/components'
 import { Icon } from '../../theme/Icon'
-import { setRoomMode, type ModeRoom, type RoomMode } from './api'
+import type { RoomMode } from '../client'
 import './modes.css'
 
 const MODES = [
@@ -22,53 +20,24 @@ const MODES = [
   },
 ] as const
 
-/** The room's mode: the host picks (lobby or results), everyone else sees the choice. */
-export function ModePicker({
-  room,
-  meId,
-  token,
-  onRoom,
-}: {
-  room: ModeRoom
-  meId: string | null
-  token: string | null
-  onRoom: (room: ModeRoom) => void
-}) {
+/** The room's mode. The host picks (between songs); everyone else sees the choice. */
+export function ModePicker({ mode, canPick, onPick }: { mode: RoomMode; canPick: boolean; onPick: (mode: RoomMode) => Promise<unknown> }) {
   const name = useId()
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const isHost = token !== null && meId === room.hostId
-  const editable = isHost && (room.state === 'lobby' || room.state === 'finished')
-
-  const pick = async (mode: RoomMode): Promise<void> => {
-    if (!editable || token === null || mode === room.mode) return
+  const pick = (next: RoomMode): void => {
+    if (!canPick || next === mode) return
     setBusy(true)
-    setError(null)
-    try {
-      onRoom(await setRoomMode(room.code, token, mode))
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setBusy(false)
-    }
+    void onPick(next).finally(() => setBusy(false))
   }
-
   return (
-    <fieldset className="dfm-picker" disabled={!editable || busy}>
-      <legend className="df-label">{isHost ? 'Pick tonight’s dance' : 'The host picks tonight’s dance'}</legend>
+    <fieldset className="dfm-picker" disabled={!canPick || busy}>
+      <legend className="df-label">{canPick ? 'Pick how you’ll dance' : 'The host picks how you’ll dance'}</legend>
       <div className="dfm-picker-options">
         {MODES.map((m) => {
-          const on = room.mode === m.value
+          const on = mode === m.value
           return (
-            <label key={m.value} className={`dfm-mode${on ? ' is-on' : ''}`}>
-              <input
-                type="radio"
-                className="df-sr-only"
-                name={name}
-                value={m.value}
-                checked={on}
-                onChange={() => void pick(m.value)}
-              />
+            <label key={m.value} className={`dfm-mode${on ? ' is-on' : ''}`} data-mode={m.value}>
+              <input type="radio" className="df-sr-only" name={name} value={m.value} checked={on} onChange={() => pick(m.value)} />
               <Icon name={m.icon} size={64} className="dfm-mode-icon" />
               <span className="dfm-mode-text">
                 <span className="dfm-mode-title">
@@ -82,7 +51,6 @@ export function ModePicker({
           )
         })}
       </div>
-      <Notice inline tone="error" message={error} />
     </fieldset>
   )
 }

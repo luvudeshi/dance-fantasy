@@ -3,8 +3,9 @@ import { formatScore, rankTitle, scoreBand } from '../../game/results'
 import { errorMessage, isAbortError } from '../../lib/errors'
 import { Button, Notice, Sparkle, Token } from '../../theme/components'
 import { Icon } from '../../theme/Icon'
-import { getHeatmap, rematch, type HeatBeat, type ModeRoom } from './api'
-import { beatsWonLabel, hardestMoments, teamStars, tokenFor, versusRows } from './modeStats'
+import { avatarFor, type RoomView } from '../client'
+import { getHeatmap, type HeatBeat } from './api'
+import { beatsWonLabel, hardestMoments, teamStars, versusRows } from './modeStats'
 import './modes.css'
 
 const defaultBeatLabel = (beat: number): string => `Beat ${beat + 1}`
@@ -16,15 +17,14 @@ const defaultBeatLabel = (beat: number): string => `Beat ${beat + 1}`
 export function ModeResults({
   room,
   meId,
-  token,
-  onRoom,
+  onRematch,
   totalBeats,
   beatLabel = defaultBeatLabel,
 }: {
-  room: ModeRoom
+  room: RoomView
   meId: string | null
-  token: string | null
-  onRoom: (room: ModeRoom) => void
+  /** the host's rematch (same song and mode); omit for everyone else */
+  onRematch?: () => Promise<unknown>
   /** the routine's checkpoint count, for the crew's sync share (optional) */
   totalBeats?: number
   /** label a checkpoint index, e.g. by its song time ("1:23") */
@@ -33,7 +33,7 @@ export function ModeResults({
   return (
     <section className="dfm-results df-stack" aria-label="Results">
       {room.mode === 'crew' ? <CrewResult room={room} totalBeats={totalBeats} /> : <VersusPodium room={room} meId={meId} />}
-      <Rematch room={room} meId={meId} token={token} onRoom={onRoom} />
+      {room.state === 'finished' && <Rematch onRematch={onRematch} />}
       {room.routine && <HeatmapStrip analysisId={room.routine.analysisId} beatLabel={beatLabel} />}
     </section>
   )
@@ -49,7 +49,7 @@ function Stars({ stars }: { stars: number }) {
   )
 }
 
-function CrewResult({ room, totalBeats }: { room: ModeRoom; totalBeats?: number }) {
+function CrewResult({ room, totalBeats }: { room: RoomView; totalBeats?: number }) {
   const { crew, players } = room
   const stars = teamStars(players, crew, totalBeats)
   return (
@@ -87,7 +87,7 @@ function CrewResult({ room, totalBeats }: { room: ModeRoom; totalBeats?: number 
 const PODIUM_ORDER = [1, 0, 2] as const // second, first, third
 const MEDALS = ['', 'df-medal-silver', 'df-medal-rasp'] as const
 
-function VersusPodium({ room, meId }: { room: ModeRoom; meId: string | null }) {
+function VersusPodium({ room, meId }: { room: RoomView; meId: string | null }) {
   const rows = versusRows(room)
   const top = rows.slice(0, 3)
   const rest = rows.slice(3)
@@ -106,7 +106,7 @@ function VersusPodium({ room, meId }: { room: ModeRoom; meId: string | null }) {
             <li key={r.player.id} className={`dfm-step dfm-step-${i + 1}${r.player.id === meId ? ' is-me' : ''}`}>
               <div className={`dfm-step-token${i === 0 ? ' df-glory' : ''}`}>
                 {r.leader && <Icon name="crown" size={56} className="dfm-step-crown" label="Winner" />}
-                <Token icon={tokenFor(room.players, r.player.id)} size={i === 0 ? 'lg' : 'md'} picked={i === 0} />
+                <Token icon={avatarFor(room.players, r.player.id)} size={i === 0 ? 'lg' : 'md'} picked={i === 0} />
               </div>
               <span className="df-tag">
                 <span className="df-tag-name">{r.player.name}</span>
@@ -125,7 +125,7 @@ function VersusPodium({ room, meId }: { room: ModeRoom; meId: string | null }) {
           {rest.map((r) => (
             <li key={r.player.id} className="df-item" aria-current={r.player.id === meId ? true : undefined}>
               <span className="df-medal df-medal-sm df-medal-silver">{r.rank}</span>
-              <Icon name={tokenFor(room.players, r.player.id)} className="df-item-icon" cut="sm" />
+              <Icon name={avatarFor(room.players, r.player.id)} className="df-item-icon" cut="sm" />
               <span className="df-item-body">
                 <span className="df-item-title">{r.player.name}</span>
                 <span className="df-item-meta">{beatsWonLabel(r.player.beatsWon)}</span>
@@ -139,30 +139,18 @@ function VersusPodium({ room, meId }: { room: ModeRoom; meId: string | null }) {
   )
 }
 
-function Rematch({ room, meId, token, onRoom }: { room: ModeRoom; meId: string | null; token: string | null; onRoom: (room: ModeRoom) => void }) {
+function Rematch({ onRematch }: { onRematch?: () => Promise<unknown> }) {
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  if (room.state !== 'finished') return null
-  if (token === null || meId !== room.hostId) {
-    return <p className="df-voice dfm-center">The host can call for one more dance.</p>
-  }
-  const go = async (): Promise<void> => {
-    setBusy(true)
-    setError(null)
-    try {
-      onRoom(await rematch(room.code, token))
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }
+  if (!onRematch) return <p className="df-voice dfm-center">The host can call for one more dance.</p>
   return (
     <div className="df-stack dfm-center">
-      <Button size="lg" icon="sparkles" disabled={busy} onClick={() => void go()}>
+      <Button size="lg" icon="sparkles" disabled={busy} onClick={() => {
+        setBusy(true)
+        void onRematch().finally(() => setBusy(false))
+      }}>
         Rematch
       </Button>
-      <Notice inline tone="error" message={error} />
+      <p className="df-note">Same song, same mode, everyone at once.</p>
     </div>
   )
 }

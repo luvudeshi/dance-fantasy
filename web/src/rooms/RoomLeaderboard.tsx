@@ -1,14 +1,15 @@
-import { formatScore } from '../game/results'
-import { loadSeat, rankPlayers } from './client'
+import { loadSeat } from './client'
 import { roomRoundFor } from './gameLink'
-import { LiveBoard } from './Standings'
+import { CrewHud, SyncBurst, VersusHud } from './modes/ModeHud'
+import { modeLine } from './modes/modeStats'
 import { useNow, useRoom } from './useRoom'
 import './rooms.css'
 
 /**
  * In-game overlay for a room round of `routineId` (renders nothing in solo play): "everyone
- * starts in N" until the shared song start, then the live top 5 (one summary line on phones),
- * then the final standings with a way back to the room. Mount it inside the play stage.
+ * starts in N" until the shared song start, then the room's mode HUD (crew: team score and sync
+ * streak; versus: beats won and the leader's crown; one summary line on phones), then the final
+ * numbers with a way back to the room. Mount it inside the play stage.
  */
 export default function RoomLeaderboard({ routineId }: { routineId: unknown }) {
   // includeDone: the standings stay up after the final score closes the round.
@@ -16,19 +17,15 @@ export default function RoomLeaderboard({ routineId }: { routineId: unknown }) {
   return round ? <Overlay key={`${round.code}:${round.serverStartAt}`} code={round.code} songAt={round.songAt} /> : null
 }
 
-const ordinal = (n: number): string => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`
-
 function Overlay({ code, songAt }: { code: string; songAt: number }) {
   const seat = loadSeat(code)
   const { room } = useRoom(code, seat?.token ?? null)
   const now = useNow(250)
   const waiting = songAt - now
   const finished = room?.state === 'finished'
-  const ranked = room ? rankPlayers(room.players) : []
-  const myRank = ranked.findIndex((p) => p.id === seat?.playerId) + 1
-  const me = ranked[myRank - 1]
-  const leader = ranked[0]
+  const meId = seat?.playerId ?? null
   return (
+    <>
     <aside className="rm-overlay df-card-sm" aria-label={`Room ${code}`}>
       <div className="df-spread rm-overlay-head">
         <span className="df-label">Room {code}</span>
@@ -41,20 +38,20 @@ function Overlay({ code, songAt }: { code: string; songAt: number }) {
           Everyone starts together in <span className="df-num">{Math.ceil(waiting / 1000)}</span>
         </p>
       ) : (
-        me && (
+        room && (
           <p className="rm-overlay-line">
             {finished ? 'Final: ' : ''}
-            <b>{ordinal(myRank)}</b> of {ranked.length} · <span className="df-num">{formatScore(me.score)}</span>
-            {leader && leader.id !== me.id && <span className="df-note"> · {leader.name} leads</span>}
+            {modeLine(room, meId)}
           </p>
         )
       )}
-      {finished && <p className="df-voice rm-overlay-board">Final standings</p>}
       {room && (
         <div className="rm-overlay-board">
-          <LiveBoard players={room.players} meId={seat?.playerId} max={5} compact />
+          {room.mode === 'crew' ? <CrewHud crew={room.crew} players={room.players} /> : <VersusHud room={room} meId={meId} />}
         </div>
       )}
     </aside>
+    {room?.mode === 'crew' && room.state === 'playing' && <SyncBurst crew={room.crew} />}
+    </>
   )
 }

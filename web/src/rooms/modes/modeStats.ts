@@ -1,25 +1,21 @@
 // Pure numbers behind the mode HUDs and results (no React): versus standings, the crew sync meter,
 // the "IN SYNC" burst trigger, team stars and the song's hardest moments.
 
-import type { IconName } from '../../theme/icons'
-import type { CrewStats, HeatBeat, ModePlayer, ModeRoom } from './api'
+import { formatScore } from '../../game/results'
+import type { CrewStats, RoomPlayer, RoomView } from '../client'
+import type { HeatBeat } from './api'
 
 /** The sync bonus multiplier stops growing at this streak (server: 25 x min(streak, 8)). */
 export const SYNC_STREAK_CAP = 8
 export const SYNC_BEAT_POINTS = 25
 
-/** Default player tokens, by join order (the crown is kept for the leader). */
-const TOKENS: readonly IconName[] = ['slipper', 'frog-prince', 'red-hood', 'wolf', 'pumpkin', 'potion', 'wand', 'apple']
-
-export function tokenFor(players: readonly Pick<ModePlayer, 'id'>[], id: string): IconName {
-  const i = players.findIndex((p) => p.id === id)
-  return TOKENS[(i < 0 ? 0 : i) % TOKENS.length] ?? 'slipper'
-}
+export const ordinal = (n: number): string =>
+  `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`
 
 export const beatsWonLabel = (n: number): string => `${n} ${n === 1 ? 'beat' : 'beats'} won`
 
 export interface VersusRow {
-  player: ModePlayer
+  player: RoomPlayer
   /** beats won as a share of the top tally, 0..1 (bar length) */
   share: number
   leader: boolean
@@ -27,7 +23,7 @@ export interface VersusRow {
 }
 
 /** Players by beats won, then score (ties share a rank). */
-export function versusRows(room: Pick<ModeRoom, 'players' | 'leaderId'>): VersusRow[] {
+export function versusRows(room: Pick<RoomView, 'players' | 'leaderId'>): VersusRow[] {
   const sorted = [...room.players].sort((a, b) => b.beatsWon - a.beatsWon || b.score - a.score)
   const top = Math.max(1, ...sorted.map((p) => p.beatsWon))
   let rank = 0
@@ -38,10 +34,19 @@ export function versusRows(room: Pick<ModeRoom, 'players' | 'leaderId'>): Versus
   })
 }
 
-/** Head-to-head split for exactly two dancers: the left player's share of the beats won, 0..1 (0.5 when none). */
-export function tugShare(a: Pick<ModePlayer, 'beatsWon'>, b: Pick<ModePlayer, 'beatsWon'>): number {
-  const total = a.beatsWon + b.beatsWon
-  return total > 0 ? a.beatsWon / total : 0.5
+/** The one-line HUD on phones: crew team score and streak, or my versus standing. */
+export function modeLine(room: Pick<RoomView, 'mode' | 'players' | 'leaderId' | 'crew'>, meId: string | null): string {
+  if (room.mode === 'crew') {
+    const { teamScore, syncStreak } = room.crew
+    return `Team ${formatScore(teamScore)}${syncStreak > 1 ? ` · in sync ×${syncStreak}` : ''}`
+  }
+  const rows = versusRows(room)
+  const mine = rows.find((r) => r.player.id === meId)
+  const leader = rows.find((r) => r.leader)
+  const parts = mine ? [`${ordinal(mine.rank)} of ${rows.length}`, beatsWonLabel(mine.player.beatsWon)] : []
+  if (leader && leader.player.id !== meId) parts.push(`${leader.player.name} leads`)
+  else if (leader) parts.push('you lead!')
+  return parts.join(' · ')
 }
 
 /** The in-sync meter: how far the streak is toward the capped multiplier, 0..1. */
@@ -65,7 +70,7 @@ export function syncBurst(prev: Pick<CrewStats, 'lastSyncBeat'> | null, next: Pi
  * Team stars 0..5: the dancers' mean accuracy, averaged with the share of beats danced in sync when the
  * routine's beat count is known.
  */
-export function teamStars(players: readonly Pick<ModePlayer, 'accuracy'>[], crew: Pick<CrewStats, 'syncedBeats'>, totalBeats?: number): number {
+export function teamStars(players: readonly Pick<RoomPlayer, 'accuracy'>[], crew: Pick<CrewStats, 'syncedBeats'>, totalBeats?: number): number {
   if (players.length === 0) return 0
   const acc = players.reduce((s, p) => s + Math.min(100, Math.max(0, p.accuracy)), 0) / players.length / 100
   const quality = totalBeats && totalBeats > 0 ? (acc + Math.min(1, crew.syncedBeats / totalBeats)) / 2 : acc

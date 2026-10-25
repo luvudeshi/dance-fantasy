@@ -1,23 +1,18 @@
-// Batches the game's per-beat judgements to POST /api/rooms/{code}/beats about once a second.
-// The game calls reportBeat() for every finalized checkpoint; call stop() (await it) before posting the
-// final `finished: true` score, so the last beats land first (shared/README.md, "Beats").
+// Batches the game's per-beat judgements to POST /api/rooms/{code}/beats about once a second
+// (gameLink.reportRoomBeat feeds it). stop() (await it) sends what is left; the final `finished: true`
+// score must go after it, so the last beats land first (shared/README.md, "Beats").
 
 import { ApiError } from '../../api'
-import { GRADES, MAX_BEAT, MAX_BEATS_PER_POST, postBeats, type BeatJudgement, type Grade, type ModeRoom } from './api'
-
-export type SendBeats = (beats: readonly BeatJudgement[]) => Promise<ModeRoom>
+import { GRADES, MAX_BEAT, MAX_BEATS_PER_POST, type BeatJudgement, type Grade } from './api'
 
 export interface BeatReporterOptions {
-  /** posts one batch; default: postBeats(code, token, …) */
-  send: SendBeats
-  /** every RoomView the server answers with (a beats post doubles as that second's poll) */
-  onRoom?: (room: ModeRoom) => void
+  /** posts one batch, e.g. roomWrites.beats(code, token, batch) */
+  send: (beats: readonly BeatJudgement[]) => Promise<unknown>
   intervalMs?: number
 }
 
 export class BeatReporter {
-  private readonly send: SendBeats
-  private readonly onRoom: ((room: ModeRoom) => void) | undefined
+  private readonly send: BeatReporterOptions['send']
   private readonly intervalMs: number
   private queue: BeatJudgement[] = []
   private readonly seen = new Set<number>()
@@ -27,13 +22,7 @@ export class BeatReporter {
 
   constructor(opts: BeatReporterOptions) {
     this.send = opts.send
-    this.onRoom = opts.onRoom
     this.intervalMs = opts.intervalMs ?? 1000
-  }
-
-  /** A reporter for a room seat. */
-  static forRoom(code: string, token: string, onRoom?: (room: ModeRoom) => void): BeatReporter {
-    return new BeatReporter({ send: (beats) => postBeats(code, token, beats), onRoom })
   }
 
   /** Queue one judgement. Same beat twice keeps the first (like the server); bad input is ignored. */
@@ -74,9 +63,8 @@ export class BeatReporter {
     while (this.queue.length > 0 && !this.dead) {
       const batch = this.queue.slice(0, MAX_BEATS_PER_POST)
       try {
-        const room = await this.send(batch)
+        await this.send(batch)
         this.queue = this.queue.slice(batch.length)
-        this.onRoom?.(room)
       } catch (err) {
         if (err instanceof ApiError && (err.status === 401 || err.status === 404)) {
           // no longer a player of this room (left, or it expired): nothing will ever be accepted

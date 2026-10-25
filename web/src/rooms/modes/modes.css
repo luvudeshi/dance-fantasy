@@ -1,6 +1,6 @@
-/* Room modes (versus / crew): the host's mode picker, the play-stage HUDs and the results.
-   Built from the Dance Fantasy tokens and df- pieces; dfm- is only the glue. HUD pieces sit over the live
-   canvas and change every second, so they use the filter-free die-cut (box-shadow) instead of #dc. */
+/* Room modes (versus / crew): the host's mode picker, the in-game HUDs and the results.
+   Built from the Dance Fantasy tokens and df- pieces; dfm- is only the glue. The HUDs sit inside the room
+   overlay card over the live canvas and change every second, so nothing in them adds an SVG filter. */
 
 /* ---------- mode picker ---------- */
 .dfm-picker {
@@ -86,27 +86,11 @@
   margin-top: 4px;
 }
 
-/* ---------- HUD overlay (mount inside the positioned play stage) ---------- */
-.dfm-hud {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  font-family: var(--df-font-ui);
-  color: var(--df-ink);
-}
+/* ---------- in-game HUDs (inside the room overlay card) ---------- */
 .dfm-panel {
-  position: absolute;
-  top: 76px; /* under the stage's 64 px top bar */
-  left: 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: min(300px, calc(100% - 32px));
-  padding: 12px 14px 14px;
-  border-radius: var(--df-r-md);
-  background: var(--df-paper) var(--df-paper-tex);
-  box-shadow: var(--df-shadow-lift);
 }
 .dfm-panel > .df-voice {
   font-size: 1.05rem;
@@ -193,7 +177,7 @@
 .dfm-flame.is-lit:nth-child(2n) {
   animation-delay: -0.45s;
 }
-.dfm-sync-next b {
+.dfm-sync .df-note b {
   color: var(--df-rasp-deep);
 }
 .dfm-crew-dancers {
@@ -207,7 +191,8 @@
 
 /* the "IN SYNC x5!" burst, centred over the coach */
 .dfm-burst {
-  position: absolute;
+  position: fixed;
+  z-index: 61; /* over the room overlay */
   left: 50%;
   top: 30%;
   translate: -50% 0;
@@ -490,23 +475,6 @@
 }
 
 @media (max-width: 520px) {
-  .dfm-panel {
-    top: 70px;
-    left: 10px;
-    width: min(220px, calc(100% - 20px));
-    padding: 8px 10px 10px;
-    gap: 6px;
-  }
-  .dfm-big {
-    font-size: 1.6rem;
-  }
-  .dfm-flame {
-    width: 15px;
-    height: 20px;
-  }
-  .dfm-sync-next {
-    display: none;
-  }
   .dfm-podium {
     gap: 6px;
   }
@@ -515,7 +483,7 @@
     padding-inline: 6px;
   }
   .dfm-burst {
-    top: 48%; /* below the crew panel */
+    top: 40%;
   }
   .dfm-burst-ribbon {
     font-size: 1.3rem;

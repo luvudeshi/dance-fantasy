@@ -7,7 +7,9 @@ import { avatarFor, joinUrl, leaveRoom, roomWrites, saveSeat, type RoomRoutine, 
 import { beginRoomRound, storedRound } from './gameLink'
 import Qr from './Qr'
 import RoutinePicker from './RoutinePicker'
-import { Countdown, LiveBoard, Podium } from './Standings'
+import { ModePicker } from './modes/ModePicker'
+import { ModeResults } from './modes/ModeResults'
+import { Countdown, LiveBoard } from './Standings'
 import { useRoom } from './useRoom'
 
 const STATE_LABEL: Readonly<Record<RoomState, string>> = {
@@ -117,9 +119,11 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
         </header>
 
         {room.state === 'finished' && (
-          <Panel title="Final standings" kicker="The clock strikes twelve" sticker="trophy" className="rm-final">
-            <Podium players={room.players} meId={seat.playerId} />
-          </Panel>
+          <ModeResults
+            room={room}
+            meId={seat.playerId}
+            onRematch={isHost ? () => attempt((after) => roomWrites.rematch(code, seat.token, after)) : undefined}
+          />
         )}
 
         <div className="rm-grid">
@@ -160,6 +164,14 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
           </div>
 
           <div className="rm-col">
+            <Panel title={room.mode === 'crew' ? 'Crew: dance as one' : 'Versus: who dances best?'} kicker="Tonight’s dance" sticker={room.mode === 'crew' ? 'party' : 'trophy'} className="rm-mode">
+              <ModePicker
+                mode={room.mode}
+                canPick={isHost && between}
+                onPick={(mode) => attempt((after) => roomWrites.mode(code, seat.token, mode, after))}
+              />
+            </Panel>
+
             <Panel title={room.routine ? room.routine.title : 'Tonight’s song'} kicker="Tonight’s song" sticker="music-note" className="rm-song">
               {room.routine ? (
                 <div className="df-cluster" style={{ '--df-gap': '8px' } as CSSProperties}>
@@ -217,7 +229,7 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
                 {me.ready ? 'Ready!' : 'I’m ready'}
               </Button>
             )}
-            {isHost && between && (
+            {isHost && room.state === 'lobby' && (
               <Button
                 size="lg"
                 icon="sparkles"
@@ -225,7 +237,7 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
                 title={room.routine ? undefined : 'Pick a song first'}
                 onClick={() => void attempt((after) => roomWrites.start(code, seat.token, after))}
               >
-                {room.state === 'finished' ? 'Dance again' : 'Start the dance'}
+                Start the dance
               </Button>
             )}
             {isHost && <Toggle checked={dancing} onChange={setDancing} label="I’m dancing too" hint={dancing ? undefined : 'This screen shows the live board'} />}

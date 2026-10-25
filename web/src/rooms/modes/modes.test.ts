@@ -1,16 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { ApiError } from '../../api'
-import { isModeRoom, type BeatJudgement, type ModePlayer, type ModeRoom } from './api'
+import type { RoomPlayer } from '../client'
+import type { BeatJudgement } from './api'
 import { BeatReporter } from './beatReporter'
-import { beatsWonLabel, hardestMoments, nextSyncPoints, syncBurst, syncMeter, teamStars, tokenFor, tugShare, versusRows } from './modeStats'
+import { beatsWonLabel, hardestMoments, modeLine, nextSyncPoints, ordinal, syncBurst, syncMeter, teamStars, versusRows } from './modeStats'
 
-const player = (id: string, over: Partial<ModePlayer> = {}): ModePlayer => ({
+const player = (id: string, over: Partial<RoomPlayer> = {}): RoomPlayer => ({
   id,
   name: id,
   isHost: false,
   ready: false,
   connected: true,
   score: 0,
+  combo: 0,
+  maxCombo: 0,
   accuracy: 0,
   progress: 0,
   finished: false,
@@ -19,36 +22,6 @@ const player = (id: string, over: Partial<ModePlayer> = {}): ModePlayer => ({
 })
 
 const crew = { teamScore: 0, syncBonus: 0, syncedBeats: 0, syncStreak: 0, bestSyncStreak: 0, lastSyncBeat: null }
-
-// the RoomView example from shared/README.md, plus the extra fields a real response carries
-const VIEW = {
-  code: 'KQWX',
-  state: 'lobby',
-  hostId: 'Zp3k9QxA',
-  serverNow: 1761380000000,
-  startAt: null,
-  routine: null,
-  mode: 'versus',
-  players: [
-    { id: 'Zp3k9QxA', name: 'Ana', isHost: true, ready: false, connected: true, score: 0, combo: 0, maxCombo: 0, accuracy: 0, progress: 0, finished: false, beatsWon: 0 },
-  ],
-  leaderId: null,
-  crew,
-  chat: [{ id: 12, playerId: 'Zp3k9QxA', name: 'Ana', text: 'ready?', at: 1761379990000 }],
-}
-
-describe('isModeRoom', () => {
-  it('accepts the documented RoomView', () => {
-    expect(isModeRoom(VIEW)).toBe(true)
-    expect(isModeRoom({ ...VIEW, mode: 'crew', routine: { routineId: 'r', analysisId: 'a', title: 'Song', difficulty: 'easy', mode: 'standing' } })).toBe(true)
-  })
-  it('rejects a view without the mode fields', () => {
-    expect(isModeRoom({ ...VIEW, mode: 'solo' })).toBe(false)
-    expect(isModeRoom({ ...VIEW, crew: undefined })).toBe(false)
-    expect(isModeRoom({ ...VIEW, players: [{ ...VIEW.players[0], beatsWon: undefined }] })).toBe(false)
-    expect(isModeRoom(null)).toBe(false)
-  })
-})
 
 describe('versus', () => {
   it('ranks by beats won, then score, with shared ranks and bar shares', () => {
@@ -66,16 +39,18 @@ describe('versus', () => {
   it('has zero-length bars before anyone wins a beat', () => {
     expect(versusRows({ leaderId: null, players: [player('a'), player('b')] }).map((r) => r.share)).toEqual([0, 0])
   })
-  it('splits head to head', () => {
-    expect(tugShare({ beatsWon: 3 }, { beatsWon: 1 })).toBe(0.75)
-    expect(tugShare({ beatsWon: 0 }, { beatsWon: 0 })).toBe(0.5)
-  })
-  it('gives tokens by join order', () => {
-    const ps = [player('a'), player('b')]
-    expect(tokenFor(ps, 'a')).toBe('slipper')
-    expect(tokenFor(ps, 'b')).toBe('frog-prince')
+  it('labels beats won and places', () => {
     expect(beatsWonLabel(1)).toBe('1 beat won')
     expect(beatsWonLabel(4)).toBe('4 beats won')
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 112].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '112th'])
+  })
+  it('sums the round up in one phone line', () => {
+    const players = [player('Ana', { beatsWon: 6, score: 900 }), player('Ben', { beatsWon: 4 })]
+    expect(modeLine({ mode: 'versus', players, leaderId: 'Ana', crew }, 'Ben')).toBe('2nd of 2 · 4 beats won · Ana leads')
+    expect(modeLine({ mode: 'versus', players, leaderId: 'Ana', crew }, 'Ana')).toBe('1st of 2 · 6 beats won · you lead!')
+    expect(modeLine({ mode: 'versus', players, leaderId: null, crew }, null)).toBe('')
+    expect(modeLine({ mode: 'crew', players, leaderId: null, crew: { ...crew, teamScore: 12345, syncStreak: 5 } }, 'Ana')).toBe('Team 12,345 · in sync ×5')
+    expect(modeLine({ mode: 'crew', players, leaderId: null, crew: { ...crew, teamScore: 50, syncStreak: 1 } }, 'Ana')).toBe('Team 50')
   })
 })
 
@@ -121,21 +96,19 @@ describe('hardestMoments', () => {
 })
 
 describe('BeatReporter', () => {
-  const room = VIEW as ModeRoom
   const recorder = (fail: (call: number) => Error | null = () => null) => {
     const calls: BeatJudgement[][] = []
-    const send = (beats: readonly BeatJudgement[]): Promise<ModeRoom> => {
+    const send = (beats: readonly BeatJudgement[]): Promise<void> => {
       calls.push([...beats])
       const err = fail(calls.length)
-      return err ? Promise.reject(err) : Promise.resolve(room)
+      return err ? Promise.reject(err) : Promise.resolve()
     }
     return { calls, send }
   }
 
   it('batches 64 a call, keeps the first judgement of a beat, and drops bad input', async () => {
     const { calls, send } = recorder()
-    const views: ModeRoom[] = []
-    const r = new BeatReporter({ send, onRoom: (v) => views.push(v) })
+    const r = new BeatReporter({ send })
     for (let b = 0; b < 70; b++) r.reportBeat(b, 50, 'ok')
     r.reportBeat(3, 100, 'perfect') // already reported
     r.reportBeat(-1, 50, 'ok')
@@ -148,7 +121,6 @@ describe('BeatReporter', () => {
     expect(calls.map((c) => c.length)).toEqual([64, 7])
     expect(calls[0]?.[3]).toEqual({ beat: 3, score: 50, grade: 'ok' })
     expect(calls[1]?.at(-1)).toEqual({ beat: 81, score: 100, grade: 'perfect' })
-    expect(views).toHaveLength(2)
     expect(r.pending).toBe(0)
   })
 
