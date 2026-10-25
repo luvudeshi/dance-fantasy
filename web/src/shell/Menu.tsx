@@ -174,8 +174,8 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
           </nav>
 
           <footer className="title-foot">
-            <AccountChip />
             <ServerStatus server={server} />
+            <AccountChip />
             <span className="df-note">HackTX 2026</span>
             <span className="df-note title-keys" aria-hidden="true">
               <kbd>↑</kbd> <kbd>↓</kbd> choose · <kbd>Enter</kbd> go
