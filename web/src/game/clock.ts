@@ -49,6 +49,8 @@ export class GameClock {
   private position = 0
   private countIn: readonly number[] = []
   private onEnded: (() => void) | null = null
+  /** The song's volume (ducked while the herald speaks); one per AudioContext. */
+  private music: GainNode | null = null
 
   /**
    * Creates (or resumes) the AudioContext. Call it synchronously inside a click/key handler
@@ -124,7 +126,11 @@ export class GameClock {
     const startAt = base - t
     const source = ctx.createBufferSource()
     source.buffer = song.buffer
-    source.connect(ctx.destination)
+    if (this.music?.context !== ctx) {
+      this.music = ctx.createGain()
+      this.music.connect(ctx.destination)
+    }
+    source.connect(this.music)
     if (t >= 0) source.start(base, t)
     else source.start(startAt, 0)
     const ticks = countIn.filter((c) => c >= t && c < 0)
@@ -156,6 +162,11 @@ export class GameClock {
   seek(t: number): void {
     if (this.run) this.play(t, this.countIn)
     else this.position = t
+  }
+
+  /** Lowers the music while the herald speaks (voice/voice.ts setVoiceDucker), back up after. */
+  duck(on: boolean): void {
+    if (this.ctx && this.music) this.music.gain.setTargetAtTime(on ? 0.35 : 1, this.ctx.currentTime, on ? 0.04 : 0.25)
   }
 
   /** Stops playback; song time goes back to 0. The decoded song stays cached. */

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { apiUrl } from '../api'
 import { rankTitle } from '../game/results'
 import type { ResultsSummary } from '../game/scoring'
+import { prefetchVoice, speak as speakVoice, stopVoice } from '../voice/voice'
 import { getAnnouncerPrefs, type AnnouncerPrefs } from './prefs'
 
 export type AnnouncerEvent = 'intro' | 'combo' | 'streak_broken' | 'perfect_run' | 'results'
@@ -79,7 +80,7 @@ export async function fetchAnnouncerLines(
 
 const LOCAL: Record<AnnouncerEvent, readonly ((c: AnnouncerContext) => string)[]> = {
   intro: [
-    (c) => `Hear ye, hear ye! The ball begins with ${c.songTitle}!`,
+    (c) => `Welcome to the ball! Tonight we dance to ${c.songTitle}!`,
     (c) => `Lords and ladies, take the floor: ${c.songTitle} is playing!`,
     () => 'The chandeliers sparkle and the orchestra bows. Let the dancing begin!',
   ],
@@ -176,26 +177,13 @@ export function pickVoice<V extends VoiceLike>(voices: readonly V[]): V | null {
   )
 }
 
-function synth(): SpeechSynthesis | null {
-  return typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : null
-}
-
-/** Reads one line aloud (queued behind any line still being spoken). */
+/** Reads one line aloud: the server's TTS voice (voice/voice.ts), speechSynthesis when that is slow or fails. */
 export function speakLine(line: string): void {
-  const s = synth()
-  if (!s || typeof SpeechSynthesisUtterance === 'undefined') return
-  const u = new SpeechSynthesisUtterance(line)
-  const voice = pickVoice(s.getVoices())
-  if (voice) u.voice = voice
-  u.lang = voice?.lang ?? 'en-GB'
-  // ponytail: tuned by ear for a cheerful town crier; per-voice tuning if a voice sounds off.
-  u.rate = 1.05
-  u.pitch = 1.1
-  s.speak(u)
+  speakVoice(line)
 }
 
 export function stopSpeaking(): void {
-  synth()?.cancel()
+  stopVoice()
 }
 
 // --- the herald ---------------------------------------------------------------------------------
@@ -270,6 +258,7 @@ export function createAnnouncer(opts: AnnouncerOptions = {}): Announcer {
   const show = (event: AnnouncerEvent, lines: readonly string[]): void => {
     stop()
     queue = lines.map((line) => ({ line, event }))
+    if (prefs().voice) prefetchVoice(lines.slice(1))
     next()
   }
 
@@ -283,7 +272,10 @@ export function createAnnouncer(opts: AnnouncerOptions = {}): Announcer {
     void p.then((lines) => {
       if (pending.get(key) !== p) return // reset meanwhile, or announce() took it
       pending.delete(key)
-      if (lines) ready.set(key, lines)
+      if (lines) {
+        ready.set(key, lines)
+        if (prefs().voice) prefetchVoice(lines)
+      }
     })
   }
 

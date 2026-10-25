@@ -13,6 +13,7 @@
 import { useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
 import type { Difficulty, Mode } from '@shared/routine'
 import { ApiError, listSongs, type SongInfo } from '../api'
+import { recordRound } from '../account/store'
 import { BotPoseSource, type BotSkill } from '../game/botSource'
 import CalibrationScreen from '../game/CalibrationScreen'
 import { loadCalibration, type Calibration } from '../game/calibration'
@@ -62,13 +63,14 @@ import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
 import { createReelSession, reelEnabled, ReelLauncher } from '../reel'
-import { finishRoomRound, inRoomRound, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
+import { finishRoomRound, inRoomRound, reportRoomBeat, roomRoundFor, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
 import RoomLeaderboard from '../rooms/RoomLeaderboard'
 import { getSettings } from '../settings'
 import { Corners } from '../theme/components'
 import { Icon } from '../theme/Icon'
 import type { IconName } from '../theme/icons'
 import { PauseMenu } from '../theme/screens/PauseMenu'
+import { setVoiceDucker, unlockVoice } from '../voice/voice'
 import './play.css'
 
 const randomSeed = (): number => Math.floor(Math.random() * 1_000_000)
@@ -293,6 +295,8 @@ export default function Play() {
       bot,
       isPlaying: () => clock.playing,
       onResults: (rs, comboBefore) => {
+        // before the sound check: a room round needs every beat (a no-op in solo play)
+        for (const r of rs) reportRoomBeat(game.routine.meta?.routineId, r.checkpoint.index, r.score, r.judgment)
         reel?.feed(rs)
         if (!isRehearsing(phaseRef.current)) announcer.onResults(rs, comboBefore)
         if (!soundOnRef.current) return
@@ -350,12 +354,17 @@ export default function Play() {
     const run = a?.run
     if (!a || !run || phaseRef.current !== 'game') return
     const summary = run.finish(a.game.routine, a.game.durationSec)
+    const inRoom = roomRoundFor(a.game.routine.meta?.routineId) !== null
     finishRoomRound(a.game.routine.meta?.routineId, summary)
     console.log(a.monitor.summary())
     const results = run.keeper.results()
     const auto = run.source.kind === 'bot'
     const meta: RoundMeta = roundMetaRef.current ?? { preset: 'standard', config: scoringFor('standard'), calibration: null, auto }
     setResults(buildResultsView(summary, results, a.game.routine, meta.config.thresholds))
+    if (!auto) {
+      const { score, maxCombo, stars } = summary.state
+      void recordRound({ analysisId: a.game.analysis.id, songTitle: a.game.analysis.title, score, accuracy: summary.accuracy, maxCombo, stars, mode: inRoom ? 'room' : 'solo' })
+    }
     announcer.results(summary)
     setRound({
       details: roundDetails({
@@ -387,6 +396,11 @@ export default function Play() {
     clock.setOnEnded(() => finishRef.current())
     return () => clock.setOnEnded(null)
   }, [clock, finishRef])
+  // The music dips while the herald's voice speaks.
+  useEffect(() => {
+    setVoiceDucker((on) => clock.duck(on))
+    return () => setVoiceDucker(null)
+  }, [clock])
 
   // Automation hook for sync checks.
   useEffect(() => {
@@ -498,6 +512,7 @@ export default function Play() {
    */
   const launch = (l: Launch): void => {
     clock.unlock()
+    unlockVoice()
     clock.stop()
     sfx.cancelScheduled()
     sessionRef.current?.abort()
@@ -1154,6 +1169,9 @@ export default function Play() {
             )}
           </button>
           {learnError && <p className="error">{learnError}</p>}
+          <a className="df-btn df-btn-secondary" href="#/play?party=3" title="2 to 4 dancers in front of one camera">
+            <Icon name="party" size="xs" cut="none" /> Party mode · 2 to 4 dancers
+          </a>
           <p className="hint lobby-privacy">
             {autoplay ? 'The bot dances, you watch.' : 'Your camera stays on this device: no video ever leaves the browser.'}
           </p>

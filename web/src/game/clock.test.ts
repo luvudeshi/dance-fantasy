@@ -32,6 +32,12 @@ class FakeContext {
   constructor() {
     FakeContext.instances.push(this)
   }
+  gains: { context: FakeContext; gain: { setTargetAtTime: ReturnType<typeof vi.fn> }; connect: () => void }[] = []
+  createGain(): FakeContext['gains'][number] {
+    const g = { context: this, gain: { setTargetAtTime: vi.fn() }, connect: () => undefined }
+    this.gains.push(g)
+    return g
+  }
   createBufferSource(): FakeSource {
     const s = new FakeSource()
     this.sources.push(s)
@@ -71,6 +77,19 @@ describe('audibleSongTime', () => {
 })
 
 describe('GameClock', () => {
+  it('plays the song through one gain node per context, ducked while the herald speaks', async () => {
+    const clock = new GameClock()
+    await clock.load('k', { file: bytes() })
+    clock.play(0)
+    clock.play(1)
+    const ctx = FakeContext.instances[0]
+    expect(ctx.gains).toHaveLength(1)
+    clock.duck(true)
+    expect(ctx.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0.35, ctx.currentTime, 0.04)
+    clock.duck(false)
+    expect(ctx.gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(1, ctx.currentTime, 0.25)
+  })
+
   it('creates the AudioContext on unlock (the user gesture) and decodes once per key', async () => {
     const clock = new GameClock()
     expect(clock.context).toBeNull()
