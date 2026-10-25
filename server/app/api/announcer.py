@@ -1,7 +1,8 @@
 """POST /api/announcer: short fairy-tale ballroom announcer lines for a game event, and their voice.
 
 AI lines (app.ai: Muse, then Gemini) when a key is set and a model answers in time, else a varied pick from
-the canned bank (app.ai.prompts.CANNED). Always answers within ~2.5 s. Identical requests within
+the canned bank (app.ai.prompts.CANNED). In-game moments answer at once from the recorded canned lines;
+the intro and results answer within ~6 s (Muse takes ~2-3 s). Identical requests within
 CACHE_TTL_SEC get the same answer without a second model call. Every line comes with an id (sha256 of its
 text) that GET /api/announcer/voice/{id} voices (app.ai.voice): only lines this endpoint gave out.
 """
@@ -39,8 +40,10 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["ai"])
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
-DEADLINE_SEC = 2.1  # the providers' share; the thread hop and canned fallback fit in the rest
-HARD_CAP_SEC = 2.3  # wall clock, even if a socket read drips past its own timeout
+# Only the intro, a perfect run and the results reach a model (in-game moments are canned), and the page asks for
+# the intro ahead of time, so Muse gets ~3.3 s of this (provider FIRST_SHARE): it takes ~2-3 s with its reasoning.
+DEADLINE_SEC = 5.5  # the providers' share; the thread hop and canned fallback fit in the rest
+HARD_CAP_SEC = 5.8  # wall clock, even if a socket read drips past its own timeout
 CACHE_TTL_SEC = 30.0
 CACHE_MAX = 256
 

@@ -189,6 +189,31 @@ describe('createAnnouncer', () => {
     a.dispose()
   })
 
+  it('asks for the intro once at prepare(), and intro() shows it without asking again', async () => {
+    const asked: string[] = []
+    const server = createServer((req, res) => {
+      let body = ''
+      req.on('data', (c: Buffer) => (body += c.toString()))
+      req.on('end', () => {
+        asked.push((JSON.parse(body) as { event: string }).event)
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ lines: ['Muse says hello, Ella!'], source: 'muse' }))
+      })
+    })
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/announcer`
+    const a = createAnnouncer({ endpoint: url, prefs: () => ({ enabled: true, voice: false }), speak: () => {}, stop: () => {} })
+    a.prepare({ songTitle: 'Vibe Ace' })
+    await vi.waitFor(() => expect(asked).toEqual(['intro']))
+    await new Promise((r) => setTimeout(r, 50)) // the reply settles into the ready set
+    a.intro({ songTitle: 'Vibe Ace' })
+    expect(a.getSnapshot()?.line).toBe('Muse says hello, Ella!') // at once, from the prefetch
+    expect(asked.filter((e) => e === 'intro')).toHaveLength(1)
+    a.dispose()
+    server.closeAllConnections()
+    server.close()
+  })
+
   it('stays silent while switched off, and hush drops a moment still waiting', async () => {
     const off = createAnnouncer({ endpoint: closedUrl, prefs: () => ({ enabled: false, voice: true }), speak: () => {}, stop: () => {} })
     off.intro({ songTitle: 'Vibe Ace' })
