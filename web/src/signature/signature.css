@@ -32,6 +32,13 @@
   min-height: 3.25rem;
   padding: 8px 14px;
 }
+.df-signature .df-item-title {
+  white-space: normal; /* key-moment labels wrap on a phone instead of truncating */
+}
+/* keep the heading clear of the corner sticker */
+.df-signature .df-panel-head {
+  padding-right: 64px;
+}
 
 .df-signature-moves {
   justify-content: flex-start;

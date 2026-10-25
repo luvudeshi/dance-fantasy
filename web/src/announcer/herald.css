@@ -5,12 +5,16 @@
 .df-herald {
   pointer-events: none;
 }
+.df-herald-inline {
+  max-width: 34rem;
+}
 .df-herald-stage {
   position: fixed;
   left: max(16px, env(safe-area-inset-left));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  /* just above the cue strip, which render.ts playLayout() sizes as 12 + clamp(64, 14% h, 124) + 50 px */
+  bottom: calc(74px + clamp(64px, 14vh, 124px) + env(safe-area-inset-bottom));
   z-index: 120; /* above the full-window stage (z 100) wherever it is mounted */
-  width: min(30rem, calc(100vw - 32px));
+  width: min(27rem, calc(100vw - 32px));
 }
 
 .df-herald-bubble {

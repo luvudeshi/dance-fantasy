@@ -66,7 +66,7 @@ export default function AiPreview() {
 
         <Panel title="The royal herald" kicker="Fire a moment" sticker="crown">
           <div className="df-spread" style={{ alignItems: 'end' }}>
-            <label className="df-stack" style={{ '--df-gap': '6px' } as CSSProperties}>
+            <label className="df-stack" style={{ '--df-gap': '6px', alignItems: 'stretch' } as CSSProperties}>
               <span className="df-label">Song</span>
               <input className="df-field" value={song} onChange={(e) => setSong(e.target.value)} />
             </label>
@@ -106,11 +106,11 @@ export default function AiPreview() {
             setLookup({ title: title.trim(), artist: artist.trim() })
           }}
         >
-          <label className="df-stack" style={{ '--df-gap': '6px' } as CSSProperties}>
+          <label className="df-stack" style={{ '--df-gap': '6px', alignItems: 'stretch' } as CSSProperties}>
             <span className="df-label">Title</span>
             <input className="df-field" value={title} onChange={(e) => setTitle(e.target.value)} required />
           </label>
-          <label className="df-stack" style={{ '--df-gap': '6px' } as CSSProperties}>
+          <label className="df-stack" style={{ '--df-gap': '6px', alignItems: 'stretch' } as CSSProperties}>
             <span className="df-label">Artist</span>
             <input className="df-field" value={artist} onChange={(e) => setArtist(e.target.value)} />
           </label>

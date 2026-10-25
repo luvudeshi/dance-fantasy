@@ -4,9 +4,19 @@
 import { useSyncExternalStore } from 'react'
 import { Toggle } from '../theme/components'
 import { Icon } from '../theme/Icon'
-import { stopSpeaking, type Announcer } from './announcer'
+import type { IconName } from '../theme/icons'
+import { stopSpeaking, type Announcer, type AnnouncerEvent } from './announcer'
 import { setAnnouncerPrefs, useAnnouncerPrefs } from './prefs'
 import './herald.css'
+
+/** Icons that read on the crest's gold (blue for a broken streak); no gold-on-gold sparkles. */
+const CREST: Record<AnnouncerEvent, IconName> = {
+  intro: 'crown',
+  combo: 'dance-shoe',
+  streak_broken: 'slipper',
+  perfect_run: 'crown',
+  results: 'crown',
+}
 
 /**
  * The current line as a speech bubble. `placement="stage"` (default) pins it bottom-left over the game
@@ -19,7 +29,7 @@ export function HeraldBubble({ announcer, placement = 'stage' }: { announcer: An
       {herald && (
         <p key={herald.key} className={`df-herald-bubble df-herald-${herald.event}`}>
           <span className="df-herald-crest" aria-hidden="true">
-            <Icon name={herald.event === 'streak_broken' ? 'slipper' : herald.event === 'combo' ? 'sparkles' : 'crown'} size={44} cut="none" />
+            <Icon name={CREST[herald.event]} size={44} cut="none" />
           </span>
           <span className="df-herald-text">
             <span className="df-herald-who">The Herald</span>

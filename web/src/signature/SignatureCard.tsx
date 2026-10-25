@@ -121,9 +121,7 @@ function SignatureView({ title, signature, names, className }: { title: string; 
           <ul className="df-cluster df-signature-moves">
             {moves.map((m) => (
               <li key={m.id}>
-                <Badge tone="gold" icon="sparkles">
-                  {m.name}
-                </Badge>
+                <Badge tone="gold">{m.name}</Badge>
               </li>
             ))}
           </ul>
