@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api import accounts, analyze, announcer, choreograph, health, moves, rooms, songs, spike
+from app.api import accounts, analyze, announcer, choreograph, health, leaderboard, moves, rooms, songs, spike
 from app.signature.router import router as signature_router
 
 api_router = APIRouter(prefix="/api")
@@ -17,5 +17,6 @@ api_router.include_router(rooms.heatmap_router)
 api_router.include_router(announcer.router)
 api_router.include_router(accounts.router)
 api_router.include_router(signature_router)
+api_router.include_router(leaderboard.router)
 
 __all__ = ["api_router"]
