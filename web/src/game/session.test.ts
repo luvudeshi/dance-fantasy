@@ -3,7 +3,18 @@ import type { Analysis } from '@shared/analysis'
 import type { Routine } from '@shared/routine'
 import routineExample from '@shared/examples/routine.example.json'
 import { ApiError, SERVER_UNREACHABLE_MESSAGE } from '../api'
-import { describeFailure, prepareGame, STEP_LABELS, type SessionDeps, type SessionRequest, type SessionState } from './session'
+import {
+  describeFailure,
+  prepareFromRecipe,
+  prepareFromRoutine,
+  prepareGame,
+  recipeFromRoutine,
+  STEP_LABELS,
+  type RoutineRecipe,
+  type SessionDeps,
+  type SessionRequest,
+  type SessionState,
+} from './session'
 
 const ROUTINE = routineExample as unknown as Routine
 
@@ -28,6 +39,11 @@ const ANALYSIS: Analysis = {
   cached: true,
 }
 
+const ROUTINE_ID = '0123456789abcdef'
+const SAVED: Routine = { ...ROUTINE, difficulty: 'hard', mode: 'seated', seed: 7, meta: { routineId: ROUTINE_ID, analysisId: ANALYSIS.id } }
+const RECIPE: RoutineRecipe = { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, songFile: 'synth_120bpm.wav' }
+const gone = (what: string) => vi.fn(async () => Promise.reject(new ApiError(`${what} not found`, 404, false)))
+
 const REQ: SessionRequest = { song: { kind: 'library', file: 'synth_120bpm.wav' }, difficulty: 'hard', mode: 'seated', seed: 7 }
 
 function mockDeps(over: Partial<SessionDeps> = {}) {
@@ -36,6 +52,8 @@ function mockDeps(over: Partial<SessionDeps> = {}) {
     analyzeUpload: vi.fn<SessionDeps['analyzeUpload']>(async () => ({ ...ANALYSIS, source: { kind: 'upload' as const } })),
     choreograph: vi.fn<SessionDeps['choreograph']>(async () => ({ routine: ROUTINE })),
     loadAudio: vi.fn<SessionDeps['loadAudio']>(async () => 8.01),
+    getRoutine: vi.fn<SessionDeps['getRoutine']>(async () => SAVED),
+    getAnalysis: vi.fn<SessionDeps['getAnalysis']>(async () => ANALYSIS),
     ...over,
   }
 }
@@ -132,5 +150,104 @@ describe('prepareGame', () => {
     expect(describeFailure('analyzing', new ApiError(SERVER_UNREACHABLE_MESSAGE, 0, true))).toBe(SERVER_UNREACHABLE_MESSAGE)
     expect(describeFailure('loadingAudio', 'boom')).toBe("Couldn't load the music: boom")
     expect(STEP_LABELS.analyzing).toBe('Listening to the song…')
+  })
+})
+
+describe('prepareFromRoutine (deep link / Your routines)', () => {
+  const load = async (deps: SessionDeps, hint?: RoutineRecipe) => {
+    const states: SessionState[] = []
+    const game = await prepareFromRoutine(ROUTINE_ID, deps, (s) => states.push(s), new AbortController().signal, hint)
+    return { game, states }
+  }
+
+  it('routine -> its analysis -> audio from analysis.audioUrl', async () => {
+    const deps = mockDeps()
+    const { game, states } = await load(deps)
+    expect(statuses(states)).toEqual(['findingRoutine', 'loadingAudio', 'ready'])
+    expect(states[0]).toMatchObject({ label: 'Finding your routine…' })
+    expect(deps.getRoutine).toHaveBeenCalledWith(ROUTINE_ID, expect.any(AbortSignal))
+    expect(deps.getAnalysis).toHaveBeenCalledWith(ANALYSIS.id, expect.any(AbortSignal))
+    expect(deps.loadAudio).toHaveBeenCalledWith(ANALYSIS.id, { url: ANALYSIS.audioUrl }, expect.any(AbortSignal))
+    expect(deps.choreograph).not.toHaveBeenCalled()
+    expect(deps.analyzeLibrarySong).not.toHaveBeenCalled()
+    expect(game?.routine).toBe(SAVED)
+    expect(game?.analysis).toBe(ANALYSIS)
+    expect(game?.timeline.countdown.times.length).toBeGreaterThan(0)
+  })
+
+  it('routine gone: a friendly error that offers the recipe (from the shelf hint)', async () => {
+    const { game, states } = await load(mockDeps({ getRoutine: gone('routine') }), RECIPE)
+    expect(game).toBeNull()
+    expect(states.at(-1)).toEqual({
+      status: 'error',
+      step: 'findingRoutine',
+      message: "Couldn't find that routine: it isn't on the server anymore (its cache was cleared)",
+      recipe: RECIPE,
+    })
+    // No hint (a pasted link): nothing to rebuild from.
+    const r2 = await load(mockDeps({ getRoutine: gone('routine') }))
+    expect(r2.states.at(-1)).toMatchObject({ status: 'error' })
+    expect(r2.states.at(-1)).not.toHaveProperty('recipe')
+  })
+
+  it("analysis gone: the recipe comes from the routine's meta", async () => {
+    const { states } = await load(mockDeps({ getAnalysis: gone('analysis') }), { ...RECIPE, seed: 999 })
+    expect(states.at(-1)).toMatchObject({
+      status: 'error',
+      message: expect.stringContaining('analysis'),
+      recipe: { ...RECIPE, seed: 7 },
+    })
+  })
+
+  it('other failures are plain errors', async () => {
+    const { states } = await load(mockDeps({ getRoutine: vi.fn(async () => Promise.reject(new ApiError('boom', 500, false))) }), RECIPE)
+    expect(states.at(-1)).toEqual({ status: 'error', step: 'findingRoutine', message: "Couldn't find that routine (500): boom" })
+    const noMeta = await load(mockDeps({ getRoutine: vi.fn(async () => ({ ...SAVED, meta: {} })) }))
+    expect(noMeta.states.at(-1)).toMatchObject({ status: 'error', message: expect.stringContaining('analysis') })
+  })
+
+  it('recipeFromRoutine', () => {
+    expect(recipeFromRoutine(SAVED)).toEqual({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7 })
+    expect(recipeFromRoutine(ROUTINE)).toBeNull()
+  })
+})
+
+describe('prepareFromRecipe (generate it again / new seed)', () => {
+  const build = async (deps: SessionDeps, recipe: RoutineRecipe, reuse = {}) => {
+    const states: SessionState[] = []
+    const game = await prepareFromRecipe(recipe, deps, (s) => states.push(s), new AbortController().signal, reuse)
+    return { game, states }
+  }
+
+  it('cached analysis -> same request as the original -> audio', async () => {
+    const deps = mockDeps()
+    const { game, states } = await build(deps, RECIPE)
+    expect(statuses(states)).toEqual(['analyzing', 'choreographing', 'loadingAudio', 'ready'])
+    expect(deps.choreograph).toHaveBeenCalledWith({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7 }, expect.any(AbortSignal))
+    expect(deps.loadAudio).toHaveBeenCalledWith(ANALYSIS.id, { url: ANALYSIS.audioUrl }, expect.any(AbortSignal))
+    expect(game).not.toBeNull()
+  })
+
+  it('re-analyzes a library song the server forgot', async () => {
+    const deps = mockDeps({ getAnalysis: gone('analysis') })
+    const { game } = await build(deps, RECIPE)
+    expect(deps.analyzeLibrarySong).toHaveBeenCalledWith('synth_120bpm.wav', expect.anything())
+    expect(game).not.toBeNull()
+  })
+
+  it('an upload the server forgot cannot be rebuilt here', async () => {
+    const deps = mockDeps({ getAnalysis: gone('analysis') })
+    const { game, states } = await build(deps, { ...RECIPE, songFile: undefined })
+    expect(game).toBeNull()
+    expect(states.at(-1)).toMatchObject({ status: 'error', step: 'analyzing', message: expect.stringContaining('upload it again') })
+    expect(deps.choreograph).not.toHaveBeenCalled()
+  })
+
+  it('reuses the analysis on stage (new seed)', async () => {
+    const deps = mockDeps()
+    const { states } = await build(deps, { ...RECIPE, seed: 8 }, { analysis: ANALYSIS })
+    expect(statuses(states)).toEqual(['choreographing', 'loadingAudio', 'ready'])
+    expect(deps.getAnalysis).not.toHaveBeenCalled()
+    expect(deps.choreograph).toHaveBeenCalledWith(expect.objectContaining({ seed: 8 }), expect.any(AbortSignal))
   })
 })

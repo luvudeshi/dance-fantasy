@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react'
 import { getHealth } from './api'
 import { errorMessage, isAbortError } from './lib/errors'
+import { parseHash } from './lib/hashRoute'
 
 const Play = lazy(() => import('./pages/Play'))
 const PoseSpike = lazy(() => import('./pages/PoseSpike'))
@@ -23,8 +24,10 @@ const HEALTH_POLL_MS = 5000
 const HEALTH_POLL_OFFLINE_MAX_MS = 15000
 const HEALTH_TIMEOUT_MS = 3000
 
+/** The page for the hash path; a query ("#/play?routine=…") is the page's business. */
 function currentRoute(): RouteHash {
-  return ROUTES.find((r) => r.hash === window.location.hash)?.hash ?? DEFAULT_ROUTE
+  const { path } = parseHash(window.location.hash)
+  return ROUTES.find((r) => r.hash === path)?.hash ?? DEFAULT_ROUTE
 }
 
 function subscribeHash(onChange: () => void): () => void {
@@ -35,7 +38,7 @@ function subscribeHash(onChange: () => void): () => void {
 function useHashRoute(): RouteHash {
   const route = useSyncExternalStore(subscribeHash, currentRoute)
   useEffect(() => {
-    if (window.location.hash !== route) window.history.replaceState(null, '', route)
+    if (parseHash(window.location.hash).path !== route) window.history.replaceState(null, '', route)
   }, [route])
   return route
 }

@@ -76,6 +76,9 @@ export interface PlayFrameInfo {
   layout: PlayLayout
   /** Screen point beside the coach's (screen-left) shoulder where judgment pops appear. */
   popAnchor: Vec2
+  /** Move being danced now / up next (-1 = none). */
+  moveIndex: number
+  nextMoveIndex: number
 }
 
 /**
@@ -116,6 +119,8 @@ export function renderPlayFrame(ctx: Ctx2D, width: number, height: number, f: Pl
     progress: dur > 0 ? clamp(t / dur, 0, 1) : 0,
     layout: L,
     popAnchor: popAnchor(sample.pose, sample.root, L),
+    moveIndex: sample.moveIndex,
+    nextMoveIndex: sample.nextMoveIndex,
   }
 }
 

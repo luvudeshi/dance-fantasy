@@ -50,6 +50,14 @@ Open **http://localhost:5173** in Chrome. It starts on **▶ Play**:
 4. **Results:** score, stars, accuracy, your hardest and best moves, then play again or
    get a new routine.
 
+**Before the ball** (lobby): *Just play*, *Watch first* (the coach performs the whole routine
+with music, no camera; ←/→ jump a bar, "Skip → I'm ready" anytime), or *Practice run* (full run
+with your camera and live feedback but no score, then straight into the real round).
+
+Routines generated on the Analysis page (or in Play) appear under **Your routines** in the
+lobby; `#/play?routine=<id>` opens one directly. **Regenerate** always rolls a new seed (same
+seed = same routine).
+
 No camera (or judging from across the room)? Turn on **Autoplay (bot)** in the lobby.
 Keys: Space pause, R restart, M mirror, C camera window, D debug overlay (FPS, latency,
 sync drift), Esc back to the lobby.

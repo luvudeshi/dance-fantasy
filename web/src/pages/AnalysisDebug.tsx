@@ -2,7 +2,9 @@
 // zoomable timeline, with audio-clock playback. Every visual is derived per animation
 // frame from SongPlayer.currentTime() (the AudioContext clock), never from timers.
 // Stage 2: a Choreography panel generates a routine (POST /api/choreograph); its moves get
-// a timeline row and a live preview figure driven by poseAtTime(routine, audio time).
+// a timeline row and a live preview figure driven by poseAtTime(routine, audio time). Every
+// generated routine goes on the "Your routines" shelf, and "Play this routine" opens it in
+// the game (#/play?routine=<id>).
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type MouseEvent } from 'react'
 import type { Difficulty, Mode, Routine } from '@shared/routine'
@@ -36,8 +38,10 @@ import {
   type TimelineView,
 } from '../analysis/timeline'
 import { SongPlayer } from '../audio/songPlayer'
+import { rememberRoutine, shelfEntryFor } from '../game/routineShelf'
 import { prepareCanvas } from '../lib/canvas'
 import { errorMessage, isAbortError } from '../lib/errors'
+import { isRoutineId, playRoutineHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
 import { coachStyle, drawFigure, drawFloor, fitFigureView } from '../render/stickFigure'
 import { DEMO_LIBRARY, demoRoutine } from '../routine/demo'
@@ -317,6 +321,8 @@ export default function AnalysisDebug() {
     try {
       const res = await choreograph({ analysisId: a.id, difficulty, mode, seed: withSeed }, ac.signal)
       setGen({ analysisId: a.id, routine: res.routine, demo: false, cached: res.cached })
+      const entry = shelfEntryFor(res.routine, a, 'analysis')
+      if (entry) rememberRoutine(entry)
     } catch (err) {
       if (ac.signal.aborted || isAbortError(err)) return
       const missingEndpoint = err instanceof ApiError && err.status === 404 && err.message === 'Not Found'
@@ -333,6 +339,29 @@ export default function AnalysisDebug() {
     const s = randomSeed()
     setSeed(s)
     void generate(s)
+  }
+
+  /**
+   * The server routine for exactly these settings is already shown: asking again would return
+   * the same cached routine, so the button regenerates with a new random seed instead.
+   */
+  const showingCurrent =
+    routine !== null && gen !== null && !gen.demo && routine.difficulty === difficulty && routine.mode === mode && routine.seed === seed
+  const onGenerate = (): void => {
+    if (showingCurrent) newSeed()
+    else void generate()
+  }
+
+  /** The shown server routine's id (not the offline demo's): playable in the game. */
+  const playableId = routine && gen && !gen.demo && isRoutineId(routine.meta?.routineId) ? routine.meta.routineId : null
+  const playInGame = (): void => {
+    const a = loaded?.analysis
+    if (!playableId || !routine || !a) return
+    player.pause()
+    setTransport('paused')
+    const entry = shelfEntryFor(routine, a, 'analysis')
+    if (entry) rememberRoutine(entry)
+    window.location.hash = playRoutineHash(playableId)
   }
 
   const applyDemoRoutine = (): void => {
@@ -587,9 +616,24 @@ export default function AnalysisDebug() {
           <button type="button" disabled={!a || busy !== null} onClick={newSeed} title="Pick a random seed and generate">
             New seed
           </button>
-          <button type="button" className="primary" disabled={!a || busy !== null} onClick={() => void generate()}>
-            {genBusy ? 'Generating…' : routine ? 'Regenerate' : 'Generate'}
+          <button
+            type="button"
+            className="primary"
+            disabled={!a || busy !== null}
+            onClick={onGenerate}
+            title={showingCurrent ? 'Shown already: roll a new random seed and generate' : 'Generate with these settings'}
+          >
+            {genBusy ? 'Generating…' : showingCurrent ? 'Regenerate' : 'Generate'}
           </button>
+          <button
+            type="button"
+            disabled={!playableId || genBusy}
+            onClick={playInGame}
+            title={playableId ? 'Open this routine in the game' : 'Generate a server routine first'}
+          >
+            ▶ Play this routine
+          </button>
+          {routine && <span className="dim mono">seed {routine.seed}</span>}
           {gen?.demo && routine && <span className="badge fresh">offline demo routine</span>}
         </div>
         {genError && (

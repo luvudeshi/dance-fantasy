@@ -452,10 +452,10 @@ export interface HudFrame {
   popAnchor: Vec2
 }
 
-/** Paints the HUD snapshot over the stage. */
-export function drawHud(ctx: Ctx2D, f: HudFrame, v: HudView): void {
+/** Paints the HUD snapshot over the stage (`scorePanel: false` for a practice run: no score). */
+export function drawHud(ctx: Ctx2D, f: HudFrame, v: HudView, opts: { scorePanel?: boolean } = {}): void {
   drawEdgeGlow(ctx, f.width, f.height, v.glow)
-  drawScorePanel(ctx, f.width, v)
+  if (opts.scorePanel !== false) drawScorePanel(ctx, f.width, v)
   drawPops(ctx, f.popAnchor, f.layout.coachArea, v)
   const area = f.layout.coachArea
   if (v.autoplay) {

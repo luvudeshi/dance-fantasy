@@ -1,27 +1,54 @@
-// The game: a lobby (song, difficulty, mode, seed, autoplay, skip calibration) and a
-// full-window stage. Flow (game/flow.ts): lobby -> generating (analysis + routine + audio) ->
-// calibration (webcam framing + latency) -> warmup (camera ready) -> game (glowing coach,
-// cue strip, live per-beat scoring + HUD) -> results. Playback and every visual run on the
-// AudioContext clock (src/game/clock.ts). Webcam frames and poses never leave the browser.
+// The game: a lobby (song, difficulty, mode, seed, "before the ball", autoplay, skip
+// calibration, "Your routines") and a full-window stage. Flow (game/flow.ts): lobby ->
+// generating (analysis + routine + audio) -> calibration (webcam framing + latency) -> warmup
+// (camera ready) -> game (glowing coach, cue strip, live per-beat scoring + HUD) -> results,
+// optionally with a preview (Watch first) or a practice run before the real round. A routine
+// can also come from "#/play?routine=<id>" (the Analysis tab's "Play this routine") or the
+// shelf. Playback and every visual run on the AudioContext clock (src/game/clock.ts). Webcam
+// frames and poses never leave the browser.
 
 import { useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
-import type { Analysis } from '@shared/analysis'
 import type { Difficulty, Mode } from '@shared/routine'
 import { ApiError, listSongs, type SongInfo } from '../api'
 import { BotPoseSource, type BotSkill } from '../game/botSource'
 import CalibrationScreen from '../game/CalibrationScreen'
 import { loadCalibration, type Calibration } from '../game/calibration'
 import { GameClock } from '../game/clock'
-import { flowReducer, needsCalibration } from '../game/flow'
+import { flowReducer, isRunning, needsCalibration, type Phase } from '../game/flow'
 import PlayStage, { type ActiveGame } from '../game/PlayStage'
+import type { PoseSource } from '../game/poseSource'
+import { barSeekTarget, effectiveRehearsal, loadRehearsal, REHEARSALS, saveRehearsal, type Rehearsal } from '../game/rehearsal'
 import ResultsScreen from '../game/ResultsScreen'
 import { buildResultsView, type ResultsView } from '../game/results'
+import {
+  forgetRoutine,
+  loadShelf,
+  recipeOf,
+  relativeTime,
+  rememberRoutine,
+  SHELF_KEY,
+  shelfEntryFor,
+  type ShelfEntry,
+} from '../game/routineShelf'
 import { GameRun } from '../game/run'
 import { buildCheckpoints, ScoreKeeper } from '../game/scoring'
-import { apiSessionDeps, prepareGame, STEP_LABELS, type PreparedGame, type SessionState, type SongChoice } from '../game/session'
+import {
+  apiSessionDeps,
+  prepareFromRecipe,
+  prepareFromRoutine,
+  prepareGame,
+  STEP_LABELS,
+  type PreparedGame,
+  type RoutineRecipe,
+  type SessionDeps,
+  type SessionState,
+  type SessionStep,
+  type SongChoice,
+} from '../game/session'
 import { DriftMeter, SyncMonitor } from '../game/sync'
 import { songTimeAtFromClock, WebcamPoseSource } from '../game/webcamSource'
 import { errorMessage, isAbortError } from '../lib/errors'
+import { routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
 import './play.css'
 
@@ -41,6 +68,12 @@ const MODES: readonly { value: Mode; label: string }[] = [
   { value: 'seated', label: 'Seated' },
 ]
 
+const START_LABEL: Readonly<Record<Rehearsal, string>> = {
+  none: '▶ Start the ball',
+  watch: '▶ Watch, then dance',
+  practice: '▶ Practice, then dance',
+}
+
 function formatBytes(n: number): string {
   return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`
 }
@@ -53,13 +86,28 @@ function songListError(err: unknown): string {
 const choiceTitle = (c: SongChoice | null): string =>
   !c ? '' : c.kind === 'upload' ? c.file.name.replace(/\.[^.]+$/, '') : (c.title ?? c.file)
 
+const setupLabel = (s: { difficulty: Difficulty; mode: Mode; seed: number }): string => `${s.difficulty} · ${s.mode} · seed ${s.seed}`
+
 function blurFocus(): void {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
 }
 
+/** Audio may only start after the page saw a click / key (autoplay policy). */
+const pageWasActivated = (): boolean => navigator.userActivation?.hasBeenActive ?? true
+
+const isRehearsing = (p: Phase): boolean => p === 'preview' || p === 'practice'
+
 interface Camera {
   source: WebcamPoseSource
   offError: () => void
+}
+
+/** One way of getting a game ready (song + settings, a saved routine, a recipe). */
+interface Launch {
+  load: (deps: SessionDeps, onState: (s: SessionState) => void, signal: AbortSignal) => Promise<PreparedGame | null>
+  firstStep: SessionStep
+  title: string
+  subtitle: string
 }
 
 export default function Play() {
@@ -75,6 +123,17 @@ export default function Play() {
   const [seed, setSeed] = useState(randomSeed)
   const [autoplay, setAutoplay] = useState(false)
   const [skipCal, setSkipCal] = useState(false)
+  /** The lobby's "Before the ball" (remembered on this device). */
+  const [rehearsal, setRehearsal] = useState<Rehearsal>(() => loadRehearsal())
+  /** This stage visit's rehearsal (fixed at start; a failed practice camera may fall back to watching). */
+  const [runRehearsal, setRunRehearsal] = useState<Rehearsal>('none')
+  const [shelf, setShelf] = useState<ShelfEntry[]>(() => loadShelf())
+  /** "5 min ago" reference time (ticks while the page is open). */
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  /** A "#/play?routine=<id>" deep link waiting for a click (no user activation yet). */
+  const [linked, setLinked] = useState<string | null>(() => routineFromHash(window.location.hash))
+  /** Title / setup shown on the stage while a game loads. */
+  const [pending, setPending] = useState<{ title: string; subtitle: string } | null>(null)
   const [onStage, setOnStage] = useState(false)
   const [phase, dispatch] = useReducer(flowReducer, 'lobby')
   const [session, setSession] = useState<SessionState>({ status: 'idle' })
@@ -98,6 +157,10 @@ export default function Play() {
   const calibratedTokenRef = useRef(-1)
   /** Whether the current play-through uses the bot (fixed per run; the lobby toggle may change). */
   const playAutoRef = useRef(false)
+  /** Whether the next begin() starts a practice run (no score) rather than the real game. */
+  const practiceNextRef = useRef(false)
+  /** The last launch, for "Try again". */
+  const lastLaunchRef = useRef<Launch | null>(null)
   const activeRef = useLatest(active)
   const phaseRef = useLatest(phase)
 
@@ -144,6 +207,16 @@ export default function Play() {
     if (run.source.kind === 'bot') run.source.stop()
   }
 
+  /** A scored run of `game` on the bot or the camera; `fromT` drops earlier checkpoints (a seek). */
+  const createRun = (game: PreparedGame, auto: boolean, cam: PoseSource | null, fromT = Number.NEGATIVE_INFINITY): GameRun | null => {
+    const bot = auto ? new BotPoseSource({ track: game.track, skill: BOT_SKILL, seed: game.routine.seed }) : null
+    if (bot) void bot.start()
+    const source = bot ?? cam
+    if (!source) return null
+    const checkpoints = buildCheckpoints(game.routine, game.routine.mode).filter((cp) => cp.time >= fromT)
+    return new GameRun({ keeper: new ScoreKeeper(checkpoints), source, bot, isPlaying: () => clock.playing })
+  }
+
   // --- lifecycle -----------------------------------------------------------------------
   // At most one AudioContext, closed on unmount (stops audio, frees the decoded song); the
   // camera is released too.
@@ -160,9 +233,24 @@ export default function Play() {
   })
   useEffect(() => () => unmountRef.current(), [unmountRef])
 
+  /** The preview / practice run ended or was skipped: the "Ready to dance?" card (camera stays on). */
+  const endRehearsal = (): void => {
+    if (!isRehearsing(phaseRef.current)) return
+    clock.stop()
+    disposeRun()
+    const a = activeRef.current
+    if (a?.run) setActive({ ...a, run: null })
+    setPaused(false)
+    dispatch({ type: 'rehearsed' })
+  }
+
   /** The song ended: close the last windows, show the results, release the camera. */
   const finishRef = useLatest((): void => {
     setPaused(false)
+    if (isRehearsing(phaseRef.current)) {
+      endRehearsal()
+      return
+    }
     const a = activeRef.current
     const run = a?.run
     if (!a || !run || phaseRef.current !== 'game') return
@@ -205,6 +293,20 @@ export default function Play() {
     return () => ac.abort()
   }, [songsReload])
 
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // The shelf changes in other tabs (e.g. the Analysis tab open elsewhere).
+  useEffect(() => {
+    const onStorage = (e: StorageEvent): void => {
+      if (e.key === SHELF_KEY || e.key === null) setShelf(loadShelf())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   // No page scroll behind the full-window stage.
   useEffect(() => {
     if (!onStage) return
@@ -216,22 +318,28 @@ export default function Play() {
   }, [onStage])
 
   // --- game flow -----------------------------------------------------------------------
-  /** Starts a scored play-through of `game` (count-in first). The pose source must be ready. */
+  /** Starts a play-through of `game` (count-in first): the real game, or a practice run. The pose source must be ready. */
   const begin = (game: PreparedGame): void => {
     const auto = playAutoRef.current
+    const practice = practiceNextRef.current && !auto
     const cam = camRef.current
     if (!auto && !cam) return
     disposeRun()
-    const bot = auto ? new BotPoseSource({ track: game.track, skill: BOT_SKILL, seed: game.routine.seed }) : null
-    if (bot) void bot.start()
-    const source = bot ?? cam?.source
-    if (!source) return
-    const keeper = new ScoreKeeper(buildCheckpoints(game.routine, game.routine.mode))
-    const run = new GameRun({ keeper, source, bot, isPlaying: () => clock.playing })
-    setActive({ game, monitor: new SyncMonitor(game.routine.song.beats), run })
+    const run = createRun(game, auto, cam?.source ?? null)
+    if (!run) return
+    setActive({ game, monitor: new SyncMonitor(game.routine.song.beats), run, practice })
     setPrepared(null)
     setPaused(false)
-    dispatch({ type: 'ready' })
+    dispatch({ type: 'ready', practice })
+    clock.play(-game.timeline.countdown.preRollSec, game.timeline.countInClicks)
+  }
+
+  /** Watch first: the coach dances the whole routine to the music; no camera, no scoring. */
+  const beginPreview = (game: PreparedGame): void => {
+    disposeRun()
+    setActive({ game, monitor: new SyncMonitor(game.routine.song.beats), run: null })
+    setPrepared(null)
+    setPaused(false)
     clock.play(-game.timeline.countdown.preRollSec, game.timeline.countInClicks)
   }
 
@@ -248,9 +356,16 @@ export default function Play() {
     if (tokenRef.current === token) begin(game)
   }
 
-  /** Must run inside a click / key handler: it unlocks audio for the autoplay policy. */
-  const start = (opts: { seed?: number; reuse?: Analysis } = {}): void => {
-    if (!choice) return
+  const shelve = (game: PreparedGame): void => {
+    const entry = shelfEntryFor(game.routine, game.analysis, 'play')
+    if (entry) setShelf(rememberRoutine(entry))
+  }
+
+  /**
+   * Gets a game ready and walks it through the flow with the lobby's current toggles. Must run
+   * inside a click / key handler (or after one): it unlocks audio for the autoplay policy.
+   */
+  const launch = (l: Launch): void => {
     clock.unlock()
     clock.stop()
     sessionRef.current?.abort()
@@ -259,8 +374,14 @@ export default function Play() {
     tokenRef.current++
     disposeRun()
     blurFocus()
+    lastLaunchRef.current = l
+    setLinked(null) // a waiting deep link is superseded by whatever starts now
     const auto = autoplay
     playAutoRef.current = auto
+    const reh = effectiveRehearsal(rehearsal, auto)
+    setRunRehearsal(reh)
+    practiceNextRef.current = reh === 'practice'
+    setPending({ title: l.title, subtitle: l.subtitle })
     setOnStage(true)
     setActive(null)
     setPrepared(null)
@@ -268,20 +389,73 @@ export default function Play() {
     setPaused(false)
     setCamError(null)
     dispatch({ type: 'generate' })
-    // Open the camera and load the model while the song is analyzed.
-    if (auto) stopCamera()
+    // Open the camera and load the model while the song is analyzed (a preview needs no camera).
+    if (auto || reh === 'watch') stopCamera()
     else void ensureCamera().catch(() => undefined)
-    const step = opts.reuse ? 'choreographing' : 'analyzing'
-    setSession({ status: 'loading', step, label: STEP_LABELS[step] })
-    const req = { song: choice, difficulty, mode, seed: opts.seed ?? seed }
-    void prepareGame(req, apiSessionDeps(clock), setSession, ac.signal, { analysis: opts.reuse }).then((game) => {
+    setSession({ status: 'loading', step: l.firstStep, label: STEP_LABELS[l.firstStep] })
+    void l.load(apiSessionDeps(clock), setSession, ac.signal).then((game) => {
       if (!game || sessionRef.current !== ac) return
       setPrepared(game)
+      shelve(game)
       const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal, calibrated: calRef.current !== null })
-      dispatch({ type: 'prepared', calibrate })
-      if (!calibrate) void warmup(game)
+      dispatch({ type: 'prepared', calibrate, rehearsal: reh })
+      if (reh === 'watch') beginPreview(game)
+      else if (!calibrate) void warmup(game)
     })
   }
+
+  /** Lobby Start: the chosen song + settings. */
+  const start = (): void => {
+    if (!choice) return
+    const req = { song: choice, difficulty, mode, seed }
+    launch({ load: (deps, on, signal) => prepareGame(req, deps, on, signal), firstStep: 'analyzing', title: choiceTitle(choice), subtitle: setupLabel(req) })
+  }
+
+  /** A saved routine by id (the shelf / a deep link from the Analysis tab). */
+  const playRoutine = (routineId: string): void => {
+    const entry = shelf.find((e) => e.routineId === routineId) ?? loadShelf().find((e) => e.routineId === routineId)
+    const hint = entry ? recipeOf(entry) : undefined
+    launch({
+      load: (deps, on, signal) => prepareFromRoutine(routineId, deps, on, signal, hint),
+      firstStep: 'findingRoutine',
+      title: entry?.title ?? 'Your routine',
+      subtitle: entry ? setupLabel(entry) : `routine ${routineId}`,
+    })
+  }
+
+  /** The routine is gone from the server: the same recipe builds it again. */
+  const generateAgain = (recipe: RoutineRecipe): void => {
+    launch({
+      load: (deps, on, signal) => prepareFromRecipe(recipe, deps, on, signal),
+      firstStep: 'analyzing',
+      title: pending?.title ?? 'Your routine',
+      subtitle: setupLabel(recipe),
+    })
+  }
+
+  const retryLaunch = (): void => {
+    const l = lastLaunchRef.current
+    if (l) launch(l)
+    else start()
+  }
+
+  // "#/play?routine=<id>": after a click (from the Analysis tab) start right away; a pasted
+  // link waits for a click on the lobby banner. The query is dropped so Esc / reload don't
+  // start it again.
+  useEffect(() => {
+    const onHash = (): void => {
+      const id = routineFromHash(window.location.hash)
+      if (id) setLinked(id)
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  const playRoutineRef = useLatest(playRoutine)
+  useEffect(() => {
+    if (!linked) return
+    if (routineFromHash(window.location.hash)) window.history.replaceState(null, '', '#/play')
+    if (pageWasActivated()) playRoutineRef.current(linked) // launch() clears `linked`
+  }, [linked, playRoutineRef])
 
   /** CalibrationScreen finished (or was skipped: then the saved / default calibration). */
   const onCalibrated = (cal: Calibration): void => {
@@ -295,11 +469,80 @@ export default function Play() {
   }
   const skipCalibration = (): void => onCalibrated(loadCalibration())
 
-  /** R: same routine from the top; the pose source stays on. */
+  /** R: same routine from the top (preview, practice or game); the pose source stays on. */
   const restart = (): void => {
-    if (!active || phase !== 'game') return
+    if (!active || !isRunning(phase)) return
     clock.unlock()
-    begin(active.game)
+    if (phase === 'preview') beginPreview(active.game)
+    else begin(active.game)
+  }
+
+  /** ←/→ in a preview / practice run: one bar back / forward. */
+  const seekBar = (dir: -1 | 1): void => {
+    const a = activeRef.current
+    if (!a || !isRehearsing(phase)) return
+    const target = barSeekTarget(a.game.routine.song.downbeats, clock.songTime(), dir)
+    if (target === null) return
+    a.monitor.breakContinuity()
+    if (phase === 'practice' && a.run) {
+      // Fresh judgments from the new position (no misses for the skipped part).
+      disposeRun()
+      setActive({ ...a, run: createRun(a.game, false, camRef.current?.source ?? null, target) })
+    }
+    clock.seek(target)
+  }
+
+  /** "Ready to dance?" -> the real round with the same routine (and, after practice, the same camera + calibration). */
+  const playForReal = (): void => {
+    const game = activeRef.current?.game
+    if (!game || phase !== 'ready') return
+    clock.unlock()
+    tokenRef.current++
+    disposeRun()
+    practiceNextRef.current = false
+    const auto = playAutoRef.current
+    const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal, calibrated: calRef.current !== null })
+    setActive(null)
+    setPrepared(game)
+    setPaused(false)
+    setCamError(null)
+    if (!auto) void ensureCamera().catch(() => undefined)
+    dispatch({ type: 'play', calibrate })
+    if (!calibrate) void warmup(game)
+  }
+
+  /** "Watch again" / "Practice again" from the ready card. */
+  const rehearseAgain = (): void => {
+    const game = activeRef.current?.game
+    if (!game || phase !== 'ready') return
+    clock.unlock()
+    if (runRehearsal === 'practice') {
+      tokenRef.current++
+      disposeRun()
+      practiceNextRef.current = true
+      setActive(null)
+      setPrepared(game)
+      setCamError(null)
+      dispatch({ type: 'replay' })
+      void warmup(game)
+    } else {
+      dispatch({ type: 'watch' })
+      beginPreview(game)
+    }
+  }
+
+  /** Practice camera failed: watch the dance instead (the camera is retried on Play for real). */
+  const switchToWatch = (): void => {
+    const game = prepared ?? activeRef.current?.game
+    if (!game) return
+    clock.unlock()
+    tokenRef.current++
+    stopCamera()
+    setCamError(null)
+    setRunRehearsal('watch')
+    practiceNextRef.current = false
+    dispatch({ type: 'watch' })
+    beginPreview(game)
   }
 
   /** Results -> the same routine again (the camera reopens; same calibration). */
@@ -309,6 +552,7 @@ export default function Play() {
     clock.unlock()
     tokenRef.current++
     disposeRun()
+    practiceNextRef.current = false
     setResults(null)
     setActive(null)
     setPrepared(game)
@@ -325,12 +569,13 @@ export default function Play() {
     else void ensureCamera().catch(() => undefined)
   }
 
-  /** Camera failed (or none): let the bot dance this one. */
+  /** Camera failed (or none): let the bot dance this one (the real round). */
   const switchToAutoplay = (): void => {
     stopCamera()
     setCamError(null)
     setAutoplay(true)
     playAutoRef.current = true
+    practiceNextRef.current = false
     if (!prepared) return
     clock.unlock()
     if (phase === 'calibration') dispatch({ type: 'calibrated' })
@@ -338,7 +583,7 @@ export default function Play() {
   }
 
   const togglePause = (): void => {
-    if (!active || phase !== 'game') return
+    if (!active || !isRunning(phase)) return
     if (clock.playing) {
       clock.pause()
       setPaused(true)
@@ -348,10 +593,19 @@ export default function Play() {
     }
   }
 
+  /** Results -> a new seed for the same song and setup. */
   const newRoutine = (): void => {
+    const game = active?.game ?? prepared
+    if (!game) return
     const s = randomSeed()
     setSeed(s)
-    start({ seed: s, reuse: (active?.game ?? prepared)?.analysis })
+    const recipe: RoutineRecipe = { analysisId: game.analysis.id, difficulty: game.routine.difficulty, mode: game.routine.mode, seed: s }
+    launch({
+      load: (deps, on, signal) => prepareFromRecipe(recipe, deps, on, signal, { analysis: game.analysis }),
+      firstStep: 'choreographing',
+      title: game.analysis.title,
+      subtitle: setupLabel(recipe),
+    })
   }
 
   const exitToLobby = (): void => {
@@ -362,11 +616,13 @@ export default function Play() {
     disposeRun()
     stopCamera()
     calRef.current = null
+    practiceNextRef.current = false
     setActive(null)
     setPrepared(null)
     setResults(null)
     setCamError(null)
     setSession({ status: 'idle' })
+    setPending(null)
     setPaused(false)
     setOnStage(false)
     dispatch({ type: 'exit' })
@@ -377,9 +633,15 @@ export default function Play() {
     const onControl = e.target instanceof Element && e.target.closest('button, input, select, textarea, a') !== null
     switch (e.key) {
       case ' ':
-        if (onControl || phase !== 'game') return
+        if (onControl || !isRunning(phase)) return
         e.preventDefault()
         if (!e.repeat) togglePause()
+        break
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        if (onControl || !isRehearsing(phase)) return
+        e.preventDefault()
+        seekBar(e.key === 'ArrowLeft' ? -1 : 1)
         break
       case 'Escape':
         e.preventDefault()
@@ -417,15 +679,37 @@ export default function Play() {
     if (file) setChoice({ kind: 'upload', file })
   }
 
+  const chooseRehearsal = (r: Rehearsal): void => {
+    setRehearsal(r)
+    saveRehearsal(r)
+  }
+
+  const startLinked = (): void => {
+    if (linked) playRoutine(linked)
+  }
+
   // --- render --------------------------------------------------------------------------
   const shown = active?.game ?? prepared
   const routine = shown?.routine
-  const stageTitle = shown ? shown.analysis.title : choiceTitle(choice)
-  const stageSubtitle = routine
-    ? `${routine.difficulty} · ${routine.mode} · seed ${routine.seed}`
-    : `${difficulty} · ${mode} · seed ${seed}`
+  const stageTitle = shown ? shown.analysis.title : (pending?.title ?? choiceTitle(choice))
+  const stageSubtitle = routine ? setupLabel(routine) : (pending?.subtitle ?? setupLabel({ difficulty, mode, seed }))
   // The calibration screen shows camera errors itself (with a retry); warmup needs this overlay.
   const camTrouble = camError !== null && phase === 'warmup'
+  const rehearsalHint =
+    autoplay && rehearsal === 'practice'
+      ? 'The bot can’t practice for you: you’ll watch the dance first.'
+      : REHEARSALS.find((r) => r.value === rehearsal)?.hint
+  const linkedEntry = linked ? shelf.find((e) => e.routineId === linked) : undefined
+  const stageKeys = isRehearsing(phase)
+    ? `Space pause · ←/→ one bar · R restart · M mirror${phase === 'practice' ? ' · C camera' : ''} · Esc lobby`
+    : undefined
+  const goneRecipe = session.status === 'error' ? session.recipe : undefined
+  const watchInstead =
+    runRehearsal === 'practice' ? (
+      <button type="button" onClick={switchToWatch}>
+        👀 Just watch it first
+      </button>
+    ) : null
 
   return (
     <section className="play-lobby">
@@ -439,6 +723,26 @@ export default function Play() {
           dancer like a mirror, and keep up until the clock strikes the final beat.
         </p>
       </div>
+
+      {linked && (
+        <div className="lobby-card linked-banner">
+          <div>
+            <strong>A routine is waiting for you</strong>
+            <span className="dim">
+              {' '}
+              · {linkedEntry ? `${linkedEntry.title} · ${setupLabel(linkedEntry)}` : `routine ${linked}`}
+            </span>
+          </div>
+          <div className="linked-actions">
+            <button type="button" className="primary" onClick={startLinked}>
+              ▶ Dance it
+            </button>
+            <button type="button" onClick={() => setLinked(null)}>
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="lobby-grid">
         <div className="lobby-card">
@@ -550,6 +854,24 @@ export default function Play() {
               </button>
             </div>
           </div>
+          <div className="field">
+            <span className="field-label">Before the ball</span>
+            <div className="segmented" role="radiogroup" aria-label="Before the ball">
+              {REHEARSALS.map((r) => (
+                <button
+                  key={r.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={rehearsal === r.value}
+                  className={rehearsal === r.value ? 'on' : undefined}
+                  onClick={() => chooseRehearsal(r.value)}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <span className="hint rehearsal-hint">{rehearsalHint}</span>
+          </div>
           <div className="field lobby-toggles">
             <label className="toggle">
               <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} />
@@ -564,8 +886,8 @@ export default function Play() {
               </span>
             </label>
           </div>
-          <button type="button" className="start-button" disabled={!choice} onClick={() => start()}>
-            ▶ Start the ball
+          <button type="button" className="start-button" disabled={!choice} onClick={start}>
+            {START_LABEL[effectiveRehearsal(rehearsal, autoplay)]}
           </button>
           <p className="hint lobby-keys">
             {autoplay ? 'The bot dances, you watch.' : 'Your camera stays on this device: no video ever leaves the browser.'}
@@ -574,6 +896,42 @@ export default function Play() {
           </p>
         </div>
       </div>
+
+      {shelf.length > 0 && (
+        <div className="lobby-card shelf-card">
+          <h3>
+            <span className="step">♛</span> Your routines
+          </h3>
+          <ul className="shelf-list">
+            {shelf.map((e) => (
+              <li key={e.routineId} className="shelf-item">
+                <div className="shelf-info">
+                  <span className="shelf-title">
+                    {e.title}
+                    {e.artist && <span className="dim"> · {e.artist}</span>}
+                  </span>
+                  <span className="shelf-meta">
+                    {setupLabel(e)} · {e.moves} moves · {e.from === 'analysis' ? 'from Analysis' : 'played'} ·{' '}
+                    {relativeTime(e.createdAt, nowMs)}
+                  </span>
+                </div>
+                <button type="button" className="primary" onClick={() => playRoutine(e.routineId)}>
+                  ▶ Play
+                </button>
+                <button
+                  type="button"
+                  className="shelf-remove"
+                  title="Remove from this list"
+                  aria-label={`Remove ${e.title} (seed ${e.seed})`}
+                  onClick={() => setShelf(forgetRoutine(e.routineId))}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       </div>
 
       {onStage && (
@@ -588,6 +946,8 @@ export default function Play() {
           subtitle={stageSubtitle}
           onTogglePause={togglePause}
           onExit={exitToLobby}
+          caption={phase === 'preview'}
+          keys={stageKeys}
         >
           {session.status === 'loading' && (
             <div className="play-overlay">
@@ -607,15 +967,32 @@ export default function Play() {
               <div className="play-card">
                 <h2>The clock struck twelve too soon</h2>
                 <p className="error">{session.message}</p>
+                {goneRecipe && (
+                  <p className="dim">The same song, setup and seed ({setupLabel(goneRecipe)}) make the very same routine.</p>
+                )}
                 <div className="play-card-actions">
-                  <button type="button" className="primary" onClick={() => start()}>
-                    Try again
-                  </button>
+                  {goneRecipe ? (
+                    <button type="button" className="primary" onClick={() => generateAgain(goneRecipe)}>
+                      Generate it again
+                    </button>
+                  ) : (
+                    <button type="button" className="primary" onClick={retryLaunch}>
+                      Try again
+                    </button>
+                  )}
                   <button type="button" onClick={exitToLobby}>
                     Back to the lobby
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+          {isRehearsing(phase) && (
+            <div className="rehearsal-bar">
+              <span className={`play-badge ${phase}`}>{phase === 'preview' ? 'PREVIEW' : 'PRACTICE'}</span>
+              <button type="button" className="primary" onClick={endRehearsal}>
+                Skip → I’m ready
+              </button>
             </div>
           )}
           {phase === 'calibration' && camSource && routine && (
@@ -629,6 +1006,7 @@ export default function Play() {
                 onSkip={skipCalibration}
                 cameraErrorActions={
                   <>
+                    {watchInstead}
                     <button type="button" onClick={switchToAutoplay}>
                       🤖 No camera? Let the bot dance
                     </button>
@@ -662,6 +1040,7 @@ export default function Play() {
                   <button type="button" className="primary" onClick={retryCamera}>
                     Try the camera again
                   </button>
+                  {watchInstead}
                   <button type="button" onClick={switchToAutoplay}>
                     🤖 Let the bot dance
                   </button>
@@ -672,7 +1051,7 @@ export default function Play() {
               </div>
             </div>
           )}
-          {paused && phase === 'game' && (
+          {paused && isRunning(phase) && (
             <div className="play-overlay dim-bg">
               <div className="play-card">
                 <h2>Paused</h2>
@@ -683,6 +1062,36 @@ export default function Play() {
                   </button>
                   <button type="button" onClick={restart}>
                     Restart
+                  </button>
+                  {isRehearsing(phase) && (
+                    <button type="button" onClick={endRehearsal}>
+                      Skip → I’m ready
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {phase === 'ready' && active && (
+            <div className="play-overlay dim-bg">
+              <div className="play-card">
+                <h2>Ready to dance?</h2>
+                <p className="dim">
+                  {runRehearsal === 'practice'
+                    ? 'Warmed up! The real round keeps your camera and timing.'
+                    : autoplay
+                      ? 'Now the bot dances it for real.'
+                      : 'You’ve seen the whole dance. Your turn!'}
+                </p>
+                <div className="play-card-actions">
+                  <button type="button" className="primary" onClick={playForReal}>
+                    ▶ Play for real
+                  </button>
+                  <button type="button" onClick={rehearseAgain}>
+                    {runRehearsal === 'practice' ? 'Practice again' : 'Watch again'}
+                  </button>
+                  <button type="button" onClick={exitToLobby}>
+                    Lobby
                   </button>
                 </div>
               </div>

@@ -2,6 +2,8 @@
 // (clock.songTime()), an HTML top bar (song, section, progress) updated from the same frame,
 // the D debug overlay and whatever overlays the page passes as children. With a scored run,
 // each frame also ticks the run (bot, then scoring) and paints the HUD and the webcam PIP.
+// A preview (Watch first) has no run and can show a move-name caption; a practice run has a
+// run but no score panel.
 
 import { useEffect, useRef, type ReactNode } from 'react'
 import { prepareCanvas } from '../lib/canvas'
@@ -19,6 +21,8 @@ export interface ActiveGame {
   monitor: SyncMonitor
   /** The scored play-through (pose source + ScoreKeeper + HUD); null = coach only. */
   run?: GameRun | null
+  /** Practice run: judgments and hints, no score panel. */
+  practice?: boolean
 }
 
 interface Props {
@@ -33,6 +37,10 @@ interface Props {
   subtitle: string
   onTogglePause: () => void
   onExit: () => void
+  /** Move-name caption above the cue strip (the preview). */
+  caption?: boolean
+  /** Key hints line (default: the game's). */
+  keys?: string
   children?: ReactNode
 }
 
@@ -63,12 +71,13 @@ function debugText(o: {
 }
 
 export default function PlayStage(props: Props) {
-  const { clock, active, mirrored, debug, pip, paused, title, subtitle, onTogglePause, onExit, children } = props
+  const { clock, active, mirrored, debug, pip, paused, title, subtitle, onTogglePause, onExit, caption, keys, children } = props
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sectionRef = useRef<HTMLSpanElement>(null)
   const progressRef = useRef<HTMLSpanElement>(null)
   const debugRef = useRef<HTMLPreElement>(null)
+  const captionRef = useRef<HTMLDivElement>(null)
   const viewRef = useLatest({ mirrored, debug, pip })
 
   // The frame loop: everything visual is derived from clock.songTime() each frame.
@@ -121,6 +130,16 @@ export default function PlayStage(props: Props) {
             rootRef.current?.style.setProperty('--stage-accent', info.theme.accent)
           }
           if (progressRef.current) progressRef.current.style.transform = `scaleX(${info.progress.toFixed(4)})`
+          const cap = captionRef.current
+          if (cap) {
+            const moves = game.routine.moves
+            const now = moves[info.moveIndex]?.name ?? (t < 0 ? 'Get ready…' : '')
+            const next = moves[info.nextMoveIndex]?.name
+            const text = next && next !== now ? `${now}${now ? '  ·  ' : ''}next: ${next}` : now
+            if (cap.textContent !== text) cap.textContent = text
+            const top = `${Math.round(info.layout.strip.y - 44)}px`
+            if (cap.style.top !== top) cap.style.top = top
+          }
           if (run) {
             const hv = run.hud.view(performance.now(), clock.playing)
             if (view.pip) {
@@ -133,7 +152,12 @@ export default function PlayStage(props: Props) {
                 tint: hv.tint,
               })
             }
-            drawHud(prepared.ctx, { width: prepared.width, height: prepared.height, layout: info.layout, popAnchor: info.popAnchor }, hv)
+            drawHud(
+              prepared.ctx,
+              { width: prepared.width, height: prepared.height, layout: info.layout, popAnchor: info.popAnchor },
+              hv,
+              { scorePanel: !active.practice },
+            )
           }
         }
       } else if (prepared) {
@@ -191,9 +215,10 @@ export default function PlayStage(props: Props) {
         </div>
       </header>
       {debug && <pre ref={debugRef} className="play-debug" />}
+      {caption && active && <div ref={captionRef} className="play-caption" aria-live="off" />}
       {children}
       <div className="play-keys">
-        Space pause · R restart · M mirror ({mirrored ? 'on' : 'off'}) · C camera · D debug · Esc lobby
+        {keys ?? `Space pause · R restart · M mirror (${mirrored ? 'on' : 'off'}) · C camera · D debug · Esc lobby`}
       </div>
     </div>
   )
