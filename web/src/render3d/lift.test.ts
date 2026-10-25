@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { JOINTS, type JointName, type Pose2D } from '@shared/skeleton'
 import { NEUTRAL_POSE } from '../routine/pose'
-import { BONE_LENGTH, estimateYaw, liftPose, type Vec3 } from './lift'
+import { BONE_LENGTH, bodySection, estimateYaw, liftPose, type Vec3 } from './lift'
 
 /** The neutral pose in 3D (face depths as in server/app/moves/fk.py). */
 function neutral3(): Record<JointName, Vec3> {
@@ -105,5 +105,21 @@ describe('liftPose', () => {
     }
     expect(joints.r_wrist?.[2]).toBeLessThan(-0.5)
     expect(joints.l_wrist?.[2]).toBeGreaterThan(0.5)
+  })
+
+  it('brings an arm crossing the body out in front of the bodice and skirt', () => {
+    // Hand on the belly, other hand on the hip (planar FK arms would pass through the torso).
+    const pose: Pose2D = { ...NEUTRAL_POSE, l_elbow: [-0.62, -0.45], l_wrist: [-0.05, -0.35], r_elbow: [0.66, -0.3], r_wrist: [0.32, -0.02] }
+    const { joints } = liftPose(pose)
+    const belly = bodySection(0.35)
+    expect(belly).not.toBeNull()
+    expect(joints.l_wrist?.[2]).toBeGreaterThan(belly?.[1] ?? 1)
+    expect(joints.r_wrist?.[2]).toBeGreaterThan(0.1)
+    // Seen from behind, the same arms go behind the back (away from the viewer).
+    const back = liftPose(project(Object.fromEntries(JOINTS.map((j) => [j, [...(pose[j] ?? [0, 0]), 0]])) as Record<JointName, Vec3>, 180).pose)
+    expect(back.joints.l_wrist?.[2]).toBeLessThan(-0.1)
+    // Arms out to the sides are left alone.
+    expect(liftPose(NEUTRAL_POSE).joints.l_wrist?.[2]).toBeCloseTo(0, 6)
+    expect(bodySection(1.2)).toBeNull()
   })
 })

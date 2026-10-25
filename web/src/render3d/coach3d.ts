@@ -89,7 +89,7 @@ interface Look {
   spec?: number
 }
 
-type MatName = 'skin' | 'gown' | 'puff' | 'accent' | 'gold' | 'hair' | 'eye' | 'cheek' | 'gem'
+type MatName = 'skin' | 'gown' | 'puff' | 'accent' | 'gold' | 'hair' | 'eye' | 'shine' | 'cheek' | 'gem'
 
 function looks(t: CoachTheme): Record<MatName, Look> {
   const ink = '#1d1640'
@@ -103,6 +103,7 @@ function looks(t: CoachTheme): Record<MatName, Look> {
     gold: { base: '#ffd98a', shade: '#c8892f', spec: 0.6, rimK: 0.25 },
     hair: { base: mixHex(t.glow, '#3a2257', 0.5), shade: mixHex(t.glow, '#140c2c', 0.7), spec: 0.35 },
     eye: { base: '#2a1c40', shade: '#160e26', spec: 0.5, rimK: 0 },
+    shine: { base: '#ffffff', shade: '#ffffff', spec: 0, rimK: 0 },
     cheek: { base: mixHex(skin, '#ff8fae', 0.45), shade: mixHex(skin, '#ff8fae', 0.5), spec: 0, rimK: 0 },
     gem: { base: mixHex(t.accent, '#ffffff', 0.35), shade: t.accent, spec: 0.9, rimK: 0 },
   }
@@ -205,7 +206,7 @@ function create(): Figure | null {
     return x
   }
   const mats = {} as Record<MatName, ShaderMaterial>
-  for (const name of ['skin', 'gown', 'puff', 'accent', 'gold', 'hair', 'eye', 'cheek', 'gem'] as const) {
+  for (const name of ['skin', 'gown', 'puff', 'accent', 'gold', 'hair', 'eye', 'shine', 'cheek', 'gem'] as const) {
     mats[name] = keep(material(name === 'gown'))
   }
   const sphere = keep(new SphereGeometry(1, 28, 18))
@@ -301,6 +302,8 @@ function create(): Figure | null {
     ellip(sphere, mats.hair, 0.86, 1.25, 0.5, 0, -0.75, -0.42),
     ellip(sphere, mats.eye, 0.1, 0.15, 0.05, -0.33, -0.08, 0.87),
     ellip(sphere, mats.eye, 0.1, 0.15, 0.05, 0.33, -0.08, 0.87),
+    ellip(sphere, mats.shine, 0.035, 0.04, 0.02, -0.3, -0.03, 0.915),
+    ellip(sphere, mats.shine, 0.035, 0.04, 0.02, 0.36, -0.03, 0.915),
     ellip(sphere, mats.cheek, 0.15, 0.09, 0.05, -0.5, -0.3, 0.74),
     ellip(sphere, mats.cheek, 0.15, 0.09, 0.05, 0.5, -0.3, 0.74),
   )
@@ -321,7 +324,7 @@ function create(): Figure | null {
     m.scale.set(1, h, 1)
     tiara.add(m)
   }
-  tiara.add(ellip(sphere, mats.gem, 0.1, 0.12, 0.08, 0, 0.12, 0.66))
+  tiara.add(ellip(sphere, mats.gem, 0.1, 0.12, 0.08, 0, 0.2, 0.64))
   tiara.position.set(0, 0.86, 0.1)
   tiara.rotation.x = 0.22
   head.add(tiara)

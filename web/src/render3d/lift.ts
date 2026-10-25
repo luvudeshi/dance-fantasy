@@ -125,5 +125,66 @@ export function liftPose(pose: Pose2D): LiftedPose {
     const prior = planted ? hip[2] - knee[2] : knee[2] - hip[2] + 0.1 * cos
     chain(`${side}_knee`, `${side}_ankle`, BONE_LENGTH.shin, () => prior)
   }
+  clearBody(pose, joints, yaw)
   return { joints, yaw }
+}
+
+/**
+ * The dressed body's cross-section at height t along the torso (0 = mid-hip, 1 = mid-shoulder; below
+ * the waist at 0.4 the skirt flares): [half-width, half-depth] in body units, null outside it.
+ */
+export function bodySection(t: number): [number, number] | null {
+  if (!(t >= -0.62 && t <= 1.05)) return null
+  if (t < 0.4) {
+    const h = 0.4 - t
+    return [0.29 + h * 0.37, 0.2 + h * 0.32]
+  }
+  const a = t < 0.75 ? 0.25 + ((t - 0.4) / 0.35) * 0.09 : 0.34 + Math.min(1, (t - 0.75) / 0.2) * 0.04
+  return [a, a * 0.62]
+}
+
+/**
+ * FK arms are planar, so an arm crossing the body (hands on the belly or hips, folded arms) would
+ * pass through the torso or the skirt: push elbows and wrists out to the body's front surface (its
+ * back, for a dancer facing away), testing the joints and the bones' midpoints.
+ */
+function clearBody(pose: Pose2D, joints: Partial<Record<JointName, Vec3>>, yaw: number): void {
+  const { l_shoulder: ls, r_shoulder: rs, l_hip: lh, r_hip: rh } = pose
+  if (!ls || !rs || !lh || !rh) return
+  const mh = midOf(lh, rh)
+  const ms = midOf(ls, rs)
+  const ux = ms[0] - mh[0]
+  const uy = ms[1] - mh[1]
+  const l2 = ux * ux + uy * uy
+  if (!(l2 > 1e-9)) return
+  const cos = Math.cos(yaw)
+  const sin = Math.sin(yaw)
+  const front = cos >= 0 ? 1 : -1
+  /** Depth (toward the dancer's front, as seen) a point must reach to sit on the body's surface; -Infinity outside it. */
+  const surface = (x: number, y: number, margin: number): number => {
+    const t = ((x - mh[0]) * ux + (y - mh[1]) * uy) / l2
+    const d = ((x - mh[0]) * -uy + (y - mh[1]) * ux) / Math.sqrt(l2)
+    const sec = bodySection(t)
+    if (!sec) return Number.NEGATIVE_INFINITY
+    const [a, b] = sec
+    const w = Math.hypot(a * cos, b * sin)
+    const depth = Math.hypot(b * cos, a * sin)
+    return Math.abs(d) >= w ? Number.NEGATIVE_INFINITY : depth * Math.sqrt(1 - (d / w) ** 2) + margin
+  }
+  for (const side of ['l', 'r'] as const) {
+    const s3 = joints[`${side}_shoulder`]
+    const e3 = joints[`${side}_elbow`]
+    const w3 = joints[`${side}_wrist`]
+    if (!s3 || !e3) continue
+    // Upper arm (the shoulder stays put), then the elbow itself.
+    const lift = (need: number, have: number): number => Math.max(0, need - front * have)
+    e3[2] += front * 2 * lift(surface((s3[0] + e3[0]) / 2, (s3[1] + e3[1]) / 2, 0.08), (s3[2] + e3[2]) / 2)
+    e3[2] += front * lift(surface(e3[0], e3[1], 0.09), e3[2])
+    if (!w3) continue
+    // Forearm (both ends move), then the wrist / hand.
+    const k = lift(surface((e3[0] + w3[0]) / 2, (e3[1] + w3[1]) / 2, 0.08), (e3[2] + w3[2]) / 2)
+    e3[2] += front * k
+    w3[2] += front * k
+    w3[2] += front * lift(surface(w3[0], w3[1], 0.1), w3[2])
+  }
 }
