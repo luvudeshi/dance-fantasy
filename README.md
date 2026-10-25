@@ -12,11 +12,11 @@ in an online ballroom with friends on their own phones.
 | | Track | What it does in Dance Fantasy |
 |---|---|---|
 | 🎺 | **Meta Muse** | Writes the Royal Herald's live intro and final verdict from your name, song, score and best move |
-| ✨ | **Google Gemini** | The herald's expressive voice, turns a viral dance into playable moves, backup writer |
+| ✨ | **Google Gemini** (MLH) | The herald's expressive voice, turns a viral dance into playable moves, backup writer |
 | 🔎 | **SerpApi** | Finds the song's viral dance online; those moves get pinned to the chorus and score **2x** |
-| 🐯 | **Tiger Data** | Hypertables + continuous aggregates: ballrooms, friends, history, "hardest moments", Hall of Fame |
-| ☁️ | **Vultr** | An always-warm song-analysis worker on Vultr Cloud Compute, so uploads skip serverless cold starts |
-| 🌐 | **.tech domain** | The game lives at [DanceFantasy.tech](https://dancefantasy.tech) |
+| 🐯 | **Tiger Data** (MLH) | Hypertables + continuous aggregates: ballrooms, friends, history, "hardest moments", Hall of Fame |
+| ☁️ | **Vultr** (MLH) | An always-warm song-analysis worker on Vultr Cloud Compute, so uploads skip serverless cold starts |
+| 🌐 | **.tech domain** (MLH) | The game lives at [DanceFantasy.tech](https://dancefantasy.tech) |
 | 🤖 | **Cursor · Grok** | AI coding, automations and workflows we used to build the game |
 
 ![A round in progress: the 3D prince dances the routine, the Royal Herald cheers a 25-beat streak, and the next moves slide in at the bottom](docs/screenshots/game.jpg)
@@ -84,7 +84,7 @@ with recorded lines, so it never lags behind your feet. Muse writes the intro wh
 it's ready the moment the music starts. Gemini is the fallback, and a hand-written line covers
 anything neither answers in time, so the show never waits.
 
-### ✨ Google Gemini: three jobs
+### ✨ Google Gemini (MLH): three jobs
 1. **The herald's voice.** Gemini text-to-speech performs every line with a directed delivery
    ("an ecstatic royal herald announcing the star of the ball"). Lines are voiced once and cached,
    and the music dips while the herald speaks.
@@ -98,7 +98,7 @@ doesn't just show a link: Gemini identifies the moves, our choreographer **pins 
 chorus**, an in-game banner announces "Signature: YMCA arms", and those beats **score double**.
 The source video is linked so you can watch the original.
 
-### 🐯 Tiger Data: the memory of the ball
+### 🐯 Tiger Data (MLH): the memory of the ball
 Tiger Data (Postgres + TimescaleDB) holds everything multiplayer and social: ballrooms, dancers,
 chat, accounts, friends and invites. Every round and every beat danced in a ballroom is stored in
 **hypertables**, and a **continuous aggregate** rolls those beats up into each song's "hardest
@@ -106,7 +106,7 @@ moments", the beats that trip up dancers across every ballroom. A second continu
 up each dancer's score per day for the Hall of Fame's top dancers of the week. It also keeps the paid AI and search
 calls within daily and per-visitor limits.
 
-### ☁️ Vultr: an always-warm analysis worker
+### ☁️ Vultr (MLH): an always-warm analysis worker
 Analyzing a new song is the one heavy job in the game: librosa's beat tracker compiles itself to machine
 code on first use, which costs a fresh serverless instance 20-30 seconds. We built a **Vultr Cloud
 Compute** worker for it: the same FastAPI app on an instance in Dallas that stays warm, so an upload is
@@ -116,7 +116,7 @@ server, the numba cache and Caddy for HTTPS. With `ANALYSIS_WORKER_URL` set, the
 uploaded song to the worker (`server/app/vultr_worker.py`); the worker reads it from the shared Blob store
 and caches the analysis where every instance sees it.
 
-### 🌐 .tech domain: DanceFantasy.tech
+### 🌐 .tech domain (MLH): DanceFantasy.tech
 The ball has its own address: **[DanceFantasy.tech](https://dancefantasy.tech)** (and `www.`), served over
 HTTPS by our Vercel deployment.
 
