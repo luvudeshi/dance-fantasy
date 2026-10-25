@@ -1,8 +1,12 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { AnnouncerToggles } from '../announcer/Herald'
 import { DEFAULT_CALIBRATION, loadCalibration, saveCalibration, type Calibration } from '../game/calibration'
+import { SCORING_STORAGE_KEY, scoringVersion, type ScoringVersion } from '../game/createScoreKeeper'
 import { JUDGING_PRESETS, loadJudging, saveJudging, type JudgingPreset } from '../game/judging'
 import { loadSfxEnabled, saveSfxEnabled } from '../game/sfx'
+import { defaultStorage } from '../lib/storage'
+import { REEL_STORAGE_KEY } from '../reel/flag'
+import { getDancer, setDancer, subscribeDancer, type Dancer } from '../render3d/dancer'
 import { updateSettings, useSettings } from '../settings'
 import { Button, Corners, Panel, Segmented, Slider, Title, Toggle } from '../theme/components'
 import { Icon } from '../theme/Icon'
@@ -21,12 +25,37 @@ const MODES = [
   { value: 'standing', label: 'Standing' },
   { value: 'seated', label: 'Seated' },
 ] as const
+const DANCER_OPTIONS: readonly { value: Dancer; label: string }[] = [
+  { value: 'princess', label: 'Princess' },
+  { value: 'prince', label: 'Prince' },
+]
+const SCORING_OPTIONS: readonly { value: ScoringVersion; label: string }[] = [
+  { value: 'classic', label: 'Classic' },
+  { value: 'v2', label: 'Scoring v2' },
+]
 const DEV_PAGES = [
   { href: '#/pose', label: 'Pose spike' },
   { href: '#/beats', label: 'Beat spike' },
   { href: '#/ui', label: 'UI kit' },
   { href: '#/ai', label: 'AI preview' },
+  { href: '#/party-dev', label: 'Party harness' },
 ] as const
+
+/** A string flag in localStorage ("mb.reel" = "1" / "0", "mb.scoring" = "v2" / "classic"); best effort. */
+function saveFlag(key: string, value: string): void {
+  try {
+    defaultStorage()?.setItem(key, value)
+  } catch (err) {
+    console.warn(`[settings] ${key} not saved`, err)
+  }
+}
+const reelOn = (): boolean => {
+  try {
+    return defaultStorage()?.getItem(REEL_STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 const gap = (px: number): CSSProperties => ({ '--df-gap': `${px}px` }) as CSSProperties
 
@@ -48,6 +77,9 @@ export default function SettingsPage() {
   const [sfxOn, setSfxOn] = useState(() => loadSfxEnabled())
   const [judging, setJudging] = useState<JudgingPreset>(() => loadJudging())
   const [cal, setCal] = useState<Calibration>(() => loadCalibration())
+  const dancer = useSyncExternalStore(subscribeDancer, getDancer)
+  const [reel, setReel] = useState(reelOn)
+  const [scoring, setScoring] = useState<ScoringVersion>(() => scoringVersion(null))
 
   return (
     <div className="df-screen shell-page">
@@ -113,6 +145,15 @@ export default function SettingsPage() {
               label="Camera window while dancing"
               hint="The small picture of you beside the dancer (C while dancing)."
             />
+            <Toggle
+              checked={reel}
+              onChange={(on) => {
+                setReel(on)
+                saveFlag(REEL_STORAGE_KEY, on ? '1' : '0')
+              }}
+              label="Highlight reel"
+              hint="Films your longest combos on this device and plays them back after the round. Nothing is uploaded."
+            />
             <div className="df-scroll">
               <dl className="df-dl">
                 <dt>Camera delay</dt>
@@ -170,6 +211,21 @@ export default function SettingsPage() {
                 }}
               />
             </Field>
+            <Field
+              label="Scoring"
+              note={judging === 'relaxed' ? 'Relaxed judging always scores with v2.' : 'v2 forgives timing and leads with the arms.'}
+            >
+              <Segmented
+                label="Scoring"
+                value={judging === 'relaxed' ? 'v2' : scoring}
+                options={SCORING_OPTIONS}
+                disabled={judging === 'relaxed'}
+                onChange={(v) => {
+                  setScoring(v)
+                  saveFlag(SCORING_STORAGE_KEY, v)
+                }}
+              />
+            </Field>
           </Panel>
 
           <Panel title="Look and feel" kicker="Spells and charms" sticker="wand">
@@ -179,6 +235,9 @@ export default function SettingsPage() {
               label="3D dancer"
               hint="A storybook dancer instead of the glowing silhouette (needs WebGL)."
             />
+            <Field label="Dancer" note="Who dances the routine for you to follow.">
+              <Segmented label="Dancer" value={dancer} options={DANCER_OPTIONS} onChange={setDancer} />
+            </Field>
             <Toggle
               checked={settings.reducedMotion}
               onChange={(reducedMotion) => updateSettings({ reducedMotion })}
