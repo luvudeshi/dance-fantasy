@@ -208,21 +208,24 @@ export default function PartyPlay({ count: initialCount }: { count: number }) {
   if (phase === 'stage' && stage) {
     const game = stage.active.game
     return (
-      <PlayStage
-        clock={clock}
-        active={stage.active}
-        mirrored
-        debug={false}
-        pip={false}
-        paused={paused}
-        title={game.analysis.title}
-        subtitle={`Party · ${players.map(displayName).join(', ')}`}
-        onTogglePause={togglePause}
-        onExit={exitStage}
-        keys="Space pause · Esc back to the party"
-      >
-        <PartyHud run={stage.run} tracker={tracker} video={source.video} clock={clock} />
-      </PlayStage>
+      // .df-screen: the storybook stage skin (theme/screens/stage.css), as in Play's lobby section
+      <div className="df-screen">
+        <PlayStage
+          clock={clock}
+          active={stage.active}
+          mirrored
+          debug={false}
+          pip={false}
+          paused={paused}
+          title={game.analysis.title}
+          subtitle={`Party · ${players.map(displayName).join(', ')}`}
+          onTogglePause={togglePause}
+          onExit={exitStage}
+          keys="Space pause · Esc back to the party"
+        >
+          <PartyHud run={stage.run} tracker={tracker} video={source.video} clock={clock} />
+        </PlayStage>
+      </div>
     )
   }
 

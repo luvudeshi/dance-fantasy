@@ -112,15 +112,17 @@ function GameView({ count, from }: { count: number; from: number }) {
     return () => cancelAnimationFrame(raf)
   }, [clock])
   return (
-    <div className="play-stage">
-      <canvas ref={canvasRef} className="play-canvas" aria-label="Dance stage" />
-      <header className="play-topbar">
-        <div className="play-title">
-          <span className="play-song">{routine.song.title}</span>
-          <span className="play-meta">Party harness · synthetic dancers</span>
-        </div>
-      </header>
-      <PartyHud run={run} tracker={tracker} clock={clock} />
+    <div className="df-screen">
+      <div className="play-stage">
+        <canvas ref={canvasRef} className="play-canvas" aria-label="Dance stage" />
+        <header className="play-topbar">
+          <div className="play-title">
+            <span className="play-song">{routine.song.title}</span>
+            <span className="play-meta">Party harness · synthetic dancers</span>
+          </div>
+        </header>
+        <PartyHud run={run} tracker={tracker} clock={clock} />
+      </div>
     </div>
   )
 }
