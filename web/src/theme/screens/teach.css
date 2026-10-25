@@ -40,6 +40,7 @@
   background-clip: border-box;
   color: var(--df-rasp-deep);
   filter: url(#dc-type);
+  margin: 2px 0 8px;
 }
 .df-screen .teach-meta {
   font-weight: 600;

@@ -3,6 +3,13 @@
    stylesheets (play.css, teach.css load later, in lazy chunks). The generic button rule is (0,2,1): page files
    override it with `.df-screen button.<class>` or longer. Buttons carrying a df- class are left alone. */
 
+/* status colours the legacy pages use (index.css keeps them neon for the night theme) */
+.df-screen {
+  --good: var(--df-sage-deep);
+  --warn: var(--df-gold-text);
+  --bad: var(--df-rasp-deep);
+}
+
 .df-screen button:not([class*='df-']),
 .df-screen label.file {
   display: inline-flex;
@@ -208,4 +215,11 @@
 .df-screen .badge.fresh {
   color: var(--df-ink);
   background: var(--df-blue-light);
+}
+
+@media (max-width: 640px) {
+  .df-screen .page-title .dim {
+    display: block;
+    margin: 8px 0 0;
+  }
 }
