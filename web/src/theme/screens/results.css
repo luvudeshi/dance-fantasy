@@ -1,0 +1,292 @@
+/* Results (game/ResultsScreen.tsx): a storybook page over the dimmed floor. Night plate with the foil score and
+   a grade medal, gold sticker stars, judgment stickers, paper action buttons. The card holds pictogram
+   canvases (drawn once), so it uses the box-shadow cut, not an SVG filter. */
+
+.df-screen .results-overlay {
+  background: rgb(21 35 56 / 0.55);
+}
+.df-screen .results-card {
+  position: relative;
+  width: min(1120px, 100%);
+  border: 0;
+  border-radius: var(--df-r-xl);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  box-shadow:
+    var(--df-shadow-lift),
+    0 30px 80px rgb(10 16 28 / 0.45);
+  animation: df-rise var(--df-dur-slow) var(--df-ease) both;
+}
+
+/* ---------- head ---------- */
+.df-screen .results-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.df-screen .results-icon {
+  margin: -58px 0 2px;
+}
+.df-screen .results-head .lobby-kicker {
+  font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+  color: var(--df-gold-text);
+}
+.df-screen .results-title {
+  margin: 2px 0 10px;
+  font-family: var(--df-font-display);
+  font-style: normal;
+  font-weight: 700;
+  font-variation-settings: var(--df-fvs-cut);
+  font-size: clamp(2.4rem, 5.5vw, 4.4rem);
+  line-height: 0.98;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--df-rasp-deep);
+  filter: url(#dc-type);
+}
+.df-screen .results-blurb {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  color: var(--df-ink-soft);
+}
+
+/* ---------- score plate + grade medal ---------- */
+.df-screen .results-main {
+  gap: 18px;
+}
+.df-screen .results-plate {
+  position: relative;
+  width: min(100%, 26rem);
+  padding: 22px 30px 26px;
+  rotate: -1deg;
+}
+.df-screen .results-plate .results-score {
+  font-family: var(--df-font-display);
+  font-size: clamp(3.4rem, 8vw, 5.6rem);
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--df-foil);
+  text-shadow: none;
+}
+.df-screen .results-grade {
+  position: absolute;
+  top: -22px;
+  left: -22px;
+  rotate: -10deg;
+  font-size: calc(var(--df-medal-size) * 0.6);
+  animation: df-pop var(--df-dur-slow) var(--df-ease) 0.25s both;
+}
+.df-screen .results-grade.grade-B,
+.df-screen .results-grade.grade-C {
+  background: var(--df-blue-light);
+  color: var(--df-night);
+  box-shadow:
+    inset -4px -5px 0 var(--df-blue-shade),
+    inset 3px 3px 0 var(--df-glass);
+}
+.df-screen .results-grade.grade-D {
+  background: var(--df-rasp-deep);
+  color: var(--df-cut);
+  box-shadow:
+    inset -4px -5px 0 var(--df-burg),
+    inset 3px 3px 0 var(--df-rasp);
+}
+
+/* gold sticker stars on a paper well */
+.df-screen .results-stars {
+  font-size: clamp(2.4rem, 5vw, 3.4rem);
+  letter-spacing: 0.1em;
+  filter: url(#dc-sm);
+}
+.df-screen .results-stars-bg {
+  color: var(--df-ground-deep);
+}
+.df-screen .results-stars-fg {
+  color: var(--df-gold);
+  text-shadow: none;
+}
+
+.df-screen .results-stat-value {
+  font-family: var(--df-font-ui);
+  font-weight: 800;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--df-ink);
+}
+.df-screen .results-stat-label {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--df-ink-soft);
+}
+
+/* judgment counts: four little stickers (the inline colour is the stage's; on paper use passing inks) */
+.df-screen .results-counts {
+  gap: 12px;
+}
+.df-screen .results-counts li {
+  padding: 12px 4px 10px;
+  border: 0;
+  border-radius: var(--df-r-md);
+  background: var(--df-cut);
+  filter: url(#dc-sm);
+  rotate: -2deg;
+}
+.df-screen .results-counts li:nth-child(even) {
+  rotate: 1.5deg;
+}
+.df-screen .results-counts strong {
+  font-family: var(--df-font-ui);
+  font-weight: 800;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.df-screen .results-counts span {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--df-ink-soft);
+}
+.df-screen .results-counts li[data-judgment='perfect'] {
+  background: var(--df-gold);
+  box-shadow: inset 0 -4px 0 var(--df-gold-shade);
+}
+.df-screen .results-counts li[data-judgment='perfect'] :is(strong, span) {
+  color: var(--df-gold-ink) !important; /* beats the inline stage colour */
+}
+.df-screen .results-counts li[data-judgment='good'] {
+  background: var(--df-blue-light);
+}
+.df-screen .results-counts li[data-judgment='good'] :is(strong, span) {
+  color: var(--df-night) !important;
+}
+.df-screen .results-counts li[data-judgment='ok'] :is(strong, span) {
+  color: var(--df-rasp-deep) !important;
+}
+.df-screen .results-counts li[data-judgment='miss'] :is(strong, span) {
+  color: var(--df-ink-soft) !important;
+}
+
+.df-screen .results-actions {
+  gap: 12px;
+}
+.df-screen .results-actions button:not([class*='df-']) {
+  min-height: 3.25rem;
+  padding: 0 24px;
+  font-size: var(--df-text-md);
+}
+.df-screen .results-actions button.primary:not([class*='df-']) {
+  min-height: 3.75rem;
+  padding: 0 30px;
+  font-size: 1.2rem;
+  filter: url(#dc);
+}
+.df-screen .results-actions button.results-menu:not([class*='df-']) {
+  background: transparent;
+  box-shadow: none;
+  filter: none;
+  color: var(--df-rasp-deep);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+.df-screen .results-details {
+  font-size: var(--df-text-sm);
+  color: var(--df-ink-soft);
+}
+
+/* ---------- moves side ---------- */
+.df-screen .results-spot {
+  gap: 18px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: var(--df-r-lg);
+  background: var(--df-cut);
+  box-shadow: var(--df-shadow-lift);
+}
+.df-screen .results-spot.hardest {
+  box-shadow:
+    inset 0 0 0 3px var(--df-rasp-deep),
+    var(--df-shadow-lift);
+}
+.df-screen .results-spot.best {
+  box-shadow:
+    inset 0 0 0 3px var(--df-gold),
+    var(--df-shadow-lift);
+}
+.df-screen .results-spot h3 {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  color: var(--df-ink);
+}
+.df-screen .results-spot-kicker {
+  font-family: var(--df-font-display);
+  font-style: italic;
+  font-variation-settings: var(--df-fvs-voice);
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--df-rasp-deep);
+}
+.df-screen .results-spot.best .results-spot-kicker {
+  color: var(--df-gold-text);
+}
+.df-screen .results-spot-pct {
+  font-family: var(--df-font-ui);
+  font-weight: 800;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--df-ink-soft);
+}
+.df-screen .results-tip {
+  color: var(--df-ink-soft);
+}
+.df-screen .results-pictogram {
+  border-radius: var(--df-r-md);
+  background: var(--df-night);
+  box-shadow:
+    0 0 0 3px var(--df-gold),
+    0 0 0 6px var(--df-cut);
+}
+.df-screen button.results-practice {
+  margin-top: 12px;
+  border: 0;
+  background: var(--df-rasp-deep);
+  color: var(--df-cut);
+  box-shadow: var(--df-shadow-primary);
+}
+.df-screen button.results-practice:hover:not(:disabled) {
+  background: var(--df-rasp-hover);
+}
+.df-screen .results-list-title {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--df-ink);
+}
+.df-screen .results-moves li {
+  font-weight: 600;
+}
+.df-screen .results-bar {
+  height: 12px;
+  background: var(--df-night);
+  box-shadow: inset 0 0 0 2px var(--df-gold);
+}
+.df-screen .results-move-pct {
+  font-family: var(--df-font-ui);
+  font-weight: 800;
+  color: var(--df-ink);
+}
+
+@media (max-width: 640px) {
+  .df-screen .results-grade {
+    --df-medal-size: 3.8rem;
+    top: -16px;
+    left: -10px;
+  }
+  .df-screen .results-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

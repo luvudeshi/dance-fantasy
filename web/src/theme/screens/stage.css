@@ -1,0 +1,224 @@
+/* The play stage (game/PlayStage.tsx + the overlays Play.tsx passes in): the dance floor stays a night
+   ballroom (the coach needs stage lighting), framed as a sticker window on the paper; DOM HUD parts and every
+   card are paper stickers. No SVG filter on any ancestor of the canvas (it would re-filter every frame). */
+
+/* ---------- the window: paper top bar, gold + cream rim, paper all around ---------- */
+.df-screen .play-stage {
+  background: var(--df-night-deep);
+  color: var(--df-ink);
+  font-family: var(--df-font-ui);
+}
+.df-screen .play-stage::after {
+  content: '';
+  position: absolute;
+  inset: 64px 8px 8px;
+  z-index: 1;
+  border-radius: 20px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 3px var(--df-gold),
+    0 0 0 6px var(--df-cut),
+    0 0 0 100vmax var(--df-ground);
+}
+.df-screen .play-topbar {
+  height: 64px;
+  gap: 18px;
+  padding: 0 14px 4px 22px;
+  background: var(--df-ground) var(--df-paper-tex);
+}
+.df-screen .play-song {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-brand);
+  font-style: normal;
+  font-size: 1.3rem;
+  color: var(--df-ink);
+}
+.df-screen .play-meta {
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+.df-screen .play-section {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: var(--df-r-pill);
+  background: var(--df-gold);
+  color: var(--df-gold-ink);
+  box-shadow: inset 0 -3px 0 var(--df-gold-shade);
+  font-size: var(--df-text-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  filter: url(#dc-sm);
+}
+.df-screen .play-progress {
+  height: 12px;
+  background: var(--df-ground-deep);
+  box-shadow: var(--df-shadow-well);
+}
+.df-screen .play-progress span {
+  background: linear-gradient(90deg, var(--df-rasp-deep), var(--df-rasp));
+  border-radius: inherit;
+}
+.df-screen .play-actions {
+  gap: 10px;
+}
+.df-screen button.play-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1.1rem;
+}
+.df-screen button.play-icon > img {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+.df-screen .play-keys {
+  top: 74px;
+  left: 22px;
+  font-weight: 600;
+  color: rgb(217 228 236 / 0.75);
+  text-shadow: 0 1px 2px rgb(21 35 56 / 0.9);
+}
+.df-screen .play-caption {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-voice);
+  color: var(--df-on-night);
+  text-shadow: 0 0 14px rgb(21 35 56 / 0.95);
+}
+
+/* preview / practice badge + skip */
+.df-screen .rehearsal-bar {
+  top: 82px;
+  left: 20px;
+  gap: 12px;
+}
+.df-screen .play-badge {
+  padding: 6px 14px;
+  border-radius: var(--df-r-pill);
+  background: var(--df-gold);
+  color: var(--df-gold-ink);
+  box-shadow: inset 0 -3px 0 var(--df-gold-shade);
+  font-size: var(--df-text-xs);
+  letter-spacing: 0.12em;
+  filter: url(#dc-sm);
+}
+.df-screen .play-badge.practice {
+  background: var(--df-rasp-deep);
+  color: var(--df-on-rasp);
+  box-shadow: inset 0 -3px 0 var(--df-burg);
+}
+
+/* ---------- overlays over the floor: paper cards ---------- */
+.df-screen .play-overlay {
+  z-index: 5;
+}
+.df-screen .play-overlay.dim-bg {
+  background: rgb(21 35 56 / 0.5);
+  backdrop-filter: blur(4px);
+}
+.df-screen .play-card {
+  width: min(500px, 100%);
+  padding: 28px 30px;
+  border: 0;
+  border-radius: var(--df-r-lg);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  box-shadow: none;
+  filter: url(#dc-lg);
+  animation: df-rise var(--df-dur-slow) var(--df-ease);
+}
+.df-screen .play-card h2 {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-style: normal;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  color: var(--df-ink);
+  margin-bottom: 10px;
+}
+.df-screen .play-card .dim {
+  font-size: var(--df-text-md);
+}
+.df-screen .play-card.loading {
+  gap: 16px;
+  background: var(--df-paper) var(--df-paper-tex);
+}
+.df-screen .play-card-actions {
+  gap: 12px;
+  margin-top: 20px;
+}
+.df-screen .play-card-actions button {
+  border-radius: var(--df-r-pill);
+}
+.df-screen .play-loading-label {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-voice);
+  font-size: 1.35rem;
+  color: var(--df-gold-text);
+}
+/* the loading spinner becomes a dancing glass slipper */
+.df-screen .slipper-spinner {
+  width: 76px;
+  height: 76px;
+  border: 0;
+  border-radius: 0;
+  background: url('/art/icons/slipper.svg') center / contain no-repeat;
+  box-shadow: none;
+  filter: url(#dc);
+  animation: df-bob 0.9s ease-in-out infinite;
+}
+
+/* ---------- pause menu (theme/screens/PauseMenu.tsx) ---------- */
+.df-pause-menu {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 30px 28px 24px;
+  border-radius: var(--df-r-xl);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  text-align: center;
+  filter: url(#dc-lg);
+}
+.df-pause-menu .df-hgroup {
+  align-items: center;
+}
+.df-pause-menu-icon {
+  margin-top: -6px;
+}
+.df-pause-menu-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+}
+.df-pause-menu-actions .df-btn-lg {
+  min-height: 4rem;
+}
+.df-pause-menu-actions .df-btn-ghost {
+  align-self: center;
+}
+
+@media (max-width: 640px) {
+  .df-screen .play-stage::after {
+    inset: 64px 5px 5px;
+    border-radius: 16px;
+  }
+  .df-screen .play-topbar {
+    gap: 10px;
+    padding: 0 8px 4px 12px;
+  }
+  .df-screen .play-song {
+    font-size: 1.05rem;
+  }
+  .df-pause-menu {
+    gap: 14px;
+    padding: 22px 18px 18px;
+  }
+}

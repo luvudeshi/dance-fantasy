@@ -6,6 +6,7 @@ import './theme/base.css'
 import './theme/sticker.css'
 import './theme/controls.css'
 import './theme/pieces.css'
+import './theme/screens/index.css'
 import App from './App.tsx'
 import { StickerDefs } from './theme/StickerDefs'
 
