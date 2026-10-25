@@ -20,13 +20,16 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
+from app.rooms import modes
 from app.rooms.db import Row, Tx, transaction
 from app.rooms.models import (
     MAX_NAME,
+    BeatJudgement,
     ChatMessage,
     Created,
     Joined,
     PlayerView,
+    RoomMode,
     RoomState,
     RoomView,
     RoutineChoice,
@@ -165,6 +168,7 @@ def _view(tx: Tx, room: Row, chat_after: int | None, now: int) -> RoomView:
             "select * from df_chat where code = :code and id > :after order by id limit :n",
             code=room["code"], after=chat_after, n=CHAT_PAGE,
         )  # fmt: skip
+    won = modes.beats_won(tx, room)
     return RoomView(
         code=room["code"],
         state=state,
@@ -172,6 +176,9 @@ def _view(tx: Tx, room: Row, chat_after: int | None, now: int) -> RoomView:
         serverNow=now,
         startAt=room["start_at"],
         routine=RoutineChoice.model_validate_json(room["routine"]) if room["routine"] else None,
+        mode=room["mode"],
+        leaderId=modes.leader([(p["id"], won.get(p["id"], 0), int(p["score"])) for p in players]),
+        crew=modes.crew_stats(room, sum(int(p["score"]) for p in players)),
         players=[
             PlayerView(
                 id=p["id"],
@@ -185,6 +192,7 @@ def _view(tx: Tx, room: Row, chat_after: int | None, now: int) -> RoomView:
                 accuracy=float(p["accuracy"]),
                 progress=float(p["progress"]),
                 finished=bool(p["finished"]),
+                beatsWon=won.get(p["id"], 0),
             )  # fmt: skip
             for p in players
         ],
@@ -282,6 +290,18 @@ def set_routine(code: str, token: str | None, routine: RoutineChoice, chat_after
         )  # fmt: skip
         tx.run(_RESET_PLAYERS, code=room["code"])
         room.update(routine=routine.model_dump_json(), start_at=None, finished_at=None)
+        modes.reset_sync(tx, room)
+
+    return _write(code, token, chat_after, now, change)
+
+
+def set_mode(code: str, token: str | None, mode: RoomMode, chat_after: int | None, now: int) -> RoomView:
+    def change(tx: Tx, room: Row, player: Row, state: RoomState) -> None:
+        _require_host(room, player)
+        if state not in ("lobby", "finished"):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Wait for this song to finish before switching modes.")
+        tx.run("update df_rooms set mode = :mode where code = :code", mode=mode, code=room["code"])
+        room["mode"] = mode
 
     return _write(code, token, chat_after, now, change)
 
@@ -293,19 +313,44 @@ def set_ready(code: str, token: str | None, ready: bool, chat_after: int | None,
     return _write(code, token, chat_after, now, change)
 
 
+def _begin(tx: Tx, room: Row, now: int) -> None:
+    """A new round of the room's routine in ``COUNTDOWN_MS``: scores, ready and sync reset (old beats stay for heatmaps)."""
+    if not room["routine"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Pick a routine first.")
+    start_at = now + COUNTDOWN_MS
+    tx.run("update df_rooms set start_at = :at, finished_at = null where code = :code", at=start_at, code=room["code"])
+    tx.run(_RESET_PLAYERS, code=room["code"])
+    room.update(start_at=start_at, finished_at=None)
+    modes.reset_sync(tx, room)
+
+
 def start(code: str, token: str | None, chat_after: int | None, now: int) -> RoomView:
     def change(tx: Tx, room: Row, player: Row, state: RoomState) -> None:
         _require_host(room, player)
         if state not in ("lobby", "finished"):
             raise HTTPException(status.HTTP_409_CONFLICT, "The dance has already started.")
-        if not room["routine"]:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Pick a routine first.")
-        start_at = now + COUNTDOWN_MS
-        tx.run(
-            "update df_rooms set start_at = :at, finished_at = null where code = :code", at=start_at, code=room["code"]
-        )
-        tx.run(_RESET_PLAYERS, code=room["code"])
-        room.update(start_at=start_at, finished_at=None)
+        _begin(tx, room, now)
+
+    return _write(code, token, chat_after, now, change)
+
+
+def rematch(code: str, token: str | None, chat_after: int | None, now: int) -> RoomView:
+    def change(tx: Tx, room: Row, player: Row, state: RoomState) -> None:
+        _require_host(room, player)
+        if state != "finished":
+            raise HTTPException(status.HTTP_409_CONFLICT, "A rematch starts once this song has finished.")
+        _begin(tx, room, now)
+
+    return _write(code, token, chat_after, now, change)
+
+
+def post_beats(code: str, token: str | None, beats: list[BeatJudgement], chat_after: int | None, now: int) -> RoomView:
+    def change(tx: Tx, room: Row, player: Row, state: RoomState) -> None:
+        if state != "playing" or player["finished"]:
+            return  # like scores: ignored outside the song, and once you've finished it
+        modes.insert_beats(tx, room, player["id"], beats, now)
+        active = [p["id"] for p in _players(tx, room["code"]) if _connected(p, now) and not p["finished"]]
+        modes.advance_sync(tx, room, active)
 
     return _write(code, token, chat_after, now, change)
 

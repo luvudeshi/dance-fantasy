@@ -10,15 +10,31 @@ from __future__ import annotations
 import time
 from typing import Annotated
 
-from fastapi import APIRouter, Header, Query
+from fastapi import APIRouter, Header, Path, Query
 
-from app.rooms import store
-from app.rooms.models import ChatBody, Created, Joined, NameBody, Ok, ReadyBody, RoomView, RoutineChoice, ScoreBody
+from app.analysis_store import ID_RE
+from app.rooms import modes, store
+from app.rooms.models import (
+    BeatsBody,
+    ChatBody,
+    Created,
+    Heatmap,
+    Joined,
+    ModeBody,
+    NameBody,
+    Ok,
+    ReadyBody,
+    RoomView,
+    RoutineChoice,
+    ScoreBody,
+)
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
+heatmap_router = APIRouter(prefix="/songs", tags=["rooms"])
 
 Token = Annotated[str | None, Header(alias="X-Player-Token", max_length=200)]
 ChatAfter = Annotated[int | None, Query(alias="chatAfter", ge=0)]
+AnalysisId = Annotated[str, Path(alias="analysisId", pattern=ID_RE.pattern)]
 
 
 def _now() -> int:
@@ -69,3 +85,24 @@ def post_chat(code: str, body: ChatBody, token: Token = None, chat_after: ChatAf
 def leave(code: str, token: Token = None) -> Ok:
     store.leave(code, token, _now())
     return Ok()
+
+
+@router.post("/{code}/mode")
+def set_mode(code: str, body: ModeBody, token: Token = None, chat_after: ChatAfter = None) -> RoomView:
+    return store.set_mode(code, token, body.mode, chat_after, _now())
+
+
+@router.post("/{code}/beats")
+def post_beats(code: str, body: BeatsBody, token: Token = None, chat_after: ChatAfter = None) -> RoomView:
+    return store.post_beats(code, token, body.beats, chat_after, _now())
+
+
+@router.post("/{code}/rematch")
+def rematch(code: str, token: Token = None, chat_after: ChatAfter = None) -> RoomView:
+    return store.rematch(code, token, chat_after, _now())
+
+
+@heatmap_router.get("/{analysisId}/heatmap")
+def get_heatmap(analysis_id: AnalysisId) -> Heatmap:
+    """Average score per beat of this song across all rooms: its "hardest moments"."""
+    return modes.heatmap(analysis_id)
