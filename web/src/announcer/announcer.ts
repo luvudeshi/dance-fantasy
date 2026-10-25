@@ -41,9 +41,9 @@ export const STREAK_MIN = 5
 export const QUIET_MS = 14_000
 /** How long an in-game moment waits for the server before the local line (the moment is gone soon after). */
 export const IN_GAME_WAIT_MS = 900
-/** Intro and results can wait longer: the server answers within ~2.5 s. */
-export const SCENE_WAIT_MS = 2800
-const REQUEST_TIMEOUT_MS = 4000
+/** Intro and results can wait longer: Muse takes ~2-3 s and the server gives up by ~6 s (the intro is prefetched). */
+export const SCENE_WAIT_MS = 6000
+const REQUEST_TIMEOUT_MS = 7000
 const MAX_LINE = 90
 
 // --- client -------------------------------------------------------------------------------------
@@ -203,6 +203,8 @@ export interface HeraldLine {
 }
 
 export interface Announcer {
+  /** The round is ready (before calibration): asks for the intro now, so intro() with the same context has it at once. */
+  prepare(base: AnnouncerContext): void
   /** A new song: resets, announces the intro (call it at calibration / countdown) and prefetches the next moments. */
   intro(base: AnnouncerContext): void
   /** Hook into GameRun's onResults: combo milestones and broken streaks. */
@@ -331,12 +333,22 @@ export function createAnnouncer(opts: AnnouncerOptions = {}): Announcer {
     }
   }
 
+  /** A different song or setup: forget what was fetched for the last one. */
+  const reset = (ctx: AnnouncerContext): void => {
+    if (base && JSON.stringify(base) === JSON.stringify(ctx)) return
+    pending.clear()
+    ready.clear()
+    base = { ...ctx }
+  }
+
   return {
+    prepare(ctx) {
+      reset(ctx)
+      prefetch('intro')
+    },
     intro(ctx) {
       hush()
-      pending.clear()
-      ready.clear()
-      base = { ...ctx }
+      reset(ctx)
       announce('intro', {}, SCENE_WAIT_MS)
       prefetch('combo', { combo: nextMilestone(0) })
       prefetch('streak_broken')

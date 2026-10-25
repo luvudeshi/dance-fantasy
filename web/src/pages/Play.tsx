@@ -573,6 +573,7 @@ export default function Play() {
       shelve(game)
       const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal || roomRound, calibrated: calRef.current !== null })
       dispatch({ type: 'prepared', calibrate, rehearsal: reh })
+      announcer.prepare({ songTitle: game.analysis.title, difficulty: game.routine.difficulty }) // Muse writes the intro during calibration
       if (reh === 'watch') beginPreview(game)
       else if (!calibrate) void warmup(game)
     })
