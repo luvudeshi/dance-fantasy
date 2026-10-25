@@ -83,6 +83,8 @@ def _reply(lines: list[str], source: Literal["muse", "gemini", "canned"]) -> Ann
 
 # ponytail: per-instance dict, oldest-first eviction; a shared cache only matters if many instances repeat calls.
 _cache: dict[str, tuple[float, AnnouncerReply]] = {}
+# The last in-game lines said (per instance), so a cheer every 14 s doesn't repeat itself.
+_recent: dict[AnnouncerEvent, deque[str]] = {}
 
 
 async def _announce(req: AnnouncerRequest, cache_dir: Path) -> AnnouncerReply:
@@ -90,7 +92,10 @@ async def _announce(req: AnnouncerRequest, cache_dir: Path) -> AnnouncerReply:
     if req.event in IN_GAME_EVENTS:
         # A fresh line takes seconds to voice and the moment is gone by then: a recorded line plays at once.
         voiced = await asyncio.to_thread(voiced_ids, cache_dir, voice_name())
-        return _reply(canned_lines(req.event, details, voiced), "canned")
+        recent = _recent.setdefault(req.event, deque(maxlen=2))
+        lines = canned_lines(req.event, details, voiced, avoid=recent)
+        recent.append(lines[0])
+        return _reply(lines, "canned")
     if configured():
         user = announcer_user(req.event, details)
         try:
@@ -116,7 +121,7 @@ async def announcer(req: AnnouncerRequest, request: Request, settings: SettingsD
     key = req.model_dump_json()
     now = time.monotonic()
     hit = _cache.get(key)
-    if hit is not None and hit[0] > now:
+    if hit is not None and hit[0] > now and req.event not in IN_GAME_EVENTS:  # in-game picks are cheap: vary them
         return hit[1]
     reply = await _announce(req, settings.cache_dir)
     try:

@@ -277,12 +277,15 @@ def results_tier(stars: str | None) -> ResultsTier | None:
     return "high" if int(stars) >= 4 else "mid" if int(stars) >= 2 else "low"
 
 
-def canned_lines(event: AnnouncerEvent, details: Mapping[str, str], voiced: Collection[str] = ()) -> list[str]:
+def canned_lines(
+    event: AnnouncerEvent, details: Mapping[str, str], voiced: Collection[str] = (), avoid: Collection[str] = ()
+) -> list[str]:
     """A varied pick from the canned bank, filled from ``details`` (templates needing a missing field are skipped).
 
     The first line is one with fixed text (CANNED_BY_ID), so it can be voiced ahead and plays at once; when
     ``voiced`` (ids with recorded audio) is given, it is one of those. The rest use the player's name, the song
-    and the numbers when known. Results open with a line for the star tier.
+    and the numbers when known. Results open with a line for the star tier. ``avoid`` (lines just said) are
+    skipped as the first line while anything else qualifies.
     """
     def fill(template: str) -> str:
         return clip(template.format_map(details), MAX_LINE)
@@ -297,6 +300,7 @@ def canned_lines(event: AnnouncerEvent, details: Mapping[str, str], voiced: Coll
         fixed_text = [t for t in usable if line_id(fill(t)) in CANNED_BY_ID]
         recorded = [t for t in fixed_text if line_id(fill(t)) in voiced]
         pool = recorded or fixed_text
+        pool = [t for t in pool if fill(t) not in avoid] or pool
         first = random.choice([t for t in pool if _fields(t)] or pool or usable)
     named = [t for t in usable if _fields(t) and t != first]
     random.shuffle(named)

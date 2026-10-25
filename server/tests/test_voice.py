@@ -41,6 +41,7 @@ def _no_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     announcer_api._cache.clear()
     announcer_api._hits.clear()
     announcer_api._line_hits.clear()
+    announcer_api._recent.clear()
     voice_mod._voiced = (0.0, frozenset())
 
 
@@ -118,6 +119,9 @@ def test_in_game_moments_get_a_recorded_line_without_asking_a_model(
             assert reply["lines"] == [recorded]  # the only recorded line wins over unrecorded ones
         else:
             assert reply["items"][0]["id"] in CANNED_BY_ID  # cheer has no recording yet: a fixed, voiceable line
+    body = {"event": "cheer", "context": {"songTitle": "Vibe Ace"}}
+    said = [client.post("/api/announcer", json=body).json()["lines"][0] for _ in range(12)]
+    assert all(a != b for a, b in zip(said, said[1:]))  # never the same cheer twice in a row
 
 
 def test_voiced_ids_reads_the_cache_once_per_ttl(cache_dir: Path) -> None:
