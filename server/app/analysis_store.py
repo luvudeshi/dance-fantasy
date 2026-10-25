@@ -6,6 +6,9 @@
 Every write goes to a unique temp file in the same directory and is moved into place with
 ``os.replace``, so concurrent writers of the same id never leave a partial file: readers see
 the old file, the new one, or none. Blocking I/O: call from a worker thread.
+
+On deployments (app.blob enabled) every write is also mirrored to Vercel Blob and a read that
+misses the local disk falls back to it, so all instances share one cache.
 """
 
 from __future__ import annotations
@@ -24,6 +27,7 @@ from typing import Any
 
 import soundfile as sf
 
+from app import blob
 from app.audio.analysis import ANALYSIS_VERSION
 from app.library import AUDIO_EXTENSIONS
 
@@ -82,7 +86,7 @@ class AnalysisStore:
         """The cached analysis, or None if missing or unreadable (it is then recomputed)."""
         path = self.analysis_path(digest)
         try:
-            doc = json.loads(path.read_text(encoding="utf-8"))
+            doc = json.loads(read_cached(path).decode("utf-8"))
         except FileNotFoundError:
             return None
         except (OSError, ValueError) as exc:
@@ -102,6 +106,14 @@ class AnalysisStore:
                 return path
         return None
 
+    def audio_url(self, digest: str) -> str | None:
+        """Blob URL of uploaded audio that isn't on this instance's disk (None when Blob is off)."""
+        _check_id(digest)
+        return blob.find_url(f"{self.audio_dir.name}/{digest}.")
+
+    def has_audio(self, digest: str) -> bool:
+        return self.audio_path(digest) is not None or self.audio_url(digest) is not None
+
     def save_audio(self, digest: str, data: bytes, ext: str) -> Path:
         existing = self.audio_path(digest)
         if existing is not None:
@@ -116,7 +128,31 @@ def _check_id(digest: str) -> None:
         raise ValueError("analysis id must be 64 lowercase hex characters")
 
 
+def _blob_key(path: Path) -> str:
+    # ponytail: every cache file sits one level under cache_dir (analysis/, audio/, routines/), so
+    # "<dir>/<file>" is its Blob key; a deeper layout would need cache_dir passed in here.
+    return f"{path.parent.name}/{path.name}"
+
+
+def read_cached(path: Path) -> bytes:
+    """A cache file's bytes: local disk, else its Blob mirror (copied to disk). FileNotFoundError if neither."""
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        data = blob.pull(_blob_key(path))
+        if data is None:
+            raise
+        _write_local(path, data)
+        return data
+
+
 def _atomic_write(path: Path, data: bytes) -> None:
+    """Write a cache file locally (atomically) and to its Blob mirror."""
+    _write_local(path, data)
+    blob.push(_blob_key(path), data)
+
+
+def _write_local(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:

@@ -330,12 +330,45 @@ export function analyzeLibrarySong(file: string, opts: AnalyzeOptions = {}): Pro
   })
 }
 
+/** Set at build time on deployments: Vercel caps request bodies at 4.5 MB, so songs go browser → Vercel Blob. */
+const BLOB_UPLOADS = import.meta.env.VITE_BLOB_UPLOADS === '1'
+
 /** POST /api/analyze (multipart `file`, optional `title`) — analyzes an uploaded song. */
 export function analyzeUpload(file: File, opts: AnalyzeOptions & { title?: string } = {}): Promise<Analysis> {
+  if (BLOB_UPLOADS) return analyzeViaBlob(file, opts)
   const form = new FormData()
   form.append('file', file, file.name)
   if (opts.title) form.append('title', opts.title)
   return request(`/api/analyze${refreshQuery(opts.refresh)}`, isAnalysis, { method: 'POST', body: form, signal: opts.signal })
+}
+
+/** Upload to Vercel Blob (token from POST /api/blob/upload), then POST /api/analyze/blob with its URL. */
+async function analyzeViaBlob(file: File, opts: AnalyzeOptions & { title?: string }): Promise<Analysis> {
+  const { upload } = await import('@vercel/blob/client')
+  const rawExt = file.name.includes('.') ? (file.name.split('.').pop() ?? '').toLowerCase() : ''
+  const ext = /^[a-z0-9]{1,8}$/.test(rawExt) ? rawExt : '' // the server only signs plain names
+  let url: string
+  try {
+    // The real name travels in the analyze request; the Blob path only needs the extension.
+    const blob = await upload(`uploads/song${ext ? `.${ext}` : ''}`, file, {
+      access: 'public',
+      handleUploadUrl: apiUrl('/api/blob/upload'),
+      contentType: file.type.startsWith('audio/') ? file.type : `audio/${ext || 'mpeg'}`,
+      abortSignal: opts.signal,
+    })
+    url = blob.url
+  } catch (err) {
+    if (isAbortError(err)) throw err
+    throw new ApiError(`Upload failed: ${err instanceof Error ? err.message : String(err)}`, 0, false, { cause: err })
+  }
+  const req = { url, filename: file.name, ...(opts.title ? { title: opts.title } : {}) }
+  const { body } = await requestWithResponse(
+    `/api/analyze/blob${refreshQuery(opts.refresh)}`,
+    isAnalysis,
+    { method: 'POST', body: JSON.stringify(req), signal: opts.signal },
+    'application/json',
+  )
+  return body
 }
 
 /** GET /api/analysis/{id} — a previously computed analysis (404 if never analyzed). */

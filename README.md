@@ -29,7 +29,7 @@ HackTX 2026 · storybook theme.
 Prerequisites (macOS shown; Linux works the same):
 
 - **Node.js 22+** (Vite 8 needs `^20.19 || >=22.12`)
-- **uv**, which also installs Python 3.11 for you: `brew install uv`
+- **uv**, which also installs Python 3.12 for you: `brew install uv`
   (or `curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - A webcam and Chrome, Edge or Safari
 
@@ -124,7 +124,7 @@ web/       Vite + React + TypeScript (strict). MediaPipe PoseLandmarker runs in 
   src/render/    coach silhouette, move pictograms, ballroom stage
   src/routine/   routine sampling: smooth rigid-limb motion track
   src/pages/     Play, AnalysisDebug, MoveGallery, PoseSpike, BeatSpike
-server/    Python 3.11 + FastAPI + librosa (uv project)
+server/    Python 3.12 + FastAPI + librosa (uv project)
   app/audio/     decoding, beat grid, downbeats, structure (sections) analysis
   app/moves/     move library: angle-based definitions → forward kinematics → 17-joint poses
   app/choreo/    choreographer: beam search over moves, snapped to downbeats, chorus reuse
@@ -137,6 +137,23 @@ scripts/   dev.sh (starts both servers)
 
 Data formats, coordinate conventions and the HTTP API are documented in
 [shared/README.md](shared/README.md).
+
+## Deploy (Vercel)
+
+One Vercel project, two services ([vercel.json](vercel.json)): `web/` (static Vite build) and
+`server/` (FastAPI as one Python function, `/api/*`). Deploy with `vercel deploy` from the repo root.
+
+- **Shared cache:** each function instance has its own temporary disk, so analyses, routines and
+  uploaded audio are mirrored to Vercel Blob ([server/app/blob.py](server/app/blob.py)). This is
+  on only when `BLOB_READ_WRITE_TOKEN` is set; locally everything stays in `assets/cache/`.
+- **Uploads:** Vercel caps request bodies at 4.5 MB, so the deployed web app (`VITE_BLOB_UPLOADS=1`)
+  uploads songs straight to Blob and then calls `POST /api/analyze/blob` with the URL.
+- **Bundle size:** librosa's numba/llvmlite, scipy and numpy come to ~430 MB, over the 225 MB
+  standard limit, so the project sets `VERCEL_SUPPORT_LARGE_FUNCTIONS=1`.
+- **Assets:** the function only contains `server/`, so its build copies `assets/songs` and
+  `assets/moves` into `server/assets`.
+- **Cold starts:** a fresh instance compiles librosa's beat tracker (numba) on its first analysis,
+  ~30 s; later analyses take about a second, and cached ones are instant.
 
 ## Privacy
 
