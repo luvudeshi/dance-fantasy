@@ -79,6 +79,7 @@
   padding: 0;
   list-style: none;
 }
+/* the tile is a plain <button class="bdg-tile df-bare">: any df- class opts out of legacy.css's button rule */
 .bdg-tile {
   display: flex;
   flex-direction: column;
@@ -141,6 +142,22 @@ li:nth-child(even) > .bdg-tile:not(.is-locked) .bdg-seal {
   height: 100%;
   border-radius: inherit;
   background: var(--df-rasp-deep);
+}
+
+@media (max-width: 30rem) {
+  .bdg-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .bdg-tile {
+    padding: 12px 2px 10px;
+  }
+  .bdg-tile .bdg-seal {
+    --bdg-size: 4.25rem;
+  }
+  .bdg-name {
+    font-size: 0.9rem;
+  }
 }
 
 /* ---------- detail card (in a Modal) ---------- */

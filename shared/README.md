@@ -291,7 +291,7 @@ sends the header `X-DF: 1` (403 without it).
 | POST | `/api/me/invites/{id}/dismiss` | none | `{ ok: true }`; 404 unless it was sent to you |
 | POST | `/api/me/rooms` | `{ roomCode, playerToken }` | `{ ok: true }`; records that you played in that room. The token is the one from create/join (404 if it isn't a player of that room or the room is unknown) |
 | GET | `/api/me/partners` | | `Partner[]`: accounts that recorded a room you recorded, last 30 days, most recent first (max 20) |
-| POST | `/api/me/rounds` | `{ analysisId, songTitle, score, accuracy, maxCombo, stars, mode }` | `{ ok: true }`; `score` and `maxCombo` integers, `accuracy` 0-100, `stars` 0-5 (fractions ok), `mode` `solo`, `party` or `room`; 429 after 120 rounds in an hour |
+| POST | `/api/me/rounds` | `{ analysisId, songTitle, score, accuracy, maxCombo, stars, mode }` | `{ ok: true, newBadges }` (see "Badges endpoints"); `score` and `maxCombo` integers, `accuracy` 0-100, `stars` 0-5 (fractions ok), `mode` `solo`, `party` or `room`; 429 after 120 rounds in an hour |
 | GET | `/api/me/history?tzOffset=<min>` | | `History`: last 20 rounds and totals. `tzOffset` is `new Date().getTimezoneOffset()` (for the day streak), default 0 |
 
 ```jsonc
@@ -338,6 +338,22 @@ sends the header `X-DF: 1` (403 without it).
   `df_room_members`, `df_hits`, `df_rounds`, created on first use). On Postgres with the
   `timescaledb` extension (Tiger Data), `df_rounds` is a hypertable on `at` (epoch ms, 7-day chunks).
   Like rooms, a Vercel deployment without `DATABASE_URL` answers 503 here.
+
+### Badges endpoints
+
+16 badges (`server/app/badges/__init__.py`, catalog order bronze, silver, gold), each a threshold on
+what the accounts tables already hold: rounds, distinct songs (`analysisId`), best combo, a 5-star or
+98% round, party / room rounds, rooms recorded, friends, a claimed username, and a round between
+00:00 and 04:00 UTC-6. Awards land in `df_badges (account_id, badge_id, earned_at)`, once each.
+
+| Method | Path | Response |
+|---|---|---|
+| GET | `/api/badges` | `Badge[]`: `{ id, name, description, icon, tier: "bronze" \| "silver" \| "gold", unit }` |
+| GET | `/api/me/badges` | `{ earned: (Badge & { earnedAt })[], locked: (Badge & { progress: { have, need } })[] }`; also awards anything already earned |
+
+`POST /api/me/rounds` answers `{ ok: true, newBadges: (Badge & { earnedAt })[] }`, the badges that round
+earned (the web client queues a "Badge unlocked!" toast per badge). Adding a friend (both sides) and
+claiming a username award their badges too; they show up on the next `GET /api/me/badges`.
 
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large); the rooms routes add 403, 409, 429 and 503 as above, and the

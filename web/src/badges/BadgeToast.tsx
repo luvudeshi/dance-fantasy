@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Sparkle } from '../theme/components'
 import { BadgeSeal } from './BadgeSeal'
 import { TIER_NAMES, badgeQueue, dismissBadge, subscribeBadges } from './model'
@@ -12,16 +12,25 @@ const SHOW_MS = 4800
 export function BadgeToast() {
   const queue = useSyncExternalStore(subscribeBadges, badgeQueue)
   const badge = queue[0]
+  const [held, setHeld] = useState(false) // hovered or focused: stay until let go
   useEffect(() => {
-    if (!badge) return
+    if (!badge || held) return
     const timer = window.setTimeout(dismissBadge, SHOW_MS)
     return () => window.clearTimeout(timer)
-  }, [badge])
+  }, [badge, held])
 
   return (
     <div aria-live="polite" className="bdg-toast-region">
       {badge && (
-        <div key={badge.id} role="status" className={`bdg-toast bdg-${badge.tier}`}>
+        <div
+          key={badge.id}
+          role="status"
+          className={`bdg-toast bdg-${badge.tier}`}
+          onMouseEnter={() => setHeld(true)}
+          onMouseLeave={() => setHeld(false)}
+          onFocus={() => setHeld(true)}
+          onBlur={() => setHeld(false)}
+        >
           <Sparkle className="bdg-spark bdg-spark-1" />
           <Sparkle className="bdg-spark bdg-spark-2" />
           <Sparkle className="bdg-spark bdg-spark-3" />

@@ -67,7 +67,7 @@ export function BadgeShelf({ refreshKey }: { refreshKey?: string }) {
             <li key={t.badge.id}>
               <button
                 type="button"
-                className={`bdg-tile${t.earned ? '' : ' is-locked'}`}
+                className={`bdg-tile df-bare${t.earned ? '' : ' is-locked'}`}
                 aria-haspopup="dialog"
                 onClick={() => setShown(t)}
               >
