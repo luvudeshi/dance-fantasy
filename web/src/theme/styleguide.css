@@ -1,6 +1,7 @@
 /* Layout for the #/ui style guide page only. */
 .sg {
   padding-block: 8px 64px;
+  overflow-x: clip; /* tilted stickers may poke past a phone's edge: clip, never scroll sideways */
 }
 .sg-hero {
   display: grid;

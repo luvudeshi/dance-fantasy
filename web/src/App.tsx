@@ -4,6 +4,8 @@ import { teachHash } from './game/flow'
 import { loadShelf, SHELF_KEY } from './game/routineShelf'
 import { errorMessage, isAbortError } from './lib/errors'
 import { isRoutineId, parseHash } from './lib/hashRoute'
+import { useSettings } from './settings'
+import { ShellBar, type ServerState } from './shell/ShellBar'
 
 const Play = lazy(() => import('./pages/Play'))
 const PoseSpike = lazy(() => import('./pages/PoseSpike'))
@@ -12,20 +14,32 @@ const AnalysisDebug = lazy(() => import('./pages/AnalysisDebug'))
 const MoveGallery = lazy(() => import('./pages/MoveGallery'))
 
 const Teach = lazy(() => import('./pages/Teach'))
+const Menu = lazy(() => import('./shell/Menu'))
+const SettingsPage = lazy(() => import('./shell/SettingsPage'))
+const HowToPlay = lazy(() => import('./shell/HowToPlay'))
+const Credits = lazy(() => import('./shell/Credits'))
+const StyleGuide = lazy(() => import('./theme/StyleGuide'))
 
-/** Main nav (Learn is shown separately, only when a routine is known). */
-const MAIN_ROUTES = [
-  { hash: '#/play', label: '▶ Play' },
-  { hash: '#/analysis', label: 'Studio' },
-  { hash: '#/moves', label: 'Moves' },
+/**
+ * Every page. `shell`: a full-page Dance Fantasy screen (else the legacy .app column);
+ * `bar`: the sticky header shows (with `title` beside the brand); `esc`: Esc goes back to the menu.
+ * Dev pages (#/pose, #/beats, #/ui) are linked from Settings > Developer.
+ */
+const ROUTES = [
+  { hash: '#/', shell: true, bar: false, esc: false },
+  { hash: '#/play', shell: false, bar: true, esc: false, title: 'The Ballroom' },
+  { hash: '#/teach', shell: false, bar: true, esc: false, title: 'Dance lesson' },
+  { hash: '#/analysis', shell: false, bar: true, esc: false, title: 'Studio' },
+  { hash: '#/moves', shell: false, bar: true, esc: false, title: 'Move Book' },
+  { hash: '#/settings', shell: true, bar: true, esc: true },
+  { hash: '#/how', shell: true, bar: true, esc: true },
+  { hash: '#/credits', shell: true, bar: true, esc: true },
+  { hash: '#/pose', shell: false, bar: true, esc: false, title: 'Pose spike' },
+  { hash: '#/beats', shell: false, bar: true, esc: false, title: 'Beat spike' },
+  { hash: '#/ui', shell: true, bar: false, esc: true },
 ] as const
-const DEV_ROUTES = [
-  { hash: '#/pose', label: 'Pose spike' },
-  { hash: '#/beats', label: 'Beat spike' },
-] as const
-const ROUTES = [...MAIN_ROUTES, { hash: '#/teach', label: 'Learn' }, ...DEV_ROUTES] as const
 type RouteHash = (typeof ROUTES)[number]['hash']
-const DEFAULT_ROUTE: RouteHash = '#/play'
+const DEFAULT_ROUTE: RouteHash = '#/'
 
 const HEALTH_POLL_MS = 5000
 /** While offline, back off 5 -> 10 -> 15 s (fewer 502s in the console); re-check on focus. */
@@ -129,69 +143,67 @@ export default function App() {
   const route = useHashRoute()
   const health = useServerHealth()
   const learn = useSyncExternalStore(subscribeLearn, learnTarget)
-  const devActive = DEV_ROUTES.some((r) => r.hash === route)
-  const healthLabel = health.state === 'ok' ? 'server ok' : health.state === 'offline' ? 'server offline' : 'checking…'
-  const healthTitle =
-    health.state === 'ok' ? `API version ${health.version}` : health.state === 'offline' ? health.reason : undefined
+  const { reducedMotion } = useSettings()
+  const page = ROUTES.find((r) => r.hash === route) ?? ROUTES[0]
+  const server: ServerState = {
+    state: health.state,
+    detail: health.state === 'ok' ? `API version ${health.version}` : health.state === 'offline' ? health.reason : undefined,
+  }
+
+  // Settings > Calm motion (CSS in shell/shell.css), on top of the device's prefers-reduced-motion.
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-reduced-motion', reducedMotion)
+  }, [reducedMotion])
+
+  // Esc on a shell page goes back to the menu (an open dialog takes Esc first).
+  useEffect(() => {
+    if (!page.esc) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('dialog[open]')) return
+      window.location.hash = '#/'
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [page.esc])
+
+  const content = (
+    <Suspense fallback={<p className="status shell-loading">Loading…</p>}>
+      {route === '#/' ? (
+        <Menu learn={learn} server={server} />
+      ) : route === '#/play' ? (
+        <Play />
+      ) : route === '#/teach' ? (
+        <Teach />
+      ) : route === '#/pose' ? (
+        <PoseSpike />
+      ) : route === '#/beats' ? (
+        <BeatSpike />
+      ) : route === '#/settings' ? (
+        <SettingsPage />
+      ) : route === '#/how' ? (
+        <HowToPlay />
+      ) : route === '#/credits' ? (
+        <Credits />
+      ) : route === '#/ui' ? (
+        <StyleGuide />
+      ) : route === '#/analysis' ? (
+        <AnalysisDebug />
+      ) : (
+        <MoveGallery />
+      )}
+    </Suspense>
+  )
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <a className="brand" href="#/play" aria-label="Midnight Ball: play">
-          <span className="brand-moon" aria-hidden="true">
-            ☾
-          </span>
-          <span className="brand-name">Midnight Ball</span>
-        </a>
-        <nav aria-label="Main">
-          {MAIN_ROUTES.map((r) => (
-            <a key={r.hash} href={r.hash} className={r.hash === route ? 'active' : undefined}>
-              {r.label}
-            </a>
-          ))}
-          {(learn || route === '#/teach') && (
-            <a href={learn ?? '#/teach'} className={route === '#/teach' ? 'active' : undefined} title="Learn your latest routine move by move">
-              🎓 Learn
-            </a>
-          )}
-        </nav>
-        <details className={`dev-menu${devActive ? ' active' : ''}`}>
-          <summary>dev</summary>
-          <div className="dev-menu-list">
-            {DEV_ROUTES.map((r) => (
-              <a
-                key={r.hash}
-                href={r.hash}
-                className={r.hash === route ? 'active' : undefined}
-                onClick={(e) => e.currentTarget.closest('details')?.removeAttribute('open')}
-              >
-                {r.label}
-              </a>
-            ))}
-          </div>
-        </details>
-        <span className={`health ${health.state}`} title={healthTitle}>
-          <span className="dot" aria-hidden="true" />
-          {healthLabel}
-        </span>
-      </header>
-      <main>
-        <Suspense fallback={<p className="status">Loading…</p>}>
-          {route === '#/play' ? (
-            <Play />
-          ) : route === '#/teach' ? (
-            <Teach />
-          ) : route === '#/pose' ? (
-            <PoseSpike />
-          ) : route === '#/beats' ? (
-            <BeatSpike />
-          ) : route === '#/analysis' ? (
-            <AnalysisDebug />
-          ) : (
-            <MoveGallery />
-          )}
-        </Suspense>
-      </main>
-    </div>
+    <>
+      {page.bar && <ShellBar server={server} title={'title' in page ? page.title : undefined} />}
+      {page.shell ? (
+        <main>{content}</main>
+      ) : (
+        <div className="app">
+          <main className="shell-main">{content}</main>
+        </div>
+      )}
+    </>
   )
 }
