@@ -88,7 +88,7 @@ class RoundBody(_Request):
     score: int = Field(ge=0, le=100_000_000)
     accuracy: float = Field(ge=0, le=100)  # percent, like the results screen
     maxCombo: int = Field(ge=0, le=100_000)
-    stars: int = Field(ge=0, le=5)
+    stars: float = Field(ge=0, le=5)  # the game's stars are fractional (half stars on the results screen)
     mode: RoundMode
 
 
@@ -145,7 +145,7 @@ class Round(BaseModel):
     score: int
     accuracy: float
     maxCombo: int
-    stars: int
+    stars: float
     mode: str
     at: int
 

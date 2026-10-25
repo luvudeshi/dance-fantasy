@@ -118,7 +118,7 @@ create table if not exists df_rounds (
   score bigint not null,
   accuracy double precision not null,
   max_combo integer not null,
-  stars smallint not null,
+  stars double precision not null,
   mode text not null
 );
 create index if not exists df_rounds_account_idx on df_rounds (account_id, at);
@@ -536,7 +536,7 @@ def history(token: str | None, tz_offset_min: int, now: int) -> History:
         return History(
             rounds=[
                 Round(analysisId=r["analysis_id"], songTitle=r["song_title"], score=int(r["score"]),
-                      accuracy=float(r["accuracy"]), maxCombo=int(r["max_combo"]), stars=int(r["stars"]),
+                      accuracy=float(r["accuracy"]), maxCombo=int(r["max_combo"]), stars=float(r["stars"]),
                       mode=r["mode"], at=int(r["at"]))  # fmt: skip
                 for r in rows
             ],

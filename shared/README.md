@@ -223,7 +223,7 @@ sends the header `X-DF: 1` (403 without it).
 | POST | `/api/me/invites/{id}/dismiss` | none | `{ ok: true }`; 404 unless it was sent to you |
 | POST | `/api/me/rooms` | `{ roomCode, playerToken }` | `{ ok: true }`; records that you played in that room. The token is the one from create/join (401 if it isn't a player of that room, 404 unknown room) |
 | GET | `/api/me/partners` | | `Partner[]`: accounts that recorded a room you recorded, last 30 days, most recent first (max 20) |
-| POST | `/api/me/rounds` | `{ analysisId, songTitle, score, accuracy, maxCombo, stars, mode }` | `{ ok: true }`; `mode` is `solo`, `party` or `room`; 429 after 120 rounds in an hour |
+| POST | `/api/me/rounds` | `{ analysisId, songTitle, score, accuracy, maxCombo, stars, mode }` | `{ ok: true }`; `score` and `maxCombo` integers, `accuracy` 0-100, `stars` 0-5 (fractions ok), `mode` `solo`, `party` or `room`; 429 after 120 rounds in an hour |
 | GET | `/api/me/history?tzOffset=<min>` | | `History`: last 20 rounds and totals. `tzOffset` is `new Date().getTimezoneOffset()` (for the day streak), default 0 |
 
 ```jsonc
@@ -243,7 +243,7 @@ sends the header `X-DF: 1` (403 without it).
   "roomCode": "KQWX", "at": 1761380000000 }  // join with POST /api/rooms/{roomCode}/join
 // History
 { "rounds": [{ "analysisId": "<64 hex>", "songTitle": "Vibe Ace", "score": 48210, "accuracy": 91.5,
-               "maxCombo": 80, "stars": 5, "mode": "solo", "at": 1761380000000 }],
+               "maxCombo": 80, "stars": 4.5, "mode": "solo", "at": 1761380000000 }],
   "totalRounds": 12, "bestScore": 48210, "avgAccuracy": 84.27,
   "dayStreak": 3 }         // consecutive local days with a round, ending today or yesterday
 ```

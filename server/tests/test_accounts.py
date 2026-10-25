@@ -389,11 +389,11 @@ def test_rounds_and_history(backend: str) -> None:
         assert a.post("/api/me/rounds", json=bad, headers=H).status_code == 400, bad
 
     assert a.post("/api/me/rounds", json=ROUND, headers=H).status_code == 200
-    second = {**ROUND, "score": 30_000, "accuracy": 90.5, "stars": 5, "mode": "room", "songTitle": "  Two  Step "}
+    second = {**ROUND, "score": 30_000, "accuracy": 90.5, "stars": 4.5, "mode": "room", "songTitle": "  Two  Step "}
     assert a.post("/api/me/rounds", json=second, headers=H).status_code == 200
     h = a.get("/api/me/history").json()
     assert [r["score"] for r in h["rounds"]] == [30_000, 12_000]  # newest first
-    assert h["rounds"][0]["songTitle"] == "Two Step" and h["rounds"][0]["mode"] == "room"
+    assert (h["rounds"][0]["songTitle"], h["rounds"][0]["mode"], h["rounds"][0]["stars"]) == ("Two Step", "room", 4.5)
     assert (h["totalRounds"], h["bestScore"], h["avgAccuracy"], h["dayStreak"]) == (2, 30_000, 86.0, 1)
     assert a.get("/api/me").json()["stats"] == {"rounds": 2, "bestScore": 30_000, "friends": 0}
 
