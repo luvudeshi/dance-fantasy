@@ -89,7 +89,6 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
       <div className="title-layout">
         <div className="title-main">
           <header className="title-head">
-            <p className="df-voice title-kicker">The Twelve Dancing Princesses present</p>
             <h1 className="df-cut-letters title-logo">
               <span>Dance</span> <span>Fantasy</span>
             </h1>
