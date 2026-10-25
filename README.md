@@ -5,9 +5,9 @@ a dance routine for it that has never existed before, and teaches it to you with
 dancer while your webcam scores every beat. Dance alone, with friends in front of one laptop, or
 in an online ballroom with friends on their own phones.
 
-*HackTX 2026 · Once upon a time…*
+**Play at [DanceFantasy.tech](https://dancefantasy.tech)** (also at [midnight-ball.vercel.app](https://midnight-ball.vercel.app)) · HackTX 2026 · *Once upon a time…*
 
-[![Play it live](https://img.shields.io/badge/▶_Play_it_live-midnight--ball.vercel.app-8B2252?style=for-the-badge)](https://midnight-ball.vercel.app)
+[![Play it live](https://img.shields.io/badge/▶_Play_it_live-DanceFantasy.tech-8B2252?style=for-the-badge)](https://dancefantasy.tech)
 [![Meta Muse](https://img.shields.io/badge/Meta-Muse_Spark-0467DF?style=for-the-badge&logo=meta&logoColor=white)](#-meta-muse-the-royal-heralds-voice-of-the-ball)
 [![Google Gemini](https://img.shields.io/badge/Google-Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-google-gemini-three-jobs)
 [![SerpApi](https://img.shields.io/badge/SerpApi-Search-2F9E44?style=for-the-badge)](#-serpapi-search-results-that-change-the-game)
@@ -144,7 +144,7 @@ calls within daily and per-visitor limits.
 
 ## 🎮 Try it
 
-**[midnight-ball.vercel.app](https://midnight-ball.vercel.app)** in Chrome with a webcam. Pick a
+**[DanceFantasy.tech](https://dancefantasy.tech)** (or [midnight-ball.vercel.app](https://midnight-ball.vercel.app)) in Chrome with a webcam. Pick a
 song, press **Start the ball**, stand back so your whole body is in the mirror, and dance. No webcam?
 Turn on **Autoplay** in the lobby to watch the bot dance.
 
