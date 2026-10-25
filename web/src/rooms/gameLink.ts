@@ -9,6 +9,8 @@ import { isRoutineId } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
 import type { ResultsSummary, ScoreKeeper } from '../game/scoring'
 import { loadSeat, roomWrites, type ScoreBody } from './client'
+import type { Grade } from './modes/api'
+import { BeatReporter } from './modes/beatReporter'
 
 /** From GO (startAt) to the song start on every device: loading the routine, the audio and the camera model. */
 export const ROUND_LEAD_MS = 10_000
@@ -152,10 +154,12 @@ export function createScoreReporter(send: (s: ScoreBody) => Promise<unknown>, ga
 }
 
 let current: { key: string; reporter: ScoreReporter } | null = null
+let beats: { key: string; reporter: BeatReporter } | null = null
 
 /**
  * Posts the score of the current room round for `routineId` (no-op outside one), throttled to
- * once a second. `finished: true` posts right away and closes the round.
+ * once a second. `finished: true` closes the round: the round's last beat judgements go first, then
+ * the final score.
  */
 export function reportScore(routineId: unknown, s: ScoreBody): void {
   const round = roomRoundFor(routineId)
@@ -166,8 +170,32 @@ export function reportScore(routineId: unknown, s: ScoreBody): void {
     current?.reporter.cancel()
     current = { key, reporter: createScoreReporter((body) => roomWrites.score(round.code, seat.token, body)) }
   }
-  current.reporter.report(s)
+  const reporter = current.reporter
+  const lastBeats = s.finished && beats?.key === key ? beats.reporter : null
+  if (lastBeats) {
+    beats = null
+    void lastBeats.stop().then(() => reporter.report(s)) // the server ignores beats after a finished score
+  } else reporter.report(s)
   if (s.finished) storeRound({ ...round, done: true })
+}
+
+/**
+ * One judged beat of the current room round for `routineId` (no-op outside one): `beat` is the
+ * checkpoint index (the same on every device). Batched to the server about once a second; crew sync
+ * and versus beat wins are computed from these.
+ */
+export function reportRoomBeat(routineId: unknown, beat: number, score: number, grade: Grade): void {
+  const round = roomRoundFor(routineId)
+  const seat = round ? loadSeat(round.code) : null
+  if (!round || !seat) return
+  const key = `${round.code}:${round.serverStartAt}`
+  if (beats?.key !== key) {
+    void beats?.reporter.stop()
+    const reporter = new BeatReporter({ send: (batch) => roomWrites.beats(round.code, seat.token, batch) })
+    reporter.start()
+    beats = { key, reporter }
+  }
+  beats.reporter.reportBeat(beat, score, grade)
 }
 
 const clamp01 = (v: number): number => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0)

@@ -5,8 +5,11 @@
 import type { Difficulty, Mode } from '@shared/routine'
 import { isBool, isNum, isRecord, isStr, requestWithResponse } from '../api'
 import type { IconName } from '../theme/icons'
+import type { BeatJudgement } from './modes/api'
 
 export type RoomState = 'lobby' | 'countdown' | 'playing' | 'finished'
+/** versus: who dances best (beats won); crew: dance as one (team score + sync bonus) */
+export type RoomMode = 'versus' | 'crew'
 
 export interface RoomRoutine {
   routineId: string
@@ -30,6 +33,20 @@ export interface RoomPlayer {
   /** 0-1 through the song. */
   progress: number
   finished: boolean
+  /** versus: beats where this player had the best score this round (ties shared) */
+  beatsWon: number
+}
+
+/** Crew mode numbers (computed in every room; shown when mode is 'crew'). */
+export interface CrewStats {
+  /** everyone's score + syncBonus */
+  teamScore: number
+  syncBonus: number
+  syncedBeats: number
+  syncStreak: number
+  bestSyncStreak: number
+  /** beat index of the latest synced beat */
+  lastSyncBeat: number | null
 }
 
 export interface ChatMessage {
@@ -50,8 +67,12 @@ export interface RoomView {
   /** epoch ms (server clock) the round starts, once started */
   startAt: number | null
   routine: RoomRoutine | null
+  mode: RoomMode
   /** join order */
   players: RoomPlayer[]
+  /** versus: most beats won, then score; null on a tie or before any beat */
+  leaderId: string | null
+  crew: CrewStats
   chat: ChatMessage[]
 }
 
@@ -72,6 +93,7 @@ export interface Seat {
 
 const ROOM_STATES: readonly RoomState[] = ['lobby', 'countdown', 'playing', 'finished']
 const isRoomState = (v: unknown): v is RoomState => ROOM_STATES.some((s) => s === v)
+export const isRoomMode = (v: unknown): v is RoomMode => v === 'versus' || v === 'crew'
 
 function isRoomRoutine(v: unknown): v is RoomRoutine {
   return (
@@ -97,7 +119,20 @@ function isRoomPlayer(v: unknown): v is RoomPlayer {
     isNum(v.maxCombo) &&
     isNum(v.accuracy) &&
     isNum(v.progress) &&
-    isBool(v.finished)
+    isBool(v.finished) &&
+    isNum(v.beatsWon)
+  )
+}
+
+function isCrewStats(v: unknown): v is CrewStats {
+  return (
+    isRecord(v) &&
+    isNum(v.teamScore) &&
+    isNum(v.syncBonus) &&
+    isNum(v.syncedBeats) &&
+    isNum(v.syncStreak) &&
+    isNum(v.bestSyncStreak) &&
+    (v.lastSyncBeat === null || isNum(v.lastSyncBeat))
   )
 }
 
@@ -114,8 +149,11 @@ export function isRoomView(v: unknown): v is RoomView {
     isNum(v.serverNow) &&
     (v.startAt === null || isNum(v.startAt)) &&
     (v.routine === null || isRoomRoutine(v.routine)) &&
+    isRoomMode(v.mode) &&
     Array.isArray(v.players) &&
     v.players.every(isRoomPlayer) &&
+    (v.leaderId === null || isStr(v.leaderId)) &&
+    isCrewStats(v.crew) &&
     Array.isArray(v.chat) &&
     v.chat.every(isChatMessage)
   )
@@ -181,6 +219,12 @@ export const roomWrites = {
     call(roomPath(code, 'score', chatAfter), isRoomView, { token, body: s }),
   chat: (code: string, token: string, text: string, chatAfter?: number): Promise<RoomView> =>
     call(roomPath(code, 'chat', chatAfter), isRoomView, { token, body: { text } }),
+  mode: (code: string, token: string, mode: RoomMode, chatAfter?: number): Promise<RoomView> =>
+    call(roomPath(code, 'mode', chatAfter), isRoomView, { token, body: { mode } }),
+  beats: (code: string, token: string, beats: readonly BeatJudgement[], chatAfter?: number): Promise<RoomView> =>
+    call(roomPath(code, 'beats', chatAfter), isRoomView, { token, body: { beats } }),
+  rematch: (code: string, token: string, chatAfter?: number): Promise<RoomView> =>
+    call(roomPath(code, 'rematch', chatAfter), isRoomView, { token, post: true }),
 }
 
 export const leaveRoom = (code: string, token: string): Promise<{ ok: true }> => call(roomPath(code, 'leave'), isOk, { token, post: true })
@@ -233,7 +277,7 @@ export function mergeChat(have: readonly ChatMessage[], incoming: readonly ChatM
   return fresh.length === 0 ? [...have] : [...have, ...fresh].slice(-max)
 }
 
-/** A stable storybook sticker per player (by join order). */
-const AVATARS: readonly IconName[] = ['crown', 'slipper', 'frog-prince', 'red-hood', 'pumpkin', 'wolf', 'lantern', 'golden-egg']
-export const avatarFor = (players: readonly RoomPlayer[], id: string): IconName =>
-  AVATARS[Math.max(0, players.findIndex((p) => p.id === id)) % AVATARS.length] ?? 'crown'
+/** A stable storybook sticker per player (by join order; the crown is saved for the versus leader). */
+const AVATARS: readonly IconName[] = ['slipper', 'frog-prince', 'red-hood', 'pumpkin', 'wolf', 'lantern', 'golden-egg', 'apple']
+export const avatarFor = (players: readonly Pick<RoomPlayer, 'id'>[], id: string): IconName =>
+  AVATARS[Math.max(0, players.findIndex((p) => p.id === id)) % AVATARS.length] ?? 'slipper'

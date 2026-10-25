@@ -14,7 +14,10 @@ const VIEW = {
   serverNow: 1761380000000,
   startAt: null,
   routine: null,
-  players: [{ id: 'Zp3k9QxA', name: 'Ana', isHost: true, ready: false, connected: true, score: 0, combo: 0, maxCombo: 0, accuracy: 0, progress: 0, finished: false }],
+  mode: 'versus',
+  players: [{ id: 'Zp3k9QxA', name: 'Ana', isHost: true, ready: false, connected: true, score: 0, combo: 0, maxCombo: 0, accuracy: 0, progress: 0, finished: false, beatsWon: 0 }],
+  leaderId: null,
+  crew: { teamScore: 0, syncBonus: 0, syncedBeats: 0, syncStreak: 0, bestSyncStreak: 0, lastSyncBeat: null },
   chat: [{ id: 12, playerId: 'Zp3k9QxA', name: 'Ana', text: 'ready?', at: 1761379990000 }],
 }
 
@@ -35,6 +38,11 @@ describe('rooms client', () => {
     expect(isRoomView({ ...VIEW, players: [{ ...VIEW.players[0], score: '9' }] })).toBe(false)
     expect(isRoomView({ ...VIEW, chat: [{ id: 'x' }] })).toBe(false)
     expect(isRoomView(null)).toBe(false)
+    // room modes
+    expect(isRoomView({ ...VIEW, mode: 'crew', leaderId: 'Zp3k9QxA' })).toBe(true)
+    expect(isRoomView({ ...VIEW, mode: 'solo' })).toBe(false)
+    expect(isRoomView({ ...VIEW, crew: { ...VIEW.crew, lastSyncBeat: '3' } })).toBe(false)
+    expect(isRoomView({ ...VIEW, players: [{ ...VIEW.players[0], beatsWon: undefined }] })).toBe(false)
   })
 
   it('normalizes room codes (no I, L, O; four letters)', () => {

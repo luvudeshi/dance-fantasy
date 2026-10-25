@@ -4,7 +4,7 @@
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  overflow-x: clip; /* corner stickers of the panels poke past a phone's edge */
+  overflow-x: clip; /* panel corner stickers poke ~3 px past a phone's 16 px gutter */
 }
 .rm-page {
   padding-block: 8px 0;
@@ -74,8 +74,8 @@
 .rm-invite {
   order: 5;
 }
-.rm-final {
-  order: 0;
+.rm-mode {
+  order: 1;
 }
 @media (min-width: 900px) {
   .rm-grid {
@@ -229,73 +229,6 @@
 .rm-board-compact .df-item {
   padding-block: 6px;
   gap: 10px;
-}
-
-/* ---------- podium ---------- */
-.rm-podium {
-  list-style: none;
-  width: min(100%, 46rem);
-  margin: 0 auto;
-  padding: 24px 0 0;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  align-items: end;
-  gap: 12px;
-}
-.rm-step {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  min-width: 0;
-}
-.rm-step-name {
-  font-family: var(--df-font-display);
-  font-weight: 700;
-  font-size: var(--df-text-lg);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rm-step-block {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 14px 8px;
-  border-radius: var(--df-r-md) var(--df-r-md) 0 0;
-  background: var(--df-parchment);
-  box-shadow: var(--df-shadow-lift);
-}
-.rm-step-1 .rm-step-block {
-  min-height: 9rem;
-  background: var(--df-gold-light);
-}
-.rm-step-2 .rm-step-block {
-  min-height: 6.5rem;
-}
-.rm-step-3 .rm-step-block {
-  min-height: 5rem;
-}
-.rm-step-score {
-  font-size: clamp(1.4rem, 3vw, 2.2rem);
-  color: var(--df-ink);
-}
-.rm-step.is-me .rm-step-block {
-  box-shadow: var(--df-shadow-picked);
-}
-.rm-glory {
-  position: absolute;
-  top: 48px;
-  left: 50%;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  translate: -50% 0;
-  z-index: -1;
 }
 
 /* ---------- synced countdown ---------- */

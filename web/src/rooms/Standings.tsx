@@ -3,8 +3,8 @@ import { formatScore } from '../game/results'
 import { Icon } from '../theme/Icon'
 import { avatarFor, rankPlayers, type RoomPlayer } from './client'
 
-// Room standings: the live board (lobby side panel and the in-game overlay), the final podium and
-// the synced 5-4-3-2-1.
+// Room standings: the live board (lobby side panel and the in-game overlay) and the synced 5-4-3-2-1.
+// The final results are per mode (modes/ModeResults).
 
 const MEDALS = ['', 'df-medal-silver', 'df-medal-rasp'] as const
 
@@ -34,50 +34,6 @@ export function LiveBoard({ players, meId, max, compact = false }: { players: re
         </li>
       ))}
     </ol>
-  )
-}
-
-/** Final standings: 2nd, 1st, 3rd on steps; everyone else below. */
-export function Podium({ players, meId }: { players: readonly RoomPlayer[]; meId?: string }) {
-  const ranked = rankPlayers(players)
-  const top = [ranked[1], ranked[0], ranked[2]]
-  const rest = ranked.slice(3)
-  return (
-    <div className="df-stack rm-podium-wrap">
-      <ol className="rm-podium" aria-label="Podium">
-        {top.map((p, slot) => {
-          if (!p) return <li key={slot} className="rm-step rm-step-empty" aria-hidden="true" />
-          const place = slot === 1 ? 1 : slot === 0 ? 2 : 3
-          return (
-            <li key={p.id} className={`rm-step rm-step-${place}${p.id === meId ? ' is-me' : ''}`} data-place={place}>
-              {place === 1 && <div className="df-glory rm-glory" aria-hidden="true" />}
-              <Icon name={avatarFor(players, p.id)} size={place === 1 ? 'lg' : 'md'} className={place === 1 ? 'df-bob' : undefined} />
-              <span className="rm-step-name">{p.name}</span>
-              <span className={`df-medal ${MEDALS[place - 1]} ${place === 1 ? '' : 'df-medal-sm'}`}>{place}</span>
-              <div className="rm-step-block">
-                <span className="df-num rm-step-score">{formatScore(p.score)}</span>
-                <span className="df-note">{Math.round(p.accuracy)}% accuracy</span>
-                <span className="df-note">best combo {p.maxCombo}</span>
-              </div>
-            </li>
-          )
-        })}
-      </ol>
-      {rest.length > 0 && (
-        <ol className="df-list" start={4} aria-label="Everyone else">
-          {rest.map((p, i) => (
-            <li key={p.id} className={`df-item${p.id === meId ? ' is-on' : ''}`}>
-              <span className="df-medal df-medal-sm rm-rank">{i + 4}</span>
-              <div className="df-item-body">
-                <span className="df-item-title">{p.name}</span>
-                <span className="df-item-meta">{Math.round(p.accuracy)}% · combo {p.maxCombo}</span>
-              </div>
-              <span className="df-item-end df-num">{formatScore(p.score)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
   )
 }
 
