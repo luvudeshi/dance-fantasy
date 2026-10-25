@@ -100,7 +100,9 @@ def _player(tx: Tx, room: Row, token: str | None, now: int) -> Row:
     """The token's player in this room (401 otherwise); marks them seen and the room active."""
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing X-Player-Token.")
-    player = tx.one("select * from df_players where code = :code and token_hash = :th", code=room["code"], th=_hash(token))
+    player = tx.one(
+        "select * from df_players where code = :code and token_hash = :th", code=room["code"], th=_hash(token)
+    )
     if player is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unknown player token for this room.")
     tx.run("update df_rooms set active_at = :now where code = :code", now=now, code=room["code"])
@@ -132,7 +134,7 @@ def _state(room: Row, players: list[Row], now: int) -> RoomState:
 
 
 def _players(tx: Tx, code: str) -> list[Row]:
-    return tx.all("select * from df_players where code = :code order by joined_at, id", code=code)
+    return tx.all("select * from df_players where code = :code order by seq", code=code)
 
 
 def _settle(tx: Tx, room: Row, players: list[Row], now: int) -> RoomState:
@@ -166,9 +168,16 @@ def _view(tx: Tx, room: Row, chat_after: int | None, now: int) -> RoomView:
         routine=RoutineChoice.model_validate_json(room["routine"]) if room["routine"] else None,
         players=[
             PlayerView(
-                id=p["id"], name=p["name"], isHost=p["id"] == room["host_id"], ready=bool(p["ready"]),
-                connected=_connected(p, now), score=int(p["score"]), combo=int(p["combo"]),
-                maxCombo=int(p["max_combo"]), accuracy=float(p["accuracy"]), progress=float(p["progress"]),
+                id=p["id"],
+                name=p["name"],
+                isHost=p["id"] == room["host_id"],
+                ready=bool(p["ready"]),
+                connected=_connected(p, now),
+                score=int(p["score"]),
+                combo=int(p["combo"]),
+                maxCombo=int(p["max_combo"]),
+                accuracy=float(p["accuracy"]),
+                progress=float(p["progress"]),
                 finished=bool(p["finished"]),
             )  # fmt: skip
             for p in players
@@ -278,7 +287,9 @@ def start(code: str, token: str | None, chat_after: int | None, now: int) -> Roo
         if not room["routine"]:
             raise HTTPException(status.HTTP_409_CONFLICT, "Pick a routine first.")
         start_at = now + COUNTDOWN_MS
-        tx.run("update df_rooms set start_at = :at, finished_at = null where code = :code", at=start_at, code=room["code"])
+        tx.run(
+            "update df_rooms set start_at = :at, finished_at = null where code = :code", at=start_at, code=room["code"]
+        )
         tx.run(_RESET_PLAYERS, code=room["code"])
         room.update(start_at=start_at, finished_at=None)
 
@@ -333,4 +344,3 @@ def leave(code: str, token: str | None, now: int) -> None:
             tx.run("update df_rooms set host_id = :id where code = :code", id=rest[0]["id"], code=room["code"])
 
     transaction(run)
-

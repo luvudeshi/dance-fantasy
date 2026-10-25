@@ -17,7 +17,7 @@ import sqlite3
 import ssl
 import threading
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 import pg8000.dbapi
@@ -29,7 +29,6 @@ log = logging.getLogger(__name__)
 
 pg8000.dbapi.paramstyle = "named"  # same ":name" placeholders as sqlite3; nothing else here uses pg8000
 
-T = TypeVar("T")
 Row = dict[str, Any]
 
 _SCHEMA = """
@@ -44,7 +43,8 @@ create table if not exists df_rooms (
 );
 create index if not exists df_rooms_active_idx on df_rooms (active_at);
 create table if not exists df_players (
-  id text primary key,
+  seq {serial_pk},
+  id text not null unique,
   code text not null,
   token_hash text not null unique,
   name text not null,
@@ -93,7 +93,9 @@ class Tx:
 
     def lock_room(self, code: str) -> Row | None:
         """The room row, locked until commit (SQLite: the whole DB already is, see ``_sqlite``)."""
-        return self.one("select * from df_rooms where code = :code" + (" for update" if self.postgres else ""), code=code)
+        if self.postgres:
+            return self.one("select * from df_rooms where code = :code for update", code=code)
+        return self.one("select * from df_rooms where code = :code", code=code)
 
 
 # --- SQLite (local dev, tests) ----------------------------------------------------------------
@@ -102,7 +104,7 @@ _sqlite_ready: set[str] = set()
 _sqlite_lock = threading.Lock()
 
 
-def _sqlite(fn: Callable[[Tx], T]) -> T:
+def _sqlite[T](fn: Callable[[Tx], T]) -> T:
     path = get_settings().cache_dir / "rooms.sqlite3"
     path.parent.mkdir(parents=True, exist_ok=True)
     # ponytail: "begin immediate" makes every transaction a writer, so they all run one at a time. Fine for one
@@ -175,7 +177,7 @@ def _pg_bootstrap(con: pg8000.dbapi.Connection, url: str) -> None:
         log.info("rooms: postgres schema ready")
 
 
-def _postgres(url: str, fn: Callable[[Tx], T]) -> T:
+def _postgres[T](url: str, fn: Callable[[Tx], T]) -> T:
     pool = _pools.setdefault(url, queue.LifoQueue(maxsize=_PG_IDLE))
     for attempt in (1, 2):
         try:
@@ -222,7 +224,7 @@ def _close(con: pg8000.dbapi.Connection) -> None:
 # --- entry point ------------------------------------------------------------------------------
 
 
-def transaction(fn: Callable[[Tx], T]) -> T:
+def transaction[T](fn: Callable[[Tx], T]) -> T:
     """Run ``fn`` in one transaction (committed if it returns, rolled back if it raises)."""
     get_settings()  # loads the repo-root .env, which may hold DATABASE_URL
     url = os.environ.get("DATABASE_URL", "").strip()
@@ -230,5 +232,7 @@ def transaction(fn: Callable[[Tx], T]) -> T:
         return _postgres(url, fn)
     if os.environ.get("VERCEL"):
         # Function instances share nothing: SQLite in /tmp would split one room across instances.
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Multiplayer rooms need DATABASE_URL on this deployment.")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "Multiplayer rooms need DATABASE_URL on this deployment."
+        )
     return _sqlite(fn)
