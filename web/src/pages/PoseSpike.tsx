@@ -12,6 +12,7 @@ import { createPoseLandmarker, type PoseLandmarkerHandle } from '../pose/mediapi
 import { DELEGATES, POSE_MODELS, type Delegate, type PoseModel } from '../pose/mediapipeAssets'
 import { bodyToScreen, imageToDisplay, landmarksToPlayerPose, type PlayerPose } from '../pose/normalize'
 import { startWebcam, stopWebcam } from '../pose/webcam'
+import { UI_FONT } from '../theme/fonts'
 
 const MODEL_SIZES: Record<PoseModel, string> = { lite: '5.8 MB', full: '9.4 MB', heavy: '31 MB' }
 const UI_UPDATE_MS = 100
@@ -134,7 +135,7 @@ function drawBodyPanel(
   ctx.stroke()
   ctx.restore()
 
-  ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace'
+  ctx.font = `600 12px ${UI_FONT}`
   ctx.fillStyle = 'rgba(203, 213, 255, 0.8)'
   ctx.textBaseline = 'bottom'
   const [plusX] = bodyToScreen([halfW - 0.1, 0], view)
@@ -148,7 +149,7 @@ function drawBodyPanel(
   if (!pose || !pose.valid) {
     ctx.fillStyle = 'rgba(203, 213, 255, 0.6)'
     ctx.textAlign = 'center'
-    ctx.font = '15px system-ui, sans-serif'
+    ctx.font = `600 15px ${UI_FONT}`
     ctx.fillText(pose ? 'Pose too small: step closer' : emptyMessage, width / 2, height * 0.18)
     return
   }

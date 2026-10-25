@@ -118,10 +118,10 @@ export function buildSessionLog(i: SessionLogInput): SessionLog {
   }
 }
 
-/** "midnight-ball-session-<routine>-<yyyymmdd-hhmmss>.json" */
+/** "dance-fantasy-session-<routine>-<yyyymmdd-hhmmss>.json" */
 export function sessionLogFilename(log: Pick<SessionLog, 'routineId' | 'createdAt'>): string {
   const stamp = log.createdAt.replace(/\.\d+Z$/, '').replace(/[-:]/g, '').replace('T', '-')
-  return `midnight-ball-session-${log.routineId ?? 'local'}-${stamp}.json`
+  return `dance-fantasy-session-${log.routineId ?? 'local'}-${stamp}.json`
 }
 
 /** Saves the log as a file (a Blob URL + <a download>): the only way it leaves the page. */

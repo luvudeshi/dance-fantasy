@@ -9,7 +9,9 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { prepareCanvas } from '../lib/canvas'
 import { RateMeter } from '../lib/rateMeter'
 import { useLatest } from '../lib/useLatest'
+import { Icon } from '../theme/Icon'
 import type { GameClock } from './clock'
+import { keeperDebugText } from './createScoreKeeper'
 import { drawHud, drawPip, pipBox } from './hud'
 import { renderIdleStage, renderPlayFrame } from './render'
 import type { GameRun } from './run'
@@ -61,6 +63,7 @@ function debugText(o: {
   t: number
   playing: boolean
   s: SyncStats | null
+  scoring?: string | null
 }): string {
   const { s } = o
   return [
@@ -72,6 +75,7 @@ function debugText(o: {
       : 'drift    –',
     s ? `         beats ${s.beats}  rejected ${s.rejected}` : '',
     s ? `frames   long ${s.longFrames} / ${s.frames}  (worst ${s.maxFrameMs.toFixed(1)} ms)` : '',
+    o.scoring ?? '',
   ].join('\n')
 }
 
@@ -183,6 +187,7 @@ export default function PlayStage(props: Props) {
           t,
           playing: clock.playing,
           s: monitor?.stats() ?? null,
+          scoring: keeperDebugText(active?.run?.keeper),
         })
       }
     }
@@ -212,7 +217,7 @@ export default function PlayStage(props: Props) {
         </div>
         <div className="play-actions">
           <button type="button" className="play-icon" onClick={click(onTogglePause)} disabled={!active} title="Pause / resume (Space)">
-            {paused ? '▶' : '❚❚'}
+            <Icon name={paused ? 'play' : 'pause'} size={30} cut="none" label={paused ? 'Resume' : 'Pause'} />
           </button>
           <button type="button" className="play-icon" onClick={click(onExit)} title="Back to the lobby (Esc)">
             ✕

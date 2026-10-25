@@ -3,11 +3,14 @@
 // move-by-move accuracy list, the round's judging + latency and "Download session log".
 // Large type and high contrast so it reads on a projector. Pure view model: results.ts.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { Move } from '@shared/routine'
 import { prepareCanvas } from '../lib/canvas'
 import { coachThemeFor } from '../render/coach'
 import { drawPictogram } from '../render/pictogram'
+import { Icon } from '../theme/Icon'
+import { gradeFor } from '../theme/screens/grade'
+import { useInertSiblings } from '../theme/useInertSiblings'
 import { formatPercent, scoreColor, type ResultsView } from './results'
 
 interface Props {
@@ -24,6 +27,14 @@ interface Props {
   onPracticeHardest?: () => void
   /** Saves the round's session log (absent: no button). */
   onDownloadLog?: () => void
+  /** Opens the teach page for this routine (absent: no button). */
+  onLearn?: () => void
+  /** Back to the main menu (absent: no button). */
+  onMenu?: () => void
+  /** Extra panels at the end of the moves column (the song's signature dance). */
+  aside?: ReactNode
+  /** The herald's line under the blurb. */
+  herald?: ReactNode
 }
 
 function Stars({ value }: { value: number }) {
@@ -53,18 +64,22 @@ function MovePictogram({ move, mirrored, theme }: { move: Move; mirrored: boolea
 }
 
 export default function ResultsScreen(props: Props) {
-  const { view, moves, mirrored, autoplay, details, onPlayAgain, onNewRoutine, onLobby, onPracticeHardest, onDownloadLog } = props
+  const { view, moves, mirrored, autoplay, details, onPlayAgain, onNewRoutine, onLobby, onPracticeHardest, onDownloadLog, onLearn, onMenu, aside, herald } = props
+  const grade = gradeFor(view.stars)
   const playAgainRef = useRef<HTMLButtonElement>(null)
   // Enter replays straight away (Space stays the stage's pause key, which is off here).
   useEffect(() => playAgainRef.current?.focus(), [])
+  const overlayRef = useRef<HTMLDivElement>(null)
+  useInertSiblings(overlayRef)
 
   const hardMove = view.hardest ? moves[view.hardest.moveIndex] : undefined
   const bestMove = view.best ? moves[view.best.moveIndex] : undefined
 
   return (
-    <div className="play-overlay dim-bg results-overlay">
+    <div ref={overlayRef} className="play-overlay dim-bg results-overlay">
       <div className="results-card" role="dialog" aria-modal="true" aria-labelledby="results-title">
         <header className="results-head">
+          <Icon name="clock-tower" size={72} className="results-icon df-pop-in" />
           <p className="lobby-kicker">The clock struck twelve!</p>
           <h2 id="results-title" className="results-title">
             {view.title}
@@ -73,11 +88,18 @@ export default function ResultsScreen(props: Props) {
             {view.blurb}
             {autoplay && ' (The autoplay bot danced this one.)'}
           </p>
+          {herald}
         </header>
 
         <div className="results-grid">
           <section className="results-main" aria-label="Score">
-            <div className="results-score">{view.score}</div>
+            <div className="df-plate results-plate">
+              <span className={`df-medal df-medal-lg results-grade grade-${grade}`} aria-label={`Grade ${grade}`}>
+                {grade}
+              </span>
+              <p className="df-voice">Your score tonight</p>
+              <div className="results-score df-foil">{view.score}</div>
+            </div>
             <Stars value={view.stars} />
             <div className="results-stats">
               <div>
@@ -91,7 +113,7 @@ export default function ResultsScreen(props: Props) {
             </div>
             <ul className="results-counts">
               {view.counts.map((c) => (
-                <li key={c.judgment}>
+                <li key={c.judgment} data-judgment={c.judgment}>
                   <strong style={{ color: c.color }}>{c.count}</strong>
                   <span>{c.label}</span>
                 </li>
@@ -99,14 +121,24 @@ export default function ResultsScreen(props: Props) {
             </ul>
             <div className="play-card-actions results-actions">
               <button ref={playAgainRef} type="button" className="primary" onClick={onPlayAgain}>
-                ↻ Play again
+                <Icon name="trophy" size="xs" cut="none" /> Play again
               </button>
               <button type="button" onClick={onNewRoutine}>
-                🎲 New routine
+                <Icon name="wand" size="xs" cut="none" /> New routine
               </button>
+              {onLearn && (
+                <button type="button" onClick={onLearn} title="Learn this routine move by move">
+                  <Icon name="storybook" size="xs" cut="none" /> Learn this
+                </button>
+              )}
               <button type="button" onClick={onLobby}>
-                Lobby
+                <Icon name="castle" size="xs" cut="none" /> Lobby
               </button>
+              {onMenu && (
+                <button type="button" className="results-menu" onClick={onMenu}>
+                  Menu
+                </button>
+              )}
             </div>
             {(details || onDownloadLog) && (
               <p className="results-details">
@@ -135,7 +167,7 @@ export default function ResultsScreen(props: Props) {
                   <p className="results-tip">{view.hardest.tip}</p>
                   {onPracticeHardest && (
                     <button type="button" className="results-practice" onClick={onPracticeHardest}>
-                      🎓 Practice your hardest move
+                      <Icon name="potion" size="xs" cut="none" /> Practice your hardest move
                     </button>
                   )}
                 </div>
@@ -168,6 +200,7 @@ export default function ResultsScreen(props: Props) {
                 </ol>
               </>
             )}
+            {aside}
           </section>
         </div>
       </div>

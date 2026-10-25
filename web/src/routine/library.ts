@@ -62,7 +62,7 @@ export function routineSummary(r: Routine): { routineId: string | null; moves: n
   }
 }
 
-const INTENSITY_COLORS = ['#7dd3fc', '#818cf8', '#c084fc', '#f472b6', '#fb7185'] as const
+const INTENSITY_COLORS = ['#d2e3ec', '#a3c3d8', '#dbb35e', '#c04f66', '#963248'] as const // Body Double palette, cool -> hot
 
 /** Colour for intensity 1..5 (cool -> hot); clamped. */
 export function intensityColor(intensity: number): string {

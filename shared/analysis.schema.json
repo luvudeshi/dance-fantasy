@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://midnight-ball.dev/schemas/analysis.schema.json",
-  "title": "Midnight Ball song analysis",
+  "title": "Dance Fantasy song analysis",
   "description": "Response of POST /api/analyze and GET /api/songs/{file}/analysis. Keep in sync with shared/analysis.ts and the server's Pydantic models (server tests validate responses against this schema).",
   "type": "object",
   "additionalProperties": false,

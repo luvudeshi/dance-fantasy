@@ -1,0 +1,392 @@
+/* Play lobby (pages/Play.tsx) in the storybook-sticker look. Overrides play.css by specificity (.df-screen …). */
+
+.df-screen.play-lobby {
+  padding-bottom: 48px;
+}
+
+/* ---------- hero ---------- */
+.df-screen .lobby-hero {
+  padding: 18px 0 34px;
+}
+.df-screen .lobby-kicker {
+  margin: 0 0 4px;
+  font-family: var(--df-font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: var(--df-fvs-voice);
+  font-size: clamp(1.15rem, 2vw, 1.6rem);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--df-gold-text);
+}
+.df-screen .lobby-title {
+  font-family: var(--df-font-display);
+  font-style: normal;
+  font-weight: 700;
+  font-variation-settings: var(--df-fvs-cut);
+  font-size: var(--df-text-hero);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--df-rasp-deep);
+  filter: url(#dc-type);
+  margin: 0;
+}
+.df-screen .lobby-sub {
+  max-width: 44rem;
+  margin: 18px auto 0;
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-size: clamp(1.05rem, 1.45vw, 1.3rem);
+  line-height: 1.5;
+  color: var(--df-ink-soft);
+}
+
+/* how to play: three paper stickers, slightly tilted */
+.df-screen .how-to-play {
+  gap: 18px;
+  margin-top: 28px;
+}
+.df-screen .how-to-play li {
+  align-items: center;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: var(--df-r-md);
+  background: var(--df-paper) var(--df-paper-tex);
+  filter: url(#dc);
+  rotate: -1.2deg;
+}
+.df-screen .how-to-play li:nth-child(2) {
+  rotate: 1deg;
+}
+.df-screen .how-to-play li:nth-child(3) {
+  rotate: -0.6deg;
+}
+.df-screen .how-to-play strong {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-size: 1.15rem;
+  color: var(--df-ink);
+}
+.df-screen .how-text {
+  font-size: 0.95rem;
+  color: var(--df-ink-soft);
+}
+.df-screen .how-icon {
+  display: grid;
+  flex: none;
+}
+
+/* ---------- the two setup cards ---------- */
+.df-screen .lobby-grid {
+  gap: 28px;
+  align-items: start;
+}
+.df-screen .lobby-card {
+  gap: 16px;
+  padding: 22px 24px 24px;
+  border: 0;
+  border-radius: var(--df-r-lg);
+  background: var(--df-paper) var(--df-paper-tex);
+  box-shadow: none;
+  filter: url(#dc-lg);
+}
+.df-screen .lobby-card h3 {
+  gap: 12px;
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  font-weight: 700;
+  color: var(--df-ink);
+}
+/* step numbers are gold medallions */
+.df-screen .lobby-card h3 .step {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--df-gold);
+  color: var(--df-gold-ink);
+  box-shadow: var(--df-shadow-medal);
+  font-family: var(--df-font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  filter: url(#dc-sm);
+}
+
+/* song list: paper rows, the chosen one ringed in raspberry */
+.df-screen .song-list {
+  gap: 10px;
+  max-height: 360px;
+  padding: 6px 8px 8px 4px;
+}
+.df-screen button.song-item {
+  display: grid;
+  min-height: 3.6rem;
+  padding: 8px 16px 8px 10px;
+  border-radius: var(--df-r-md);
+  background: var(--df-cut);
+  color: var(--df-ink);
+  font-weight: 600;
+  text-align: left;
+  justify-content: stretch;
+  box-shadow: inset 0 -3px 0 rgb(70 40 30 / 0.08);
+}
+.df-screen button.song-item:hover:not(:disabled) {
+  background: var(--df-cut);
+  transform: none;
+  translate: 2px 0;
+}
+.df-screen button.song-item.selected {
+  border: 0;
+  background: var(--df-cut);
+  box-shadow: inset 0 0 0 3px var(--df-rasp-deep);
+}
+.df-screen .song-note {
+  display: grid;
+}
+.df-screen .song-name {
+  font-family: var(--df-font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 650;
+  font-size: 1.15rem;
+}
+.df-screen .song-size {
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--df-ink-soft);
+}
+.df-screen .upload-tile {
+  gap: 14px;
+  padding: 12px 16px;
+  border: 2px dashed rgb(150 50 72 / 0.45);
+  border-radius: var(--df-r-md);
+  background: var(--df-ground);
+  color: var(--df-ink);
+}
+.df-screen .upload-tile:hover,
+.df-screen .upload-tile.selected {
+  border-color: var(--df-rasp-deep);
+  background: var(--df-cut);
+}
+.df-screen .upload-icon {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+}
+.df-screen .upload-tile strong {
+  font-weight: 800;
+}
+
+/* fields */
+.df-screen .field {
+  gap: 8px;
+}
+.df-screen .field-label {
+  font-size: var(--df-text-sm);
+  font-weight: 700;
+  color: var(--df-ink-soft);
+}
+
+/* segmented controls (legacy radio buttons): a paper track, the chosen segment raspberry */
+.df-screen .segmented {
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px;
+  border: 0;
+  border-radius: var(--df-r-pill);
+  background: var(--df-ground-deep);
+  box-shadow: var(--df-shadow-well);
+}
+.df-screen .segmented button {
+  min-height: 2.5rem;
+  padding: 0 18px;
+  border-radius: var(--df-r-pill);
+  background: transparent;
+  color: var(--df-ink-soft);
+  font-weight: 700;
+  box-shadow: none;
+  filter: none;
+}
+.df-screen .segmented button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--df-ink);
+}
+.df-screen .segmented button.on,
+.df-screen .segmented button.on:hover:not(:disabled) {
+  background: var(--df-rasp-deep);
+  color: var(--df-cut);
+  box-shadow: var(--df-shadow-pressed);
+  filter: url(#dc-sm);
+}
+/* phones: equal segments on one row instead of a wrapped, lopsided pill */
+@media (max-width: 420px) {
+  .df-screen .segmented {
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    align-self: stretch;
+  }
+  .df-screen .segmented button {
+    padding-inline: 8px;
+    font-size: var(--df-text-sm);
+    white-space: nowrap;
+  }
+}
+.df-screen .seed-row {
+  align-items: center;
+  gap: 10px;
+}
+.df-screen .seed-row input {
+  width: 9.5em;
+}
+.df-screen .rehearsal-hint {
+  font-size: var(--df-text-sm);
+  color: var(--df-ink-soft);
+}
+
+/* toggles: the native checkbox drawn as Body Double's switch (track + cream knob) */
+.df-screen .lobby-toggles {
+  gap: 12px;
+}
+.df-screen .toggle {
+  gap: 12px;
+  font-weight: 700;
+  color: var(--df-ink);
+}
+.df-screen .toggle .dim {
+  font-weight: 500;
+}
+.df-screen .toggle input[type='checkbox'] {
+  appearance: none;
+  width: 3.5rem;
+  height: 2rem;
+  margin: 0;
+  border-radius: var(--df-r-pill);
+  background:
+    radial-gradient(circle, var(--df-cut) 0 11px, transparent 12px) no-repeat left 4px center / 24px 24px,
+    var(--df-parchment-edge);
+  box-shadow: var(--df-shadow-well);
+  transition:
+    background-position var(--df-dur) var(--df-ease),
+    background-color var(--df-dur) var(--df-ease);
+}
+.df-screen .toggle input[type='checkbox']:checked {
+  background:
+    radial-gradient(circle, var(--df-cut) 0 11px, transparent 12px) no-repeat right 4px center / 24px 24px,
+    var(--df-rasp-deep);
+}
+.df-screen .toggle input[type='checkbox']:focus-visible {
+  outline: 3px solid var(--df-rasp-deep);
+  outline-offset: 3px;
+}
+
+/* the big call to action: raspberry hero button */
+.df-screen button.start-button,
+.df-screen button.start-button:hover:not(:disabled) {
+  min-height: 4.5rem;
+  margin-top: 8px;
+  padding: 0 32px;
+  border-radius: var(--df-r-pill);
+  background: var(--df-rasp-deep);
+  color: var(--df-cut);
+  font-size: clamp(1.3rem, 1.9vw, 1.7rem);
+  letter-spacing: 0.005em;
+  box-shadow: var(--df-shadow-primary);
+  transform: none;
+  filter: url(#dc-lg);
+}
+.df-screen button.start-button:hover:not(:disabled) {
+  background: var(--df-rasp-hover);
+}
+.df-screen button.start-button > img {
+  width: 1.5em;
+  height: 1.5em;
+}
+.df-screen button.start-button:disabled {
+  background: var(--df-disabled);
+  color: var(--df-paper);
+  opacity: 1;
+}
+.df-screen button.learn-button,
+.df-screen button.learn-button:hover:not(:disabled) {
+  min-height: 3.25rem;
+  border: 0;
+  border-radius: var(--df-r-pill);
+  background: var(--df-paper);
+  color: var(--df-ink);
+  font-size: var(--df-text-md);
+}
+.df-screen button.learn-button:hover:not(:disabled) {
+  background: var(--df-cut);
+}
+.df-screen .lobby-privacy {
+  font-size: var(--df-text-sm);
+  color: var(--df-ink-soft);
+}
+.df-screen .key-hints {
+  gap: 8px 16px;
+  font-size: var(--df-text-sm);
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+
+/* deep-link banner */
+.df-screen .linked-banner {
+  margin-bottom: 28px;
+  border: 0;
+  box-shadow: inset 0 0 0 3px var(--df-rasp-deep);
+}
+.df-screen .linked-banner strong {
+  font-family: var(--df-font-display);
+  font-size: 1.2rem;
+}
+
+/* "Your routines" shelf: paper rows */
+.df-screen .shelf-card {
+  margin-top: 32px;
+}
+.df-screen .shelf-list {
+  gap: 10px;
+  padding: 6px 8px 8px 4px;
+}
+.df-screen .shelf-item {
+  min-height: 4rem;
+  padding: 10px 14px 10px 18px;
+  border: 0;
+  border-radius: var(--df-r-md);
+  background: var(--df-cut);
+  box-shadow: inset 0 -3px 0 rgb(70 40 30 / 0.08);
+}
+.df-screen .shelf-title {
+  font-family: var(--df-font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 650;
+  font-size: 1.15rem;
+}
+.df-screen .shelf-meta {
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+.df-screen button.shelf-remove {
+  width: 2.5rem;
+  min-height: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  font-size: 1.3rem;
+}
+
+@media (max-width: 640px) {
+  .df-screen .shelf-item {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .df-screen .shelf-info {
+    grid-column: 1 / -1;
+  }
+  .df-screen .how-to-play li {
+    rotate: 0deg;
+  }
+}

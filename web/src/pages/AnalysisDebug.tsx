@@ -489,7 +489,7 @@ export default function AnalysisDebug() {
   const summary = routine ? routineSummary(routine) : null
 
   return (
-    <section className="page analysis-debug">
+    <section className="page analysis-debug df-screen">
       <h2 className="page-title">
         Studio <span className="dim">see what the ball hears, then choreograph it</span>
       </h2>
@@ -587,7 +587,7 @@ export default function AnalysisDebug() {
           <div ref={pulseRef} className="beat-circle small" />
           {routine && <canvas ref={previewRef} className="preview-figure" aria-label="Routine preview (mirrored coach view)" />}
           <div>
-            <div className="live-section" style={section ? { color: groupColor(section.group) } : undefined}>
+            <div className="live-section">
               {section ? section.label : '–'}
               {section && <span className="live-group">{section.group}</span>}
             </div>

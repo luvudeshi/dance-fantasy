@@ -1,0 +1,247 @@
+/* Studio (pages/AnalysisDebug.tsx) and the Move Book (pages/MoveGallery.tsx): paper panels (legacy.css) with
+   the canvases kept on night glass in gold-ringed windows, so their bright section colours stay readable. */
+
+.df-screen.page {
+  padding-bottom: 40px;
+}
+.df-screen .toolbar,
+.df-screen .transport {
+  gap: 12px 16px;
+}
+.df-screen .toolbar label,
+.df-screen .transport label {
+  font-weight: 700;
+  color: var(--df-ink-soft);
+}
+.df-screen.analysis-debug .panel + .panel {
+  margin-top: 22px;
+}
+.df-screen .panel .analysis-title {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-size: 1.4rem;
+  color: var(--df-ink);
+}
+
+/* ---------- night windows for the canvases ---------- */
+.df-screen .timeline-scroller {
+  border-radius: var(--df-r-md);
+  background: var(--df-night);
+  box-shadow: inset 0 0 0 3px var(--df-gold);
+}
+.df-screen .live-view {
+  margin-top: 6px;
+  padding: 16px 20px;
+  border-radius: var(--df-r-lg);
+  background: var(--df-night);
+  color: var(--df-on-night-soft);
+  box-shadow:
+    inset 0 0 0 3px var(--df-gold),
+    inset 0 0 0 5px var(--df-gold-shade);
+}
+.df-screen .live-section {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  color: var(--df-gold-light); /* >= 7:1 on night */
+}
+.df-screen .live-barbeat {
+  color: var(--df-on-night);
+}
+.df-screen .beat-circle {
+  border-color: var(--df-blue);
+  background: rgb(163 195 216 / calc(0.1 + 0.8 * var(--flash)));
+  box-shadow: 0 0 calc(70px * var(--flash)) rgb(163 195 216 / calc(0.8 * var(--flash)));
+}
+.df-screen .beat-circle.downbeat {
+  border-color: var(--df-gold);
+  background: rgb(219 179 94 / calc(0.1 + 0.8 * var(--flash)));
+  box-shadow: 0 0 calc(70px * var(--flash)) rgb(219 179 94 / calc(0.8 * var(--flash)));
+}
+.df-screen :is(.preview-figure, .move-canvas, .detail-canvas) {
+  background: radial-gradient(circle at 50% 40%, #34496a, var(--df-night-deep) 72%);
+  box-shadow: inset 0 0 0 3px var(--df-gold);
+}
+
+/* ---------- sections table ---------- */
+.df-screen .sections-table th {
+  font-weight: 700;
+  color: var(--df-ink-soft);
+  border-bottom: 2px dashed var(--df-rule);
+}
+.df-screen .sections-table td {
+  border-bottom: 1px solid rgb(201 174 124 / 0.4);
+}
+.df-screen .sections-table tbody tr:hover {
+  background: var(--df-cut);
+}
+.df-screen .sections-table tbody tr.active {
+  background: rgb(242 219 148 / 0.55);
+}
+.df-screen .group-chip {
+  color: var(--df-ink);
+}
+.df-screen .energy-bar {
+  background: var(--df-ground-deep);
+  box-shadow: var(--df-shadow-well);
+}
+
+/* ---------- Move Book ---------- */
+.df-screen .gallery-head {
+  margin-bottom: 22px;
+}
+.df-screen .gallery-stats b {
+  color: var(--df-ink);
+  font-weight: 800;
+}
+.df-screen .move-grid {
+  gap: 18px;
+}
+.df-screen button.move-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 4px;
+  min-height: 0;
+  padding: 10px 10px 12px;
+  border-radius: var(--df-r-md);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  font-weight: 500;
+  text-align: left;
+  line-height: 1.35;
+  box-shadow: var(--df-shadow-lift); /* the card's pictogram animates: no SVG filter */
+  filter: none;
+}
+.df-screen button.move-card:hover:not(:disabled) {
+  background: var(--df-cut);
+  translate: 0 -2px;
+}
+.df-screen .move-name {
+  font-family: var(--df-font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 650;
+  font-size: 1.1rem;
+}
+.df-screen .move-id,
+.df-screen .move-meta {
+  color: var(--df-ink-soft);
+}
+.df-screen .idot {
+  background: var(--df-ground-deep);
+}
+.df-screen .diff {
+  font-weight: 800;
+}
+.df-screen .diff-easy {
+  color: var(--df-sage-deep);
+}
+.df-screen .diff-normal {
+  color: var(--df-gold-text);
+}
+.df-screen .diff-hard {
+  color: var(--df-rasp-deep);
+}
+.df-screen .tag {
+  font-weight: 700;
+  color: var(--df-ink-soft);
+  background: var(--df-ground-deep);
+}
+.df-screen .tag.seated {
+  color: var(--df-ink);
+  background: var(--df-blue-light);
+}
+
+/* the detail view: a paper sheet over blurred ink */
+.df-screen .modal-backdrop {
+  background: rgb(46 36 33 / 0.5);
+  backdrop-filter: blur(3px);
+}
+.df-screen .move-detail {
+  background: var(--df-paper) var(--df-paper-tex);
+  border-radius: var(--df-r-xl);
+}
+.df-screen .panel .detail-title {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-size: 1.7rem;
+  color: var(--df-ink);
+}
+.df-screen button.thumb {
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 6px;
+  border-radius: var(--df-r-sm);
+  font-size: 0.8rem;
+  font-weight: 700;
+  filter: none;
+}
+.df-screen button.thumb.active {
+  box-shadow: inset 0 0 0 3px var(--df-rasp-deep);
+}
+.df-screen .thumb canvas {
+  background: var(--df-night);
+}
+
+/* ---------- native checkboxes and ranges (Studio, Move Book): Body Double's switch and gold-knob slider ---------- */
+.df-screen:is(.analysis-debug, .move-gallery) input[type='checkbox']:not([class*='df-']) {
+  appearance: none;
+  flex: none;
+  width: 3rem;
+  height: 1.75rem;
+  margin: 0;
+  border-radius: var(--df-r-pill);
+  background:
+    radial-gradient(circle, var(--df-cut) 0 9px, transparent 10px) no-repeat left 4px center / 20px 20px,
+    var(--df-parchment-edge);
+  box-shadow: var(--df-shadow-well);
+  cursor: pointer;
+  transition: background-position var(--df-dur) var(--df-ease);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='checkbox']:not([class*='df-']):checked {
+  background:
+    radial-gradient(circle, var(--df-cut) 0 9px, transparent 10px) no-repeat right 4px center / 20px 20px,
+    var(--df-rasp-deep);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-']) {
+  appearance: none;
+  height: 1.75rem;
+  background: transparent;
+  cursor: pointer;
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-'])::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: var(--df-r-pill);
+  background: var(--df-parchment-edge);
+  box-shadow: var(--df-shadow-well);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-'])::-moz-range-track {
+  height: 10px;
+  border-radius: var(--df-r-pill);
+  background: var(--df-parchment-edge);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-'])::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--df-gold);
+  box-shadow:
+    inset -2px -2px 0 var(--df-gold-shade),
+    inset 2px 2px 0 var(--df-gold-light),
+    0 0 0 3px var(--df-cut);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-'])::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--df-gold);
+  box-shadow: 0 0 0 3px var(--df-cut);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input:not([class*='df-']):focus-visible {
+  outline: 3px solid var(--df-rasp-deep);
+  outline-offset: 3px;
+}

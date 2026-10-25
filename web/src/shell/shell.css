@@ -1,0 +1,445 @@
+/* Dance Fantasy game shell: header, title menu, Settings / How to Play / Credits.
+   Built only from the theme tokens and df- pieces; layout after Body Double's home and host frame. */
+
+/* ---------- Settings > Calm motion (the device's prefers-reduced-motion is handled in theme/base.css) ---------- */
+html[data-reduced-motion] *,
+html[data-reduced-motion] *::before,
+html[data-reduced-motion] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ---------- slim sticky header (also sits above the legacy dark pages, so it sets its own ink) ---------- */
+.shell-bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--df-z-sticky);
+  background: rgb(234 223 199 / 0.96) var(--df-paper-tex);
+  color: var(--df-ink);
+  font-family: var(--df-font-ui);
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+}
+.shell-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px 18px;
+  max-width: 1680px;
+  min-height: 60px;
+  margin-inline: auto;
+  padding: max(8px, env(safe-area-inset-top)) var(--df-gutter) 8px;
+}
+.shell-bar :focus-visible {
+  outline: 3px solid var(--df-rasp-deep);
+  outline-offset: 3px;
+}
+.shell-brand {
+  font-size: clamp(1.15rem, 1.8vw, 1.55rem);
+}
+.shell-where {
+  font-size: 1.1rem;
+  white-space: nowrap;
+}
+.shell-bar-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.shell-menu-btn {
+  padding-inline: 16px 20px;
+}
+.shell-status {
+  gap: 7px;
+  white-space: nowrap;
+}
+.shell-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--df-ink-soft);
+}
+.shell-dot-ok {
+  background: var(--df-sage-deep);
+}
+.shell-dot-offline {
+  background: var(--df-cut);
+}
+@media (max-width: 600px) {
+  .shell-where {
+    display: none;
+  }
+}
+/* phone header: the status shrinks to its dot (the label stays for screen readers) */
+@media (max-width: 480px) {
+  .shell-bar .shell-status {
+    gap: 0;
+    padding: 0;
+    width: 2rem;
+    height: 2rem;
+    justify-content: center;
+  }
+  .shell-bar .shell-status-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .shell-menu-btn {
+    padding-inline: 12px 16px;
+  }
+}
+
+/* the legacy column under the header (the old header's gap) */
+.shell-main {
+  padding-top: 20px;
+}
+.shell-loading {
+  padding: 40px var(--df-gutter);
+  text-align: center;
+}
+
+/* ---------- shared bits ---------- */
+:is(.df-screen, .shell-bar) kbd {
+  display: inline-block;
+  min-width: 1.9em;
+  padding: 1px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--df-cut);
+  color: var(--df-ink);
+  font: 800 0.85rem/1.5 var(--df-font-ui);
+  text-align: center;
+  box-shadow:
+    inset 0 -2px 0 var(--df-parchment-edge),
+    0 0 0 1px rgb(91 74 59 / 0.28);
+}
+/* list rows whose title or meta should wrap instead of ellipsing */
+.shell-wrap {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+.df-item:disabled {
+  opacity: 1; /* legacy index.css fades disabled buttons below 5:1 */
+  cursor: not-allowed;
+  background: var(--df-ground-deep);
+  color: var(--df-ink-soft);
+}
+.df-item:disabled > img {
+  opacity: 0.6;
+  filter: grayscale(0.6);
+}
+
+/* ---------- title screen (#/) ---------- */
+.title-screen {
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+.title-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 32px 24px;
+  max-width: 78rem;
+  min-height: 100dvh;
+  margin-inline: auto;
+  padding: 92px var(--df-gutter) 40px;
+}
+@media (min-width: 900px) {
+  .title-layout {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    padding-block: clamp(40px, 8vh, 88px);
+  }
+}
+.title-main {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.title-head {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.title-kicker {
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+}
+.title-logo {
+  font-size: clamp(3.3rem, 12.5vw, 6.6rem);
+}
+.title-logo > span {
+  display: inline-block;
+}
+.title-lede {
+  max-width: 34ch;
+  margin: 0;
+  font-size: clamp(1.12rem, 1.7vw, 1.32rem);
+  line-height: 1.38;
+}
+.title-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.title-ctas {
+  --df-gap: 14px 18px;
+}
+.title-play {
+  padding-inline: 44px 52px;
+}
+@media (max-width: 600px) {
+  .title-ctas > .df-btn {
+    flex: 1 1 9rem;
+    padding-inline: 18px 22px;
+  }
+}
+.title-party-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 36rem;
+  rotate: -0.6deg;
+}
+.title-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 14px 16px;
+  max-width: 42rem;
+}
+.title-item {
+  height: 100%;
+  min-height: 4.5rem;
+}
+.title-grid > li:nth-child(odd) .title-item {
+  rotate: -0.5deg;
+}
+.title-grid > li:nth-child(even) .title-item {
+  rotate: 0.5deg;
+}
+.title-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+@media (pointer: coarse), (max-width: 600px) {
+  .title-keys {
+    display: none;
+  }
+}
+
+/* the sticker scene on the right (a pair of small stickers in the corner on a phone) */
+.title-scene {
+  position: relative;
+  width: 100%;
+  max-width: 32rem;
+  aspect-ratio: 1;
+  margin-inline: auto;
+}
+.title-st {
+  position: absolute;
+  height: auto;
+}
+.title-st-castle {
+  left: 0;
+  bottom: 15%;
+  width: 44%;
+  rotate: -4deg;
+}
+.title-st-clock {
+  right: 1%;
+  top: 20%;
+  width: 33%;
+  rotate: 5deg;
+}
+.title-st-mirror {
+  left: 22%;
+  top: 2%;
+  width: 55%;
+  rotate: -3deg;
+}
+.title-st-crown {
+  left: 3%;
+  top: 6%;
+  width: 26%;
+}
+.title-st-slipper {
+  right: 3%;
+  bottom: 4%;
+  width: 38%;
+  rotate: -7deg;
+}
+.title-st-note {
+  left: 38%;
+  bottom: 2%;
+  width: 20%;
+  animation-delay: -1.4s;
+}
+.title-st-sparkles {
+  right: 4%;
+  top: 0;
+  width: 18%;
+}
+@media (max-width: 899px) {
+  .title-scene {
+    position: absolute;
+    top: 14px;
+    right: 12px;
+    width: 9.5rem;
+    max-width: none;
+    aspect-ratio: auto;
+    height: 74px;
+  }
+  .title-st-castle,
+  .title-st-clock,
+  .title-st-mirror,
+  .title-st-sparkles {
+    display: none;
+  }
+  .title-st-crown {
+    left: 0;
+    top: 6px;
+    width: 64px;
+  }
+  .title-st-slipper {
+    right: 0;
+    bottom: auto;
+    top: 8px;
+    width: 76px;
+  }
+  .title-st-note {
+    left: 52px;
+    bottom: auto;
+    top: 0;
+    width: 40px;
+  }
+}
+
+/* ---------- shell pages (#/settings, #/how, #/credits) ---------- */
+.shell-page {
+  min-height: calc(100dvh - 60px);
+  overflow-x: clip;
+}
+.shell-page-body {
+  max-width: 78rem;
+  padding-block: clamp(24px, 5vh, 48px) 64px;
+}
+.shell-page-head .df-lede {
+  margin: 0;
+  max-width: 52ch;
+}
+.shell-story {
+  max-width: 58ch;
+  font-size: clamp(1.1rem, 1.6vw, 1.3rem);
+  line-height: 1.45;
+}
+.shell-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: 40px 32px;
+  align-items: start;
+}
+.shell-panels-3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+}
+.shell-note {
+  margin: 0;
+  color: var(--df-ink-soft);
+}
+.shell-page-foot {
+  --df-gap: 12px 18px;
+  padding-top: 8px;
+}
+
+/* How to Play */
+.shell-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 28px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.shell-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.shell-step:nth-child(odd) {
+  rotate: -1deg;
+}
+.shell-step:nth-child(even) {
+  rotate: 0.8deg;
+}
+.shell-step p {
+  margin: 0;
+  color: var(--df-ink-soft);
+}
+.shell-step-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+.shell-judge {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.shell-judge > .df-badge {
+  justify-self: start;
+}
+.shell-key-row {
+  display: contents;
+}
+.shell-keys dd {
+  font-family: var(--df-font-ui);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Credits */
+.shell-credits-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px 40px;
+}
+.shell-plate {
+  rotate: 2deg;
+  text-align: center;
+}
+.shell-plate .df-foil {
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+.shell-team {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px 56px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.shell-member {
+  align-items: center;
+}
+@media (max-width: 600px) {
+  .shell-team {
+    justify-content: center;
+  }
+}
+.shell-member .df-tag {
+  padding-inline: 16px;
+}
+.shell-member .df-tag-name {
+  max-width: none; /* full names, never "Toyeshh Medik…" */
+}
+.shell-member:nth-child(even) .df-tag {
+  rotate: 2deg;
+}

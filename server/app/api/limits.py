@@ -1,12 +1,13 @@
-"""Request limits: body size (pure ASGI middleware, so it also sees bodies before form parsing) and
-the number of concurrent audio analyses."""
+"""Request limits: body size (pure ASGI middleware, so it also sees bodies before form parsing),
+the number of concurrent audio analyses, and the client key the per-client limits count by."""
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 
 import anyio
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Request, status
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -17,6 +18,14 @@ MAX_CONCURRENT_ANALYSES = 2
 # not inside a worker thread: the threadpool also serves audio downloads and every sync
 # endpoint/dependency, so queued analyses must not hold it.
 ANALYSIS_SLOTS = anyio.CapacityLimiter(MAX_CONCURRENT_ANALYSES)
+
+
+def client_ip(request: Request) -> str:
+    """Per-client rate-limit key: Vercel's edge sets x-real-ip to the caller (a client can't spoof it
+    there); elsewhere the socket address."""
+    if os.environ.get("VERCEL") and (ip := request.headers.get("x-real-ip")):
+        return ip
+    return request.client.host if request.client else "?"
 
 
 class UploadTooLarge(HTTPException):

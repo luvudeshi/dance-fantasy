@@ -1,7 +1,7 @@
-# Midnight Ball
+# Dance Fantasy
 
 *Once upon a time, twelve princesses slipped out every night to dance until their shoes
-wore through.* Midnight Ball turns any song into that ball: upload a track, and the app
+wore through.* Dance Fantasy turns any song into that ball: upload a track, and the app
 analyzes it, generates an original beat-synced dance routine, and plays it as a
 Just Dance-style game. A glowing silhouette dancer performs the routine, you dance along in
 front of your webcam, and the browser scores every move in real time. Friends in other
@@ -19,8 +19,8 @@ HackTX 2026 · storybook theme.
 | 3 | Glowing coach, smooth motion, `#/play` with cue strip + audio-clock sync | ✅ |
 | 4 | Calibration, per-beat webcam scoring, HUD, results (**MVP**, tag `mvp`) | ✅ |
 | 5 | Teach mode, judging presets, sound, polish | ✅ |
-| 6 | Remote dance-off | |
-| 7 | SerpApi features | |
+| 6 | Remote dance-off (rooms, QR join, synced start, live leaderboard, chat) | ✅ |
+| 7 | SerpApi signature dances + AI herald (Meta Muse / Gemini) | ✅ |
 | 8 | Smarter generation (flagged) | |
 | 9 | Deploy + demo hardening | |
 
@@ -38,7 +38,8 @@ make setup     # first time: Python venv + npm deps + MediaPipe wasm/models (~60
 make dev       # API on :8000 and web on :5173 together; Ctrl-C stops both
 ```
 
-Open **http://localhost:5173** in Chrome. It starts on **▶ Play**:
+Open **http://localhost:5173** in Chrome. It opens on the title menu; choose **Play**
+(or **Party** to open a ballroom friends join from their phones):
 
 1. Pick a song, difficulty (easy/normal/hard), standing or seated, and press **Start the ball**.
 2. **Magic mirror (calibration):** stand back until your whole body is in view (upper body
@@ -143,6 +144,15 @@ Data formats, coordinate conventions and the HTTP API are documented in
 One Vercel project, two services ([vercel.json](vercel.json)): `web/` (static Vite build) and
 `server/` (FastAPI as one Python function, `/api/*`). Deploy with `vercel deploy` from the repo root.
 
+- **Database:** rooms and accounts need `DATABASE_URL` (Tiger Data / Timescale Postgres), e.g.
+  `postgres://user:pass@host:port/tsdb?sslmode=require`. TLS always checks the certificate and host
+  name (Tiger Cloud's certificate is publicly trusted, Google Trust Services): `verify-ca` skips only
+  the host name, `no-verify` is the explicit opt-out, `disable` is plain TCP for a local Postgres.
+  `DATABASE_CA_CERT` (PEM text) adds a private CA if a database needs one. Without `DATABASE_URL`
+  the rooms and accounts routes answer 503.
+- **Region:** the Tiger database is in AWS us-west-2, so the function runs in Vercel's `pdx1`
+  (Portland) region (`"regions"` in vercel.json): every room poll is a few database round trips.
+
 - **Shared cache:** each function instance has its own temporary disk, so analyses, routines and
   uploaded audio are mirrored to Vercel Blob ([server/app/blob.py](server/app/blob.py)). This is
   on only when `BLOB_READ_WRITE_TOKEN` is set; locally everything stays in `assets/cache/`.
@@ -154,6 +164,23 @@ One Vercel project, two services ([vercel.json](vercel.json)): `web/` (static Vi
   `assets/moves` into `server/assets`.
 - **Cold starts:** a fresh instance compiles librosa's beat tracker (numba) on its first analysis,
   ~30 s; later analyses take about a second, and cached ones are instant.
+- **Environment variables** (Project Settings → Environment Variables; all optional, the game runs
+  without any of them, and [.env.example](.env.example) documents each):
+
+  | Variable | What it turns on |
+  |---|---|
+  | `BLOB_READ_WRITE_TOKEN` | the shared cache and direct-to-Blob uploads (above) |
+  | `DATABASE_URL`, optional `DATABASE_CA_CERT` | rooms, accounts, friends and history (above) |
+  | `MUSE_API_KEY`, `MUSE_BASE_URL`, `MUSE_TEXT_MODEL` | the AI herald's lines (Meta Muse first) |
+  | `GEMINI_API_KEY`, `GEMINI_TEXT_MODEL` | Gemini: herald fallback, the herald's voice, naming signature dances |
+  | `GEMINI_TTS_VOICE` | which Gemini voice the herald speaks with |
+  | `AI_PROVIDER=gemini` | ask Gemini before Muse |
+  | `SERPAPI_API_KEY` | online signature-dance search (without it only the bundled table answers) |
+  | `VERCEL_SUPPORT_LARGE_FUNCTIONS=1` | required: the Python bundle is over 225 MB (above) |
+- **Pre-voice the herald:** with `GEMINI_API_KEY` and `BLOB_READ_WRITE_TOKEN` from the deployment in
+  your shell, `cd server && uv run python -m scripts.pregen_voice` voices every fixed canned line into
+  Blob once, so the common lines play instantly (a re-run only voices new lines). Re-run it after
+  changing `GEMINI_TTS_VOICE`.
 
 ## Privacy
 
@@ -181,3 +208,6 @@ Required by the hackathon rules; kept up to date as we go.
 - **Claude Code** (Anthropic) helped scaffold and write code.
 - **MediaPipe PoseLandmarker** (Google) for in-browser pose estimation.
 - **librosa** for beat tracking and music structure analysis.
+- **Meta Muse** (Gemini as fallback) writes the royal herald's lines and summarises a song's
+  famous dance; **SerpApi** finds the web and YouTube sources for it.
+- **three.js** renders the 3D storybook dancer (built from primitives, no model files).

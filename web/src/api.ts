@@ -62,12 +62,12 @@ export function songAudioUrl(file: string): string {
 
 // --- response validation (unknown + narrowing, no `any`) ---------------------------
 
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
-const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
-const isStr = (v: unknown): v is string => typeof v === 'string'
+export const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+export const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+export const isStr = (v: unknown): v is string => typeof v === 'string'
 const isNumArray = (v: unknown): v is number[] => Array.isArray(v) && v.every(isNum)
 const isSectionLabel = (v: unknown): v is SectionLabel => ANALYSIS_SECTION_LABELS.some((l) => l === v)
-const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
+export const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
 const isStrArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(isStr)
 const JOINT_SET: ReadonlySet<string> = new Set(JOINTS)
 const isJoint = (v: unknown): v is JointName => isStr(v) && JOINT_SET.has(v)
@@ -234,11 +234,11 @@ function detailFrom(body: unknown): string | null {
   return null
 }
 
-type RequestOptions = Pick<RequestInit, 'method' | 'body' | 'signal'>
+type RequestOptions = Pick<RequestInit, 'method' | 'body' | 'signal'> & { headers?: Record<string, string> }
 
 /** fetch() that turns network failures into an "unreachable" ApiError (aborts pass through). */
 async function send(path: string, init: RequestOptions, accept: string, contentType?: string): Promise<Response> {
-  const headers: Record<string, string> = { Accept: accept }
+  const headers: Record<string, string> = { ...init.headers, Accept: accept }
   if (contentType) headers['Content-Type'] = contentType
   try {
     return await fetch(apiUrl(path), { ...init, headers })
@@ -270,7 +270,7 @@ function errorFor(res: Response, text: string): ApiError {
   )
 }
 
-async function requestWithResponse<T>(
+export async function requestWithResponse<T>(
   path: string,
   guard: (v: unknown) => v is T,
   init: RequestOptions = {},

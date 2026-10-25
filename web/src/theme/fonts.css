@@ -1,0 +1,19 @@
+/* Body Double's two families on every page, also the dev pages that keep the legacy midnight look:
+   index.css's system-ui body, Georgia story voice and monospace readouts become Figtree / Fraunces. */
+:root {
+  --story: var(--df-font-display);
+  --mono: var(--df-font-ui);
+}
+
+body,
+.page-title .dim {
+  font-family: var(--df-font-ui);
+}
+
+code,
+dd,
+kbd,
+.mono,
+.play-debug {
+  font-variant-numeric: lining-nums tabular-nums;
+}

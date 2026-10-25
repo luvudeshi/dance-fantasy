@@ -7,6 +7,7 @@ import type { Move } from '@shared/routine'
 import { prepareCanvas } from '../lib/canvas'
 import { intensityColor } from '../routine/library'
 import { lastStartedIndex } from '../routine/pose'
+import { UI_FONT } from '../theme/fonts'
 import {
   beatIndexAt,
   formatTime,
@@ -33,7 +34,6 @@ const ROW = {
 
 export type TimelineMove = Pick<Move, 'startTime' | 'endTime' | 'name' | 'intensity'>
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace'
 const BAR_LABEL_EVERY = 4
 
 export interface TimelineFrame {
@@ -69,7 +69,7 @@ export function drawTimeline(canvas: HTMLCanvasElement, f: TimelineFrame): Timel
 
   // Time grid behind everything.
   const step = niceTimeStep(pps)
-  ctx.font = `11px ${MONO}`
+  ctx.font = `600 11px ${UI_FONT}`
   ctx.textBaseline = 'middle'
   ctx.lineWidth = 1
   for (let s = Math.floor(t0 / step) * step; s <= t1; s += step) {
@@ -84,7 +84,7 @@ export function drawTimeline(canvas: HTMLCanvasElement, f: TimelineFrame): Timel
   }
 
   // Sections: bands colored by group.
-  ctx.font = `600 12px system-ui, -apple-system, sans-serif`
+  ctx.font = `700 12px ${UI_FONT}`
   a.sections.forEach((s, i) => {
     const x0 = x(s.start)
     const x1 = x(s.end)
@@ -108,7 +108,7 @@ export function drawTimeline(canvas: HTMLCanvasElement, f: TimelineFrame): Timel
   // Moves: blocks spanning their beats, coloured by intensity, a divider at each start.
   if (f.moves && f.moves.length > 0) {
     const { top, h } = ROW.moves
-    ctx.font = `600 11px system-ui, -apple-system, sans-serif`
+    ctx.font = `600 11px ${UI_FONT}`
     ctx.textBaseline = 'middle'
     for (let i = Math.max(0, lastStartedIndex(f.moves, t0)); i < f.moves.length; i++) {
       const m = f.moves[i]
@@ -178,7 +178,7 @@ export function drawTimeline(canvas: HTMLCanvasElement, f: TimelineFrame): Timel
     const barSec = a.bpm > 0 ? (60 / a.bpm) * a.beatsPerBar : 2
     let labelEvery = BAR_LABEL_EVERY
     while (labelEvery * barSec * pps < 30 && labelEvery < 1024) labelEvery *= 2
-    ctx.font = `10px ${MONO}`
+    ctx.font = `600 10px ${UI_FONT}`
     ctx.textBaseline = 'top'
     for (let i = first; i <= last; i++) {
       const bx = Math.round(x(beats[i])) + 0.5
@@ -209,7 +209,7 @@ export function drawTimeline(canvas: HTMLCanvasElement, f: TimelineFrame): Timel
   }
 
   // Row labels on a dark backing so the data never hides them.
-  ctx.font = `10px ${MONO}`
+  ctx.font = `600 10px ${UI_FONT}`
   ctx.textBaseline = 'top'
   const rowLabel = (text: string, y: number): void => {
     ctx.fillStyle = 'rgba(7, 10, 24, 0.75)'

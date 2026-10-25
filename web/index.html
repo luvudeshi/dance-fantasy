@@ -4,11 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
-    <title>Midnight Ball</title>
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#eadfc7" />
+    <meta name="description" content="Dance Fantasy: turn any song into an enchanted ball at midnight and dance along in front of your webcam." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,100..900,0..100,0..1;1,9..144,100..900,0..100,0..1&family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,100..900,0..100,0..1;1,9..144,100..900,0..100,0..1&family=Figtree:ital,wght@0,300..900;1,300..900&display=swap"
+    />
+    <title>Dance Fantasy</title>
+    <style>
+      /* Boot screen while the webfonts load (main.tsx waits up to 1 s): paper, never the legacy dark ground. */
+      html:has(#df-boot) { background: #eadfc7; color-scheme: light; }
+      #df-boot { min-height: 100vh; display: grid; place-items: center; color: #5b4a3b; font: italic 600 1.6rem Fraunces, Georgia, serif; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="df-boot" role="status">Dance Fantasy</div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

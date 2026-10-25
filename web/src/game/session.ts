@@ -4,7 +4,7 @@
 // calls are injected (SessionDeps) so the state machine is unit-tested without a server.
 
 import type { Analysis } from '@shared/analysis'
-import type { ChoreographRequest } from '@shared/moves'
+import type { ChoreographRequest, PinnedMoveRequest } from '@shared/moves'
 import type { Difficulty, Mode, Routine } from '@shared/routine'
 import { analyzeLibrarySong, analyzeUpload, ApiError, choreograph, getAnalysis, getRoutine } from '../api'
 import { errorMessage, isAbortError } from '../lib/errors'
@@ -19,6 +19,8 @@ export interface SessionRequest {
   difficulty: Difficulty
   mode: Mode
   seed: number
+  /** Signature dances (src/signature; off with ?signature=0); absent = the plain routine. */
+  pinnedMoves?: PinnedMoveRequest[]
 }
 
 /** Everything that rebuilds a routine: same analysis + difficulty + mode + seed = same routine. */
@@ -29,6 +31,8 @@ export interface RoutineRecipe {
   seed: number
   /** Library song file, so a cleared analysis can be recomputed. */
   songFile?: string
+  /** Signature dances the routine was generated with (meta.pinnedMoves). */
+  pinnedMoves?: PinnedMoveRequest[]
 }
 
 export type SessionStep = 'findingRoutine' | 'analyzing' | 'choreographing' | 'loadingAudio'
@@ -116,7 +120,9 @@ const isNotFound = (err: unknown): boolean => err instanceof ApiError && err.sta
 /** The recipe recorded in a generated routine's meta (null without an analysisId). */
 export function recipeFromRoutine(routine: Routine): RoutineRecipe | null {
   const id = routine.meta?.analysisId
-  return typeof id === 'string' && id ? { analysisId: id, difficulty: routine.difficulty, mode: routine.mode, seed: routine.seed } : null
+  if (typeof id !== 'string' || !id) return null
+  const pins = routine.meta?.pinnedMoves
+  return { analysisId: id, difficulty: routine.difficulty, mode: routine.mode, seed: routine.seed, ...(Array.isArray(pins) && pins.length ? { pinnedMoves: pins as PinnedMoveRequest[] } : {}) }
 }
 
 type Enter = (step: SessionStep) => void
@@ -174,7 +180,8 @@ async function finishGame(
 
 async function choreographFor(analysis: Analysis, r: Omit<RoutineRecipe, 'analysisId'>, deps: SessionDeps, enter: Enter, signal: AbortSignal): Promise<Routine> {
   enter('choreographing')
-  const { routine } = await deps.choreograph({ analysisId: analysis.id, difficulty: r.difficulty, mode: r.mode, seed: r.seed }, signal)
+  const pins = r.pinnedMoves?.length ? { pinnedMoves: r.pinnedMoves } : {}
+  const { routine } = await deps.choreograph({ analysisId: analysis.id, difficulty: r.difficulty, mode: r.mode, seed: r.seed, ...pins }, signal)
   signal.throwIfAborted()
   return routine
 }
@@ -297,7 +304,8 @@ export async function routineFor(
     signal.throwIfAborted()
     step = 'choreographing'
     onStep?.(step)
-    const { routine } = await deps.choreograph({ analysisId: analysis.id, difficulty: req.difficulty, mode: req.mode, seed: req.seed }, signal)
+    const pins = req.pinnedMoves?.length ? { pinnedMoves: req.pinnedMoves } : {}
+    const { routine } = await deps.choreograph({ analysisId: analysis.id, difficulty: req.difficulty, mode: req.mode, seed: req.seed, ...pins }, signal)
     signal.throwIfAborted()
     if (routine.moves.length === 0) throw new Error('the choreographer returned no moves for this song')
     return { analysis, routine }

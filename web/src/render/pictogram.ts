@@ -8,6 +8,9 @@ import type { Ctx2D } from '../pose/draw'
 import { bodyToScreen } from '../pose/normalize'
 import { NEUTRAL_ANKLE_Y } from '../routine/pose'
 import { buildMotionTrack } from '../routine/track'
+import { getDancer } from '../render3d/dancer'
+import { coach3dActive } from '../render3d/load'
+import { UI_FONT } from '../theme/fonts'
 import { coachThemeFor, createLayer, deviceScale, drawCoach, mixHex, withAlpha, type CoachTheme, type Layer } from './coach'
 import { figureBodyView, type FigureView } from './stickFigure'
 
@@ -237,7 +240,7 @@ export function drawPictogram(ctx: Ctx2D, move: PictogramMove, box: Box, opts: P
   const theme = opts.theme ?? coachThemeFor(null)
   const k = deviceScale(ctx)
   const pad = Math.ceil(Math.min(box.w, box.h) * 0.2) // room for the active glow
-  const key = [box.w, box.h, k, theme.body, theme.glow, theme.accent, opts.mirrored, opts.active === true, opts.label === true, opts.card !== false, move.name, move.scoredJoints.join(',')].join('|')
+  const key = [box.w, box.h, k, theme.body, theme.glow, theme.accent, opts.mirrored, opts.active === true, opts.label === true, opts.card !== false, move.name, move.scoredJoints.join(','), coach3dActive(), getDancer()].join('|')
   let byMove = pictogramCache.get(move.keyframes)
   let layer = byMove?.get(key)
   if (!layer) {
@@ -314,7 +317,7 @@ function paintPictogram(ctx: Ctx2D, move: PictogramMove, box: Box, opts: Pictogr
     band.addColorStop(1, 'rgba(8, 6, 24, 0.85)')
     ctx.fillStyle = band
     ctx.fillRect(box.x, box.y + box.h - labelH * 1.6, box.w, labelH * 1.6)
-    ctx.font = `600 ${Math.round(labelH * 0.78)}px system-ui, sans-serif`
+    ctx.font = `600 ${Math.round(labelH * 0.78)}px ${UI_FONT}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillStyle = active ? '#ffffff' : theme.body

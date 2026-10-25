@@ -70,8 +70,8 @@ describe('session log', () => {
 
   it('names the file after the routine and time', () => {
     expect(sessionLogFilename({ routineId: '0123456789abcdef', createdAt: '2026-10-25T01:02:03.456Z' })).toBe(
-      'midnight-ball-session-0123456789abcdef-20261025-010203.json',
+      'dance-fantasy-session-0123456789abcdef-20261025-010203.json',
     )
-    expect(sessionLogFilename({ routineId: null, createdAt: '2026-10-25T01:02:03.456Z' })).toBe('midnight-ball-session-local-20261025-010203.json')
+    expect(sessionLogFilename({ routineId: null, createdAt: '2026-10-25T01:02:03.456Z' })).toBe('dance-fantasy-session-local-20261025-010203.json')
   })
 })

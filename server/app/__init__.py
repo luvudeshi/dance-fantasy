@@ -1,4 +1,4 @@
-"""Midnight Ball server."""
+"""Dance Fantasy server."""
 
 import os
 import tempfile

@@ -1,4 +1,4 @@
-# Midnight Ball web app
+# Dance Fantasy web app
 
 Vite + React + TypeScript. See the [root README](../README.md) for setup and `make dev`,
 and [shared/README.md](../shared/README.md) for the data contract and coordinate conventions.

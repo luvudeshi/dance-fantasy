@@ -57,7 +57,7 @@ export default function TeachPage() {
 
 function TeachProblem({ title, children, routineId }: { title: string; children: ReactNode; routineId?: string }) {
   return (
-    <section className="teach teach-problem">
+    <section className="teach teach-problem df-screen">
       <div className="teach-card">
         <p className="teach-kicker">Dance lesson</p>
         <h2>{title}</h2>
@@ -107,7 +107,7 @@ function TeachSession({ routineId, start }: { routineId: string; start: number |
   }
   if (state.status !== 'ready') {
     return (
-      <section className="teach teach-problem">
+      <section className="teach teach-problem df-screen">
         <div className="teach-card loading">
           <div className="teach-spinner" aria-hidden="true" />
           <p aria-live="polite">{state.status === 'loading' ? state.label : 'Getting ready…'}</p>
@@ -280,7 +280,7 @@ function TeachStudio({ game, clock, routineId, start }: { game: PreparedGame; cl
   const recent = st.history.slice(-8)
 
   return (
-    <section className="teach">
+    <section className="teach df-screen">
       <header className="teach-head">
         <a className="teach-back" href={playRoutineHash(routineId)} title="Back to the full song (Esc)">
           ← Full song
@@ -294,9 +294,9 @@ function TeachStudio({ game, clock, routineId, start }: { game: PreparedGame; cl
         </div>
         <span className={`teach-cam ${st.source ?? camera.status}`}>
           {st.source === 'bot'
-            ? '🤖 Bot demo'
+            ? 'Bot demo'
             : st.source === 'webcam'
-              ? '📷 Camera on'
+              ? 'Camera on'
               : camera.status === 'starting'
                 ? 'Waking the camera…'
                 : camera.status === 'error'
@@ -366,7 +366,7 @@ function TeachStudio({ game, clock, routineId, start }: { game: PreparedGame; cl
                         actions.toggle()
                       })}
                     >
-                      🤖 Teach me with the bot
+                      Teach me with the bot
                     </button>
                   )}
                 </div>
@@ -384,7 +384,7 @@ function TeachStudio({ game, clock, routineId, start }: { game: PreparedGame; cl
               </p>
               <div className="teach-card-actions">
                 <button type="button" className="teach-button primary" onClick={click(actions.bot)}>
-                  🤖 Teach me with the bot
+                  Teach me with the bot
                 </button>
                 <button type="button" className="teach-button" onClick={click(actions.camera)}>
                   Try the camera again

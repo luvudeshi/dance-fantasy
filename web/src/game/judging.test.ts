@@ -24,7 +24,7 @@ describe('judging presets', () => {
   })
 
   it('labels every preset', () => {
-    expect(JUDGING_PRESETS.map((p) => judgingLabel(p.value))).toEqual(['Lenient', 'Standard', 'Strict'])
+    expect(JUDGING_PRESETS.map((p) => judgingLabel(p.value))).toEqual(['Relaxed', 'Lenient', 'Standard', 'Strict'])
   })
 
   it('remembers the choice and ignores junk', () => {

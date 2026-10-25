@@ -14,6 +14,7 @@ import type { Box } from '../render/pictogram'
 import type { PlayerFrame } from './poseSource'
 import { popFontSize, TOP_BAR_PX, type PlayLayout, type PopPlacement } from './render'
 import type { CheckpointResult, Judgment, ScoreState } from './scoring'
+import type { CheckpointResultV2, TimingTag } from './scoringV2'
 import { COMBO_BREAK_MIN } from './sfx'
 
 /** Judgment pop: scale-in, hold, fade. */
@@ -43,10 +44,10 @@ export interface JudgmentStyle {
 }
 
 export const JUDGMENT_STYLE: Readonly<Record<Judgment, JudgmentStyle>> = {
-  perfect: { label: 'PERFECT!', color: '#ffd166' },
-  good: { label: 'GOOD', color: '#5fe0ff' },
-  ok: { label: 'OK', color: '#b794ff' },
-  miss: { label: 'MISS', color: '#9aa3b5' },
+  perfect: { label: 'PERFECT!', color: '#f2db94' },
+  good: { label: 'GOOD', color: '#a3c3d8' },
+  ok: { label: 'OK', color: '#e6939f' },
+  miss: { label: 'MISS', color: '#b9a59a' },
 }
 
 const clamp01 = (u: number): number => (u <= 0 ? 0 : u >= 1 ? 1 : Number.isNaN(u) ? 0 : u)
@@ -143,6 +144,7 @@ interface Pop {
   id: number
   judgment: Judgment
   at: number
+  timing?: TimingTag
 }
 
 export interface PopView {
@@ -156,6 +158,8 @@ export interface PopView {
   alpha: number
   /** Upward drift, 0..1 (multiply by a pixel distance). */
   rise: number
+  /** "EARLY" / "LATE" next to the judgment (scoring v2), if any. */
+  tag?: string
 }
 
 export interface HudView {
@@ -203,7 +207,7 @@ export class Hud {
   /** Finalized checkpoints (in order) plus the score state after them. */
   push(results: readonly CheckpointResult[], state: ScoreState, nowMs: number): void {
     for (const r of results) {
-      this.pops.push({ id: this.nextId++, judgment: r.judgment, at: nowMs })
+      this.pops.push({ id: this.nextId++, judgment: r.judgment, at: nowMs, timing: (r as CheckpointResultV2).timing })
       if (r.judgment === 'perfect') this.perfectAt = nowMs
       const hint = missHint(r)
       if (hint) this.hint = { text: hint, at: nowMs }
@@ -245,6 +249,7 @@ export class Hud {
         scale: popScale(life),
         alpha: popAlpha(life) * replaced,
         rise: easeOutCubic(life),
+        ...(p.timing ? { tag: p.timing === 'early' ? 'EARLY' : 'LATE' } : {}),
       }
     })
 
@@ -286,8 +291,8 @@ export class Hud {
 
 // --- drawing --------------------------------------------------------------------------------
 
-const UI_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
-const STORY_FONT = "Georgia, 'Times New Roman', serif"
+const UI_FONT = 'Figtree, system-ui, -apple-system, "Segoe UI", sans-serif'
+const STORY_FONT = "Fraunces, Georgia, 'Times New Roman', serif"
 
 function roundRect(ctx: Ctx2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath()
@@ -316,10 +321,10 @@ export function drawStarMeter(ctx: Ctx2D, right: number, cy: number, r: number, 
   for (let i = 0; i < 5; i++) {
     const cx = x0 + i * step
     starPath(ctx, cx, cy, r)
-    ctx.fillStyle = 'rgba(196, 181, 253, 0.18)'
+    ctx.fillStyle = 'rgba(233, 220, 184, 0.16)'
     ctx.fill()
     ctx.lineWidth = 1.2
-    ctx.strokeStyle = 'rgba(255, 224, 150, 0.45)'
+    ctx.strokeStyle = 'rgba(219, 179, 94, 0.6)'
     ctx.stroke()
     const f = clamp01(filled - i)
     if (f > 0) {
@@ -328,9 +333,9 @@ export function drawStarMeter(ctx: Ctx2D, right: number, cy: number, r: number, 
       ctx.rect(cx - r, cy - r, 2 * r * f, 2 * r)
       ctx.clip()
       starPath(ctx, cx, cy, r)
-      ctx.shadowColor = '#ffcf66'
+      ctx.shadowColor = '#dbb35e'
       ctx.shadowBlur = f >= 1 ? 10 : 4
-      ctx.fillStyle = '#ffd166'
+      ctx.fillStyle = '#e0b858'
       ctx.fill()
       ctx.restore()
     }
@@ -346,21 +351,21 @@ function drawScorePanel(ctx: Ctx2D, width: number, v: HudView): void {
   ctx.save()
   ctx.textAlign = 'right'
   ctx.textBaseline = 'top'
-  ctx.fillStyle = 'rgba(226, 232, 255, 0.7)'
+  ctx.fillStyle = 'rgba(233, 220, 184, 0.85)'
   ctx.font = `700 ${Math.max(13, Math.round(13 * scale))}px ${UI_FONT}`
   ctx.fillText('SCORE', right, y)
   y += Math.round(15 * scale)
   const scoreSize = Math.round(44 * scale)
   ctx.font = `800 ${scoreSize}px ${UI_FONT}`
-  ctx.shadowColor = 'rgba(167, 139, 250, 0.8)'
+  ctx.shadowColor = 'rgba(219, 179, 94, 0.7)'
   ctx.shadowBlur = 14
   ctx.lineJoin = 'round'
   ctx.lineWidth = 5
-  ctx.strokeStyle = 'rgba(16, 10, 44, 0.85)'
+  ctx.strokeStyle = 'rgba(21, 35, 56, 0.9)'
   const text = v.score.toLocaleString('en-US')
   ctx.strokeText(text, right, y)
   ctx.shadowBlur = 0
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = '#fffaf0'
   ctx.fillText(text, right, y)
   y += scoreSize + 6
   const r = Math.round(11 * scale)
@@ -374,13 +379,13 @@ function drawScorePanel(ctx: Ctx2D, width: number, v: HudView): void {
     ctx.scale(v.comboScale, v.comboScale)
     ctx.textBaseline = 'middle'
     ctx.font = `italic 800 ${size}px ${STORY_FONT}`
-    ctx.shadowColor = '#ff6fa5'
+    ctx.shadowColor = '#c04f66'
     ctx.shadowBlur = 8 + 14 * (v.comboScale - 1) * 3
-    ctx.fillStyle = '#ffe3f0'
+    ctx.fillStyle = '#fff8ec'
     ctx.fillText(`×${v.combo}`, 0, 0)
     ctx.restore()
     ctx.font = `700 ${Math.max(12, Math.round(12 * scale))}px ${UI_FONT}`
-    ctx.fillStyle = 'rgba(255, 200, 225, 0.8)'
+    ctx.fillStyle = 'rgba(230, 147, 159, 0.95)'
     ctx.fillText('COMBO', right, y + size + 4)
   } else if (v.comboBreak) {
     // Combo break: the lost "×N" drops, tilts and fades in muted red.
@@ -425,17 +430,25 @@ function drawPops(ctx: Ctx2D, anchor: Vec2, align: CanvasTextAlign, area: Box, v
     if (p.alpha <= 0) continue
     ctx.save()
     ctx.globalAlpha = p.alpha
-    ctx.translate(anchor[0], anchor[1] - p.rise * size * 0.5)
-    ctx.scale(p.scale, p.scale)
     ctx.font = `italic 800 ${size}px ${STORY_FONT}`
+    const w = ctx.measureText(p.label).width * p.scale // keep the scaled text inside the coach area
+    const x = Math.max(area.x + 8 + (align === 'right' ? w : align === 'center' ? w / 2 : 0), Math.min(area.x + area.w - 8 - (align === 'left' ? w : align === 'center' ? w / 2 : 0), anchor[0]))
+    ctx.translate(x, anchor[1] - p.rise * size * 0.5)
+    ctx.scale(p.scale, p.scale)
     ctx.lineWidth = Math.max(3, size * 0.12)
-    ctx.strokeStyle = 'rgba(16, 10, 44, 0.9)'
+    ctx.strokeStyle = 'rgba(21, 35, 56, 0.92)'
     ctx.shadowColor = p.color
     ctx.shadowBlur = p.judgment === 'perfect' ? 26 : 14
     ctx.strokeText(p.label, 0, 0)
     ctx.shadowBlur = 0
     ctx.fillStyle = p.color
     ctx.fillText(p.label, 0, 0)
+    if (p.tag) {
+      ctx.font = `800 ${Math.max(12, Math.round(size * 0.34))}px ${UI_FONT}`
+      ctx.lineWidth = 3
+      ctx.strokeText(p.tag, 0, -size * 0.72)
+      ctx.fillText(p.tag, 0, -size * 0.72)
+    }
     ctx.restore()
   }
   if (v.hint) {
@@ -443,9 +456,9 @@ function drawPops(ctx: Ctx2D, anchor: Vec2, align: CanvasTextAlign, area: Box, v
     ctx.globalAlpha = v.hint.alpha
     ctx.font = `600 ${hs}px ${UI_FONT}`
     ctx.lineWidth = 4
-    ctx.strokeStyle = 'rgba(16, 10, 44, 0.85)'
+    ctx.strokeStyle = 'rgba(21, 35, 56, 0.9)'
     ctx.strokeText(v.hint.text, anchor[0], anchor[1] + size * 0.85)
-    ctx.fillStyle = '#e8ecff'
+    ctx.fillStyle = '#fffaf0'
     ctx.fillText(v.hint.text, anchor[0], anchor[1] + size * 0.85)
   }
   ctx.restore()
@@ -455,7 +468,7 @@ function drawPops(ctx: Ctx2D, anchor: Vec2, align: CanvasTextAlign, area: Box, v
 function drawEdgeGlow(ctx: Ctx2D, width: number, height: number, strength: number): void {
   if (strength <= 0.01) return
   const d = Math.min(width, height) * 0.09
-  const color = (a: number): string => `rgba(255, 209, 102, ${(a * strength).toFixed(3)})`
+  const color = (a: number): string => `rgba(242, 219, 148, ${(a * strength).toFixed(3)})`
   ctx.save()
   const edges: Array<[number, number, number, number, number, number, number, number]> = [
     // gradient x0,y0,x1,y1 then rect x,y,w,h
@@ -512,25 +525,24 @@ function drawToast(ctx: Ctx2D, area: Box, title: string, pulse: number): void {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.font = `800 ${size}px ${UI_FONT}`
-  const head = `📷  ${title}`
-  const w1 = ctx.measureText(head).width
+  const w1 = ctx.measureText(title).width
   ctx.font = `600 ${sub}px ${UI_FONT}`
   const w2 = ctx.measureText(UNSEEN_TOAST_HINT).width
   const w = Math.min(area.w - 16, Math.max(w1, w2) + size * 1.6)
   const h = size * 1.4 + sub * 1.5 + size * 0.7
   roundRect(ctx, cx - w / 2, cy - h / 2, w, h, Math.min(22, h / 3))
-  ctx.fillStyle = 'rgba(150, 24, 70, 0.92)'
-  ctx.shadowColor = 'rgba(255, 90, 150, 0.9)'
+  ctx.fillStyle = 'rgba(150, 50, 72, 0.95)'
+  ctx.shadowColor = 'rgba(219, 179, 94, 0.8)'
   ctx.shadowBlur = 12 + 18 * pulse
   ctx.fill()
   ctx.shadowBlur = 0
   ctx.lineWidth = 2 + pulse
-  ctx.strokeStyle = `rgba(255, 200, 225, ${(0.6 + 0.4 * pulse).toFixed(3)})`
+  ctx.strokeStyle = `rgba(255, 250, 240, ${(0.6 + 0.4 * pulse).toFixed(3)})`
   ctx.stroke()
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = '#fffaf0'
   ctx.font = `800 ${size}px ${UI_FONT}`
-  ctx.fillText(head, cx, cy - sub * 0.75, w - 16)
-  ctx.fillStyle = 'rgba(255, 236, 244, 0.95)'
+  ctx.fillText(title, cx, cy - sub * 0.75, w - 16)
+  ctx.fillStyle = 'rgba(255, 248, 236, 0.95)'
   ctx.font = `600 ${sub}px ${UI_FONT}`
   ctx.fillText(UNSEEN_TOAST_HINT, cx, cy + size * 0.6, w - 16)
   ctx.restore()
@@ -543,7 +555,7 @@ export function drawHud(ctx: Ctx2D, f: HudFrame, v: HudView, opts: { scorePanel?
   drawPops(ctx, f.popAnchor, f.popAlign ?? 'right', f.layout.coachArea, v)
   const area = f.layout.coachArea
   if (v.autoplay) {
-    drawPill(ctx, '🤖 AUTOPLAY', 96, TOP_BAR_PX + 38, 15, '#1b1036', 'rgba(255, 209, 102, 0.92)', 'rgba(255, 240, 200, 0.9)')
+    drawPill(ctx, 'AUTOPLAY', 96, TOP_BAR_PX + 38, 15, '#4a3612', 'rgba(219, 179, 94, 0.96)', '#fffaf0')
   }
   if (v.toast) drawToast(ctx, area, v.toast, v.toastPulse)
 }
@@ -571,7 +583,7 @@ export interface PipFrame {
   tint: string | null
 }
 
-const PIP_NEUTRAL = '#c4b5fd'
+const PIP_NEUTRAL = '#dbb35e'
 
 /** Body-frame pose -> PIP pixels (mirrored self-view, whole body fitted in the box). */
 export function pipBodyPoints(pose: Pose2D, box: Box): Partial<Record<JointName, Vec2>> {
@@ -606,7 +618,7 @@ export function drawPip(ctx: Ctx2D, box: Box, p: PipFrame): void {
   const r = Math.min(18, box.h * 0.12)
   ctx.save()
   roundRect(ctx, box.x, box.y, box.w, box.h, r)
-  ctx.fillStyle = 'rgba(8, 8, 28, 0.82)'
+  ctx.fillStyle = 'rgba(21, 35, 56, 0.88)'
   ctx.shadowColor = color
   ctx.shadowBlur = p.tint ? 22 : 10
   ctx.fill()
@@ -636,11 +648,11 @@ export function drawPip(ctx: Ctx2D, box: Box, p: PipFrame): void {
           visibility: frame.visibility,
           color,
           lineWidth: 3,
-          outlineColor: 'rgba(10, 8, 30, 0.75)',
+          outlineColor: 'rgba(21, 35, 56, 0.75)',
         })
       }
     } else {
-      ctx.fillStyle = 'rgba(226, 232, 255, 0.6)'
+      ctx.fillStyle = 'rgba(233, 220, 184, 0.75)'
       ctx.font = `600 14px ${UI_FONT}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -658,7 +670,7 @@ export function drawPip(ctx: Ctx2D, box: Box, p: PipFrame): void {
   ctx.font = `800 13px ${UI_FONT}`
   ctx.textAlign = 'left'
   ctx.textBaseline = 'top'
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'
+  ctx.fillStyle = 'rgba(242, 219, 148, 0.95)'
   ctx.fillText(p.kind === 'webcam' ? 'YOU' : 'BOT', box.x + 10, box.y + 8)
   ctx.restore()
 }

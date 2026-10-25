@@ -1,0 +1,304 @@
+/* Teach (pages/Teach.tsx): the lesson page in the sticker look. The stage holds a live canvas (box-shadow cut,
+   no filter); its overlay cards, the 8-count strip and the side panel are paper. Overrides teach.css by
+   specificity (.df-screen …); buttons and links share one sticker style via :is(a, button). */
+
+.df-screen.teach {
+  gap: 20px;
+  padding-bottom: 40px;
+}
+.df-screen .teach-kicker {
+  font-family: var(--df-font-display);
+  font-style: italic;
+  font-variation-settings: var(--df-fvs-voice);
+  font-size: 1.1rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--df-gold-text);
+}
+.df-screen .teach-small {
+  font-size: var(--df-text-sm);
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+.df-screen .teach-small.warn {
+  color: var(--df-rasp-deep);
+}
+
+/* ---------- head ---------- */
+.df-screen .teach-head {
+  gap: 20px;
+}
+.df-screen .teach-title h2 {
+  font-family: var(--df-font-display);
+  font-style: normal;
+  font-weight: 700;
+  font-variation-settings: var(--df-fvs-cut);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: var(--df-rasp-deep);
+  filter: url(#dc-type);
+  margin: 2px 0 8px;
+}
+.df-screen .teach-meta {
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+.df-screen .teach-cam {
+  font-weight: 700;
+  color: var(--df-ink-soft);
+}
+.df-screen .teach-cam.bot {
+  color: var(--df-sage-deep);
+}
+.df-screen .teach-cam.error {
+  color: var(--df-rasp-deep);
+}
+
+/* ---------- sticker buttons (both <a> and <button>) ---------- */
+.df-screen :is(a, button).teach-button,
+.df-screen a.teach-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 2.75rem;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--df-r-pill);
+  background: var(--df-paper);
+  color: var(--df-ink);
+  font-family: var(--df-font-ui);
+  font-size: 1rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: var(--df-shadow-quiet);
+  filter: url(#dc-sm);
+}
+.df-screen :is(a, button).teach-button:hover:not(:disabled),
+.df-screen a.teach-back:hover {
+  background: var(--df-cut);
+}
+.df-screen :is(a, button).teach-button.primary {
+  background: var(--df-rasp-deep);
+  color: var(--df-cut);
+  box-shadow: var(--df-shadow-primary);
+}
+.df-screen :is(a, button).teach-button.primary:hover:not(:disabled) {
+  background: var(--df-rasp-hover);
+}
+.df-screen :is(a, button).teach-button.big {
+  min-height: 3.25rem;
+  padding: 0 24px;
+  font-size: var(--df-text-md);
+  filter: url(#dc);
+}
+.df-screen :is(a, button).teach-button.toggle.on,
+.df-screen :is(a, button).teach-button.speed.on {
+  background: var(--df-rasp-deep);
+  color: var(--df-cut);
+  box-shadow: var(--df-shadow-pressed);
+}
+
+/* ---------- the 8-count strip: paper tabs, the section colour as a top stripe ---------- */
+.df-screen .teach-segments {
+  padding: 8px 4px 10px;
+}
+.df-screen button.teach-seg {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 4px;
+  min-height: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-top: 5px solid var(--seg);
+  border-radius: var(--df-r-md);
+  background: var(--df-paper);
+  color: var(--df-ink);
+  font-weight: 600;
+  box-shadow: var(--df-shadow-quiet);
+}
+.df-screen button.teach-seg:hover:not(:disabled) {
+  background: var(--df-cut);
+  transform: none;
+  translate: 0 -1px;
+}
+.df-screen button.teach-seg.active {
+  background: var(--df-cut);
+  box-shadow: inset 0 0 0 3px var(--df-rasp-deep);
+}
+.df-screen .teach-seg-label {
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+.df-screen .teach-seg-label b {
+  color: var(--df-ink);
+}
+.df-screen .teach-seg-moves {
+  color: var(--df-ink);
+}
+.df-screen .teach-tag {
+  color: var(--df-gold-ink);
+  background: var(--df-gold);
+  box-shadow: inset 0 -2px 0 var(--df-gold-shade);
+}
+.df-screen .teach-tag.nailed {
+  background: none;
+  box-shadow: none;
+}
+
+/* ---------- the stage window (live canvas) ---------- */
+.df-screen .teach-stage {
+  border: 0;
+  border-radius: var(--df-r-xl);
+  background: var(--df-night-deep);
+  box-shadow:
+    0 0 0 3px var(--df-gold),
+    0 0 0 7px var(--df-cut),
+    0 6px 14px 7px rgb(74 50 32 / 0.22);
+}
+.df-screen .teach-tip {
+  border: 3px solid var(--df-cut);
+  background: var(--df-rasp-deep);
+  color: var(--df-on-rasp);
+  box-shadow: 0 6px 18px rgb(21 35 56 / 0.4);
+}
+.df-screen .teach-tip[data-good='yes'] {
+  border-color: var(--df-cut);
+  background: var(--df-gold);
+  color: var(--df-gold-ink);
+}
+.df-screen .teach-overlay {
+  background: rgb(21 35 56 / 0.45);
+}
+.df-screen .teach-card {
+  border: 0;
+  border-radius: var(--df-r-lg);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  box-shadow: none;
+  filter: url(#dc-lg);
+}
+.df-screen .teach-card h2 {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-style: normal;
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  color: var(--df-ink);
+}
+.df-screen .teach-card p {
+  color: var(--df-ink-soft);
+}
+.df-screen .teach-card b {
+  color: var(--df-ink);
+}
+.df-screen .teach-card.loading {
+  color: var(--df-gold-text);
+  font-family: var(--df-font-display);
+  font-style: italic;
+  font-size: 1.25rem;
+}
+.df-screen .teach-spinner {
+  width: 72px;
+  height: 72px;
+  border: 0;
+  border-radius: 0;
+  background: url('/art/icons/slipper.svg') center / contain no-repeat;
+  animation: df-bob 0.9s ease-in-out infinite;
+}
+.df-screen .teach-camcard {
+  border: 0;
+  border-radius: var(--df-r-lg);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  box-shadow:
+    inset 0 0 0 3px var(--df-gold),
+    var(--df-shadow-lift);
+}
+.df-screen .teach-nailed {
+  border: 0;
+  background: var(--df-night);
+  box-shadow:
+    inset 0 0 0 3px var(--df-gold),
+    inset 0 0 0 5px var(--df-gold-shade),
+    var(--df-shadow-lift);
+}
+.df-screen .teach-nailed-badge {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-voice);
+  color: var(--df-gold-light);
+}
+
+/* ---------- side panel ---------- */
+.df-screen .teach-side {
+  gap: 16px;
+}
+.df-screen .teach-panel {
+  gap: 8px;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: var(--df-r-lg);
+  background: var(--df-paper) var(--df-paper-tex);
+  box-shadow: var(--df-shadow-lift);
+}
+.df-screen .teach-label {
+  font-size: var(--df-text-sm);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--df-ink-soft);
+}
+.df-screen .teach-seg-title {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-size: 1.3rem;
+  color: var(--df-ink);
+}
+.df-screen .teach-moves {
+  font-weight: 600;
+  color: var(--df-ink-soft);
+}
+/* the pass accuracy keeps its judgment colour (pastel), so it sits on night glass */
+.df-screen .teach-acc {
+  align-self: flex-start;
+  padding: 6px 16px;
+  border-radius: var(--df-r-md);
+  background: var(--df-night);
+  color: var(--df-on-night-soft);
+  font-family: var(--df-font-ui);
+  font-variant-numeric: lining-nums tabular-nums;
+  box-shadow: inset 0 0 0 3px var(--df-gold);
+}
+.df-screen .teach-streak > span:not(.teach-small) {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  background: var(--df-ground-deep);
+  box-shadow: var(--df-shadow-well);
+}
+.df-screen .teach-streak > span.on {
+  background: var(--df-gold);
+  box-shadow: var(--df-shadow-medal);
+}
+.df-screen .teach-suggest {
+  box-shadow:
+    inset 0 0 0 3px var(--df-gold),
+    var(--df-shadow-lift);
+  animation: none;
+}
+.df-screen .teach-suggest.nailed strong {
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-voice);
+  color: var(--df-rasp-deep);
+}
+.df-screen .teach-history li {
+  background: var(--df-night);
+  color: var(--df-on-night-soft);
+  border-width: 2px;
+}
+.df-screen .teach-history li b {
+  color: var(--df-cut);
+}

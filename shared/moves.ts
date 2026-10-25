@@ -49,4 +49,11 @@ export interface ChoreographRequest {
   difficulty?: Difficulty
   mode?: 'standing' | 'seated'
   seed?: number
+  /** Optional signature dances (GET /api/signature/moves ids), each on the first downbeat of every matching section. */
+  pinnedMoves?: PinnedMoveRequest[]
+}
+
+export interface PinnedMoveRequest {
+  moveId: string
+  placement: 'chorus' | 'drop' | 'finale'
 }

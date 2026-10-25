@@ -9,6 +9,7 @@ import { scheduleClicks, type ClickTrack } from '../audio/metronome'
 import { prepareCanvas } from '../lib/canvas'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { useLatest } from '../lib/useLatest'
+import { UI_FONT } from '../theme/fonts'
 
 type AudioSource = { kind: 'server'; file: string } | { kind: 'upload'; file: File }
 
@@ -55,7 +56,7 @@ function drawTimeline(canvas: HTMLCanvasElement, beats: readonly number[], durat
   // Time labels: pick a step that keeps them >= 60 px apart.
   const steps = [1, 2, 5, 10, 15, 30, 60, 120]
   const step = steps.find((s) => xOf(s) >= 60) ?? 300
-  ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace'
+  ctx.font = `600 11px ${UI_FONT}`
   ctx.textBaseline = 'bottom'
   ctx.fillStyle = 'rgba(203, 213, 255, 0.55)'
   ctx.strokeStyle = 'rgba(203, 213, 255, 0.12)'
