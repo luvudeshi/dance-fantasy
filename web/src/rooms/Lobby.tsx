@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { leftRoom } from '../account/store'
 import { ApiError } from '../api'
 import { errorMessage } from '../lib/errors'
 import { Badge, Button, Corners, Notice, Panel, Toggle } from '../theme/components'
@@ -94,6 +95,7 @@ export default function Lobby({ code, seat, onGone }: { code: string; seat: Seat
       console.warn('leave failed; forgetting the seat anyway', err)
     }
     saveSeat(code, null)
+    leftRoom()
     window.location.hash = '#/room'
   }
 

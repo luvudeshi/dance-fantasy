@@ -1,4 +1,5 @@
-import { useState, useSyncExternalStore, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useState, useSyncExternalStore, type CSSProperties, type FormEvent } from 'react'
+import { ensureSession, getProfileName, leftRoom, recordRoomPlayed } from '../account/store'
 import { ApiError } from '../api'
 import { errorMessage } from '../lib/errors'
 import { parseHash } from '../lib/hashRoute'
@@ -36,6 +37,7 @@ function RoomScreen({ code, joining }: { code: string | null; joining: boolean }
         seat={seat}
         onGone={(why) => {
           saveSeat(code, null)
+          leftRoom()
           setSeat(null)
           setFarewell(why === 'left' ? 'You left this ballroom. Join again?' : 'That ballroom has closed. Open a new one?')
         }}
@@ -49,6 +51,7 @@ function RoomScreen({ code, joining }: { code: string | null; joining: boolean }
       notice={farewell}
       onSeated={(c, s) => {
         saveSeat(c, s)
+        void recordRoomPlayed(c, s.token) // friends see you in this room; partners after the round
         if (c === code) setSeat(s)
         else window.location.hash = `#/room?code=${c}`
       }}
@@ -66,8 +69,18 @@ function entryError(err: unknown): string {
 function Entry({ code, joining, notice, onSeated }: { code: string | null; joining: boolean; notice: string | null; onSeated: (code: string, seat: Seat) => void }) {
   const [name, setName] = useState(() => {
     const saved = readJson(NAME_KEY)
-    return typeof saved === 'string' ? saved : ''
+    return typeof saved === 'string' ? saved : (getProfileName() ?? '')
   })
+  // First visit: the profile name once the guest session has loaded (unless already typed).
+  useEffect(() => {
+    let live = true
+    void ensureSession().then((me) => {
+      if (live && me) setName((n) => n || me.name)
+    })
+    return () => {
+      live = false
+    }
+  }, [])
   const [typedCode, setTypedCode] = useState(code ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
