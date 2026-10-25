@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { isMoveLibrary, isRoutine } from '../api'
 import { DEMO_LIBRARY, demoRoutine, mulberry32 } from './demo'
-import { allStyles, filterMoves, intensityColor, libraryStats, NO_FILTERS, routineSummary } from './library'
+import { allStyles, filterMoves, intensityColor, libraryStats, mirrorTwin, NO_FILTERS, routineSummary, unlistedTwins, withMirrorTwins, type ListedMove } from './library'
+import { mirrorPose } from './pose'
 
 const MOVES = DEMO_LIBRARY.moves
 
@@ -68,5 +69,53 @@ describe('library helpers', () => {
     expect(intensityColor(0)).toBe(cs[0])
     expect(intensityColor(9)).toBe(cs[4])
     expect(intensityColor(Number.NaN)).toBe(cs[0])
+  })
+})
+
+describe('source filter', () => {
+  it('splits classic moves from real-dancer clips (moves without a source are classic)', () => {
+    const clip = { ...MOVES[0], id: 'aist_po_002', baseId: 'aist_po_002', source: 'aist' as const, credit: 'AIST++' }
+    const all = [...MOVES, clip]
+    expect(filterMoves(all, { ...NO_FILTERS, source: 'aist' })).toEqual([clip])
+    expect(filterMoves(all, { ...NO_FILTERS, source: 'library' })).toEqual(MOVES)
+    expect(filterMoves(all, NO_FILTERS)).toHaveLength(MOVES.length + 1)
+  })
+})
+
+describe('mirrored twins of real-dancer clips (GET /api/moves lists only the base clip)', () => {
+  const base = MOVES.find((m) => m.id === 'arm_raise_R')
+  if (!base) throw new Error('fixture')
+  const clip: ListedMove = {
+    ...base,
+    id: 'aist_po_002',
+    baseId: 'aist_po_002',
+    name: 'Pop Arm Wave',
+    side: 'both',
+    mirrorOf: null,
+    source: 'aist',
+    credit: 'AIST++',
+    hasMirror: true,
+    keyframes: base.keyframes.map((k, i) => ({ ...k, root: [0.25 * i, -0.1] as [number, number] })),
+  }
+
+  it('builds the twin like the server does (L/R swapped, x and root x negated)', () => {
+    const twin = mirrorTwin(clip)
+    expect(twin).toMatchObject({ id: 'aist_po_002_m', baseId: 'aist_po_002', name: 'Pop Arm Wave (mirrored)', mirrorOf: 'aist_po_002', source: 'aist' })
+    expect('hasMirror' in twin).toBe(false)
+    expect(twin.scoredJoints).toEqual(['l_elbow', 'l_wrist'])
+    twin.keyframes.forEach((k, i) => {
+      expect(k.pose).toEqual(mirrorPose(clip.keyframes[i].pose))
+      expect(k.root).toEqual([i === 0 ? 0 : -0.25 * i, -0.1])
+    })
+    expect(mirrorTwin({ ...base, side: 'L' }).side).toBe('R')
+  })
+
+  it('adds only twins that are not listed, and counts them in the stats', () => {
+    expect(unlistedTwins([clip]).map((m) => m.id)).toEqual(['aist_po_002_m'])
+    expect(unlistedTwins([clip, mirrorTwin(clip)])).toEqual([])
+    expect(withMirrorTwins([clip, MOVES[0]]).map((m) => m.id)).toEqual(['aist_po_002', 'aist_po_002_m', MOVES[0].id])
+    expect(libraryStats([...MOVES, clip])).toMatchObject({ moves: MOVES.length + 2, base: 7 })
+    // A server that still lists every twin: nothing is added twice.
+    expect(libraryStats([...MOVES, clip, mirrorTwin(clip)]).moves).toBe(MOVES.length + 2)
   })
 })

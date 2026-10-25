@@ -35,11 +35,13 @@ export interface RoomPlayer {
   finished: boolean
   /** versus: beats where this player had the best score this round (ties shared) */
   beatsWon: number
+  /** false: only watching (e.g. the host's big screen): not on the board, podium or results */
+  dancing: boolean
 }
 
 /** Crew mode numbers (computed in every room; shown when mode is 'crew'). */
 export interface CrewStats {
-  /** everyone's score + syncBonus */
+  /** every dancer's score (not watchers') + syncBonus */
   teamScore: number
   syncBonus: number
   syncedBeats: number
@@ -120,7 +122,8 @@ function isRoomPlayer(v: unknown): v is RoomPlayer {
     isNum(v.accuracy) &&
     isNum(v.progress) &&
     isBool(v.finished) &&
-    isNum(v.beatsWon)
+    isNum(v.beatsWon) &&
+    isBool(v.dancing)
   )
 }
 
@@ -213,6 +216,9 @@ export const roomWrites = {
     call(roomPath(code, 'routine', chatAfter), isRoomView, { token, body: r }),
   ready: (code: string, token: string, ready: boolean, chatAfter?: number): Promise<RoomView> =>
     call(roomPath(code, 'ready', chatAfter), isRoomView, { token, body: { ready } }),
+  /** dance in the next rounds, or only watch (lobby or finished only, else 409) */
+  dancing: (code: string, token: string, dancing: boolean, chatAfter?: number): Promise<RoomView> =>
+    call(roomPath(code, 'dancing', chatAfter), isRoomView, { token, body: { dancing } }),
   start: (code: string, token: string, chatAfter?: number): Promise<RoomView> =>
     call(roomPath(code, 'start', chatAfter), isRoomView, { token, post: true }),
   score: (code: string, token: string, s: ScoreBody, chatAfter?: number): Promise<RoomView> =>
@@ -261,6 +267,9 @@ export function saveSeat(code: string, seat: Seat | null): void {
 }
 
 // --- standings ---
+
+/** The players dancing this round (watchers stay off the board, podium and results). */
+export const dancersOf = (players: readonly RoomPlayer[]): RoomPlayer[] => players.filter((p) => p.dancing)
 
 /** Leaderboard order: score, then accuracy, then join order (stable). */
 export function rankPlayers(players: readonly RoomPlayer[]): RoomPlayer[] {

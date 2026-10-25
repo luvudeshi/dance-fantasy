@@ -3,6 +3,7 @@
 // id, and the same analysis + difficulty + mode + seed always rebuilds the same one.
 
 import type { Analysis } from '@shared/analysis'
+import type { MoveSource } from '@shared/moves'
 import type { Difficulty, Mode, Routine } from '@shared/routine'
 import { isRoutineId } from '../lib/hashRoute'
 import { defaultStorage, readJson, writeJson, type StorageLike } from '../lib/storage'
@@ -26,7 +27,11 @@ export interface ShelfEntry {
   from: 'analysis' | 'play'
   /** Library song file, so a cleared analysis can be recomputed. */
   songFile?: string
+  /** "Moves from" (absent = classic). */
+  moveSource?: MoveSource
 }
+
+const isMoveSource = (v: unknown): v is MoveSource => v === 'classic' || v === 'aist' || v === 'mix'
 
 const isStr = (v: unknown): v is string => typeof v === 'string'
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -63,6 +68,7 @@ function parseEntry(v: unknown): ShelfEntry | null {
   }
   if (isStr(r.artist)) e.artist = r.artist
   if (isStr(r.songFile)) e.songFile = r.songFile
+  if (isMoveSource(r.moveSource)) e.moveSource = r.moveSource
   return e
 }
 
@@ -109,6 +115,8 @@ export function shelfEntryFor(
   }
   if (analysis.artist) e.artist = analysis.artist
   if (analysis.source.kind === 'library' && analysis.source.file) e.songFile = analysis.source.file
+  const source = routine.meta?.moveSource
+  if (isMoveSource(source)) e.moveSource = source
   return e
 }
 
@@ -118,6 +126,7 @@ export const recipeOf = (e: ShelfEntry): RoutineRecipe => ({
   mode: e.mode,
   seed: e.seed,
   ...(e.songFile ? { songFile: e.songFile } : {}),
+  ...(e.moveSource ? { moveSource: e.moveSource } : {}),
 })
 
 export function loadShelf(storage: StorageLike | null = defaultStorage()): ShelfEntry[] {

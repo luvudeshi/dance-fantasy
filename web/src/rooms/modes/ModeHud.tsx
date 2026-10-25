@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { formatScore } from '../../game/results'
 import { Token } from '../../theme/components'
 import { Icon } from '../../theme/Icon'
-import { avatarFor, type CrewStats, type RoomPlayer, type RoomView } from '../client'
+import { avatarFor, dancersOf, type CrewStats, type RoomPlayer, type RoomView } from '../client'
 import { nextSyncPoints, SYNC_STREAK_CAP, syncBurst, syncMeter, versusRows } from './modeStats'
 import './modes.css'
 
@@ -47,7 +47,7 @@ export function CrewHud({ crew, players }: { crew: CrewStats; players: readonly 
         </span>
       </div>
       <div className="dfm-crew-dancers" aria-label="Dancers">
-        {players.map((p) => (
+        {dancersOf(players).map((p) => (
           <Token key={p.id} icon={avatarFor(players, p.id)} size="sm" label={p.name} off={!p.connected || p.finished} />
         ))}
       </div>

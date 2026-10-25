@@ -1033,3 +1033,10 @@
   text-shadow: 0 0 14px rgba(5, 6, 20, 0.9);
   pointer-events: none;
 }
+
+/* Data credit whenever real-dancer (AIST++) moves are picked. */
+.lobby-credit {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  opacity: 0.8;
+}

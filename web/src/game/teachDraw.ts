@@ -10,7 +10,7 @@ import { bodyToScreen } from '../pose/normalize'
 import { coachThemeFor, drawCoach, withAlpha, type CoachTheme, type CoachView } from '../render/coach'
 import type { Box } from '../render/pictogram'
 import { drawStage } from '../render/stage'
-import { figureBodyView, fitFigureView } from '../render/stickFigure'
+import { figureBodyView, fitFigureView, stageRoot } from '../render/stickFigure'
 import type { MotionTrack } from '../routine/track'
 import { beatPulse, sectionAt } from './cues'
 import { drawPip, type PipFrame } from './hud'
@@ -206,8 +206,9 @@ export function drawTeachFrame(ctx: Ctx2D, width: number, height: number, f: Tea
   drawStage(ctx, { width, height, time: t, beatPulse: pulse, theme, floor: { x: L.coach.cx, y: L.coach.floorY, scale: L.coach.scale } })
   const sample = f.track.sample(t)
   const move = sample.moveIndex >= 0 ? routine.moves[sample.moveIndex] : undefined
-  drawCoach(ctx, sample.pose, sample.root, L.coach, { theme, beatPulse: pulse, highlightJoints: move?.scoredJoints })
-  drawWrongLimbs(ctx, sample.pose, sample.root, L.coach, f.wrong)
+  const root = stageRoot(sample.root, L.coach, L.coachArea.x, L.coachArea.x + L.coachArea.w)
+  drawCoach(ctx, sample.pose, root, L.coach, { theme, beatPulse: pulse, highlightJoints: move?.scoredJoints })
+  drawWrongLimbs(ctx, sample.pose, root, L.coach, f.wrong)
   drawCountIn(ctx, L.coachArea, segment, t, theme)
   drawCountBar(ctx, L.bar, f, theme, pulse)
   if (f.pip) drawPip(ctx, teachPipBox(width, L, f.pip.aspect), f.pip)

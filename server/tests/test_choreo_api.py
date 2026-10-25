@@ -102,6 +102,10 @@ def test_unknown_analysis_is_404(client: TestClient) -> None:
         {"analysisId": "ab" * 32, "seed": True},
         {"analysisId": "ab" * 32, "seed": 2**60},
         {"analysisId": "ab" * 32, "extra": 1},
+        {"analysisId": "ab" * 32, "moveSource": "robots"},
+        {"analysisId": "ab" * 32, "moveSource": "AIST"},
+        {"analysisId": "ab" * 32, "moveSource": None},
+        {"analysisId": "ab" * 32, "moveSource": 1},
     ],
 )
 def test_bad_requests_are_400(client: TestClient, body: dict) -> None:
@@ -143,3 +147,25 @@ def test_invalid_move_library_is_500_with_reason(client: TestClient, monkeypatch
     monkeypatch.setattr(library_module, "load_library", broken)
     r = client.post("/api/choreograph", json={"analysisId": ANALYSIS.id})
     assert r.status_code == 500 and "arms.json" in r.json()["detail"]
+
+
+def test_move_sources(client: TestClient) -> None:
+    """moveSource picks classic / real-dancer clips / both; it is part of the routine id and the meta."""
+    from aist_fixtures import clips_library
+
+    clips = clips_library()
+    app.dependency_overrides[get_move_library] = lambda: clips
+    docs = {}
+    for source in ("classic", "aist", "mix"):
+        r = client.post("/api/choreograph", json={"analysisId": ANALYSIS.id, "seed": 3, "moveSource": source})
+        assert r.status_code == 200 and r.headers["x-routine-cache"] == "miss", r.text
+        docs[source] = r.json()
+        assert not [e.message for e in ROUTINE_VALIDATOR.iter_errors(docs[source])]
+        assert docs[source]["meta"]["moveSource"] == source
+    assert len({d["meta"]["routineId"] for d in docs.values()}) == 3
+    assert docs["classic"]["meta"]["aistMoves"] == 0 and docs["aist"]["meta"]["aistMoves"] > 0
+    assert "AIST++" in docs["aist"]["meta"]["credit"]
+    default = client.post("/api/choreograph", json={"analysisId": ANALYSIS.id, "seed": 3})
+    assert default.headers["x-routine-cache"] == "hit" and default.content == client.post(
+        "/api/choreograph", json={"analysisId": ANALYSIS.id, "seed": 3, "moveSource": "classic"}
+    ).content

@@ -360,4 +360,4 @@ def test_real_library_uses_the_formerly_unused_moves(analysis: Analysis) -> None
                     assert_paired_one_beat_moves(routine)
                 used |= {by_id[mv.id].baseId for mv in routine.moves}
     assert {"jumping_jack", "star_jump", "shrug", "ta_da"} <= used
-    assert len(used) >= 0.85 * len({m.baseId for m in lib.moves})
+    assert len(used) >= 0.85 * len({m.baseId for m in lib.moves if m.source == "library"})

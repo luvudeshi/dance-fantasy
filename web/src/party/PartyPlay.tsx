@@ -17,6 +17,8 @@ import { SyncMonitor } from '../game/sync'
 import { songTimeAtFromClock } from '../game/webcamSource'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { useLatest } from '../lib/useLatest'
+import { AIST_CREDIT, routineAistMoves } from '../routine/moveSource'
+import { useMoveSource } from '../routine/useMoveSource'
 import '../pages/play.css'
 import { PartyPoseSource } from './multiPose'
 import PartyHud from './PartyHud'
@@ -44,6 +46,7 @@ export default function PartyPlay({ count: initialCount }: { count: number }) {
   const [songs, setSongs] = useState<SongInfo[] | null>(null)
   const [song, setSong] = useState<string | null>(null)
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const moves = useMoveSource()
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [phase, setPhase] = useState<Phase>('setup')
@@ -128,7 +131,7 @@ export default function PartyPlay({ count: initialCount }: { count: number }) {
     clock.unlock() // inside the click: the autoplay policy
     savePartyPlayers(players)
     setError(null)
-    const key = `${song}|${difficulty}`
+    const key = `${song}|${difficulty}|${moves.value}`
     const ready = preparedRef.current
     if (ready?.key === key) {
       begin(ready.game)
@@ -147,7 +150,13 @@ export default function PartyPlay({ count: initialCount }: { count: number }) {
       }
     }
     setBusy(STEP_LABELS.analyzing)
-    const req = { song: { kind: 'library' as const, file: song, title }, difficulty, mode: 'standing' as const, seed: Math.floor(Math.random() * 1_000_000) }
+    const req = {
+      song: { kind: 'library' as const, file: song, title },
+      difficulty,
+      mode: 'standing' as const,
+      seed: Math.floor(Math.random() * 1_000_000),
+      moveSource: moves.value,
+    }
     void prepareGame(req, apiSessionDeps(clock), onState, ac.signal).then((game) => {
       if (sessionRef.current !== ac) return
       setBusy(null)
@@ -234,6 +243,7 @@ export default function PartyPlay({ count: initialCount }: { count: number }) {
       <PartyResults
         standings={standings}
         songTitle={stage.active.game.analysis.title}
+        credit={routineAistMoves(stage.active.game.routine) > 0 ? AIST_CREDIT : undefined}
         onAgain={() => {
           clock.unlock()
           begin(stage.active.game)
@@ -258,6 +268,9 @@ export default function PartyPlay({ count: initialCount }: { count: number }) {
       onSong={setSong}
       difficulty={difficulty}
       onDifficulty={setDifficulty}
+      moveSource={moves.value}
+      onMoveSource={moves.choose}
+      realDancers={moves.realDancers}
       onStart={start}
       busy={busy}
       error={error}

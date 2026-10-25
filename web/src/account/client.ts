@@ -170,6 +170,7 @@ export function isHistory(v: unknown): v is History {
 }
 
 const isOk = (v: unknown): v is { ok: true } => isRecord(v) && v.ok === true
+const isRoomPeek = (v: unknown): v is { code: string; state: string } => isRecord(v) && isStr(v.code) && isStr(v.state)
 
 // --- transport -----------------------------------------------------------------------
 
@@ -272,6 +273,10 @@ export const dismissInvite = (id: number): Promise<{ ok: true }> => call('POST',
 
 export const recordRoom = (roomCode: string, playerToken: string): Promise<{ ok: true }> =>
   call('POST', '/api/me/rooms', isOk, { body: { roomCode, playerToken } })
+
+/** The rooms API's public peek (GET /api/rooms/{code} without a seat token): 404 once the room has closed or expired. */
+export const peekRoom = (code: string, signal?: AbortSignal): Promise<{ code: string; state: string }> =>
+  call('GET', `/api/rooms/${encodeURIComponent(code)}`, isRoomPeek, { signal, retry: false })
 
 export const listPartners = (signal?: AbortSignal): Promise<Partner[]> =>
   call('GET', '/api/me/partners', listOf(isPartner), { signal })

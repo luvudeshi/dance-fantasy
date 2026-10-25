@@ -98,6 +98,10 @@ _ROOM_COLUMNS = (
     ("last_sync_beat", "integer"),
     ("sync_bonus", "bigint not null default 0"),
 )
+# Added to df_players likewise.
+_PLAYER_COLUMNS = (
+    ("dancing", "smallint not null default 1"),  # 0: watching (a host's big screen); left out of rounds and scores
+)
 
 # Postgres with timescaledb only; if any of it fails the heatmap reads df_room_beats (_pg_timescale).
 # The aggregate keeps one row per room round and beat, so the heatmap weighs every round once.
@@ -149,10 +153,10 @@ class Tx:
         return self.one("select * from df_rooms where code = :code", code=code)
 
 
-def _add_room_columns(tx: Tx, existing: set[str]) -> None:
-    for name, decl in _ROOM_COLUMNS:
+def _add_columns(tx: Tx, table: str, columns: tuple[tuple[str, str], ...], existing: set[str]) -> None:
+    for name, decl in columns:
         if name not in existing:
-            tx.run(f"alter table df_rooms add column {name} {decl}")  # constants from _ROOM_COLUMNS only
+            tx.run(f"alter table {table} add column {name} {decl}")  # constants from _ROOM/_PLAYER_COLUMNS only
 
 
 def heat_view_exists(tx: Tx) -> bool:
@@ -179,7 +183,8 @@ def _sqlite[T](fn: Callable[[Tx], T]) -> T:
                 con.execute("pragma journal_mode=wal")
                 con.executescript(_SCHEMA.format(serial_pk="integer primary key autoincrement"))
                 tx = Tx(con.cursor(), postgres=False)
-                _add_room_columns(tx, {r["name"] for r in tx.all("pragma table_info(df_rooms)")})
+                for table, columns in (("df_rooms", _ROOM_COLUMNS), ("df_players", _PLAYER_COLUMNS)):
+                    _add_columns(tx, table, columns, {r["name"] for r in tx.all(f"pragma table_info({table})")})
                 _sqlite_ready.add(str(path))
         cur = con.cursor()
         cur.execute("begin immediate")
@@ -251,11 +256,13 @@ def _pg_bootstrap(con: pg8000.dbapi.Connection, url: str) -> None:
             if stmt.strip():
                 cur.execute(stmt)
         tx = Tx(cur, postgres=True)
-        cols = tx.all(
-            "select column_name from information_schema.columns"
-            " where table_schema = current_schema() and table_name = 'df_rooms'"
-        )
-        _add_room_columns(tx, {r["column_name"] for r in cols})
+        for table, columns in (("df_rooms", _ROOM_COLUMNS), ("df_players", _PLAYER_COLUMNS)):
+            cols = tx.all(
+                "select column_name from information_schema.columns"
+                " where table_schema = current_schema() and table_name = :table",
+                table=table,
+            )
+            _add_columns(tx, table, columns, {r["column_name"] for r in cols})
         _pg_timescale(tx)
         con.commit()
         _pg_ready.add(url)

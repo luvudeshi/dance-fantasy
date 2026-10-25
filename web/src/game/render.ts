@@ -9,7 +9,7 @@ import { bodyToScreen } from '../pose/normalize'
 import { coachThemeFor, drawCoach, type CoachTheme, type CoachView } from '../render/coach'
 import { drawPictogram, type Box } from '../render/pictogram'
 import { drawStage } from '../render/stage'
-import { figureBodyView, fitFigureView } from '../render/stickFigure'
+import { figureBodyView, fitFigureView, stageRoot } from '../render/stickFigure'
 import type { MotionTrack } from '../routine/track'
 import {
   beatPulse,
@@ -142,12 +142,14 @@ export function renderPlayFrame(ctx: Ctx2D, width: number, height: number, f: Pl
   drawStage(ctx, { width, height, time: t, beatPulse: pulse, theme, floor: { x: L.coach.cx, y: L.coach.floorY, scale: L.coach.scale } })
   const sample = f.track.sample(t)
   const move = sample.moveIndex >= 0 ? routine.moves[sample.moveIndex] : undefined
-  drawCoach(ctx, sample.pose, sample.root, L.coach, { theme, beatPulse: pulse, highlightJoints: move?.scoredJoints })
+  // Real-dancer travel stays on screen on a narrow (portrait) stage.
+  const root = stageRoot(sample.root, L.coach, L.coachArea.x, L.coachArea.x + L.coachArea.w)
+  drawCoach(ctx, sample.pose, root, L.coach, { theme, beatPulse: pulse, highlightJoints: move?.scoredJoints })
   drawCueStrip(ctx, L, f, theme, pulse)
   drawCountIn(ctx, L, timeline, t, theme)
 
   const dur = f.durationSec > 0 ? f.durationSec : routine.song.durationSec
-  const pop = popPlacement(sample.pose, sample.root, L)
+  const pop = popPlacement(sample.pose, root, L)
   return {
     section: label,
     theme,

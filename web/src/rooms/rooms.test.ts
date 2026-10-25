@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JointName, Pose2D } from '@shared/skeleton'
 import { ScoreKeeper, type Checkpoint } from '../game/scoring'
 import { NEUTRAL_POSE } from '../routine/pose'
-import { isRoomView, mergeChat, normalizeCode, rankPlayers, type ChatMessage, type RoomPlayer, type ScoreBody } from './client'
+import { dancersOf, isRoomView, mergeChat, normalizeCode, rankPlayers, roomWrites, type ChatMessage, type RoomPlayer, type ScoreBody } from './client'
 import { createScoreReporter, liveScore } from './gameLink'
 import { bestOffset, clockSample } from './useRoom'
 
@@ -15,7 +15,7 @@ const VIEW = {
   startAt: null,
   routine: null,
   mode: 'versus',
-  players: [{ id: 'Zp3k9QxA', name: 'Ana', isHost: true, ready: false, connected: true, score: 0, combo: 0, maxCombo: 0, accuracy: 0, progress: 0, finished: false, beatsWon: 0 }],
+  players: [{ id: 'Zp3k9QxA', name: 'Ana', isHost: true, ready: false, connected: true, score: 0, combo: 0, maxCombo: 0, accuracy: 0, progress: 0, finished: false, beatsWon: 0, dancing: true }],
   leaderId: null,
   crew: { teamScore: 0, syncBonus: 0, syncedBeats: 0, syncStreak: 0, bestSyncStreak: 0, lastSyncBeat: null },
   chat: [{ id: 12, playerId: 'Zp3k9QxA', name: 'Ana', text: 'ready?', at: 1761379990000 }],
@@ -43,6 +43,33 @@ describe('rooms client', () => {
     expect(isRoomView({ ...VIEW, mode: 'solo' })).toBe(false)
     expect(isRoomView({ ...VIEW, crew: { ...VIEW.crew, lastSyncBeat: '3' } })).toBe(false)
     expect(isRoomView({ ...VIEW, players: [{ ...VIEW.players[0], beatsWon: undefined }] })).toBe(false)
+    // watchers
+    expect(isRoomView({ ...VIEW, players: [{ ...VIEW.players[0], dancing: false }] })).toBe(true)
+    expect(isRoomView({ ...VIEW, players: [{ ...VIEW.players[0], dancing: undefined }] })).toBe(false)
+  })
+
+  it('switches dancing / watching with the seat token', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(JSON.stringify(VIEW), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      await expect(roomWrites.dancing('KQWX', 'seat-token', false, 12)).resolves.toEqual(VIEW)
+      const [url, init] = fetchMock.mock.calls[0]!
+      expect(url).toBe('/api/rooms/KQWX/dancing?chatAfter=12')
+      expect(init?.method).toBe('POST')
+      expect(JSON.parse(String(init?.body))).toEqual({ dancing: false })
+      expect(init?.headers).toMatchObject({ 'X-Player-Token': 'seat-token', 'Content-Type': 'application/json' })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('leaves watchers off the live board', () => {
+    const watcher = { ...player('host', 0), isHost: true, dancing: false }
+    const players = [watcher, player('a', 100), player('b', 300)]
+    expect(dancersOf(players).map((p) => p.id)).toEqual(['a', 'b'])
+    expect(rankPlayers(dancersOf(players)).map((p) => p.id)).toEqual(['b', 'a'])
   })
 
   it('normalizes room codes (no I, L, O; four letters)', () => {
