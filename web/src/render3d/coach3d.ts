@@ -1,31 +1,17 @@
-// The 3D coach: a procedural storybook princess (primitives only: no model files, no licences) drawn
-// with three.js into one shared offscreen WebGL canvas, then drawImage()d onto the caller's 2D context
-// exactly where the 2D coach would be (orthographic camera over the figure's screen box). Loaded
-// lazily (dynamic import from ./load), so three.js stays out of the main bundle.
+// The 3D coach: a procedural storybook princess or prince (primitives only: no model files, no
+// licences) drawn with three.js into one shared offscreen WebGL canvas, then drawImage()d onto the
+// caller's 2D context exactly where the 2D coach would be (orthographic camera over the figure's
+// screen box). Loaded lazily (dynamic import from ./load), so three.js stays out of the main bundle.
+// The dancer (./dancer) switches live: the old body's meshes are disposed and the new one built.
 
-import {
-  BufferAttribute,
-  BufferGeometry,
-  ConeGeometry,
-  CylinderGeometry,
-  Group,
-  LatheGeometry,
-  Mesh,
-  OrthographicCamera,
-  Scene,
-  ShaderMaterial,
-  SphereGeometry,
-  TorusGeometry,
-  Vector2,
-  Vector3,
-  WebGLRenderer,
-  DoubleSide,
-  type Object3D,
-} from 'three'
+import { BufferAttribute, BufferGeometry, ConeGeometry, CylinderGeometry, Group, Mesh, OrthographicCamera, Scene, SphereGeometry, TorusGeometry, WebGLRenderer, type Object3D } from 'three'
 import type { JointName, LimbName, Pose2D, Vec2 } from '@shared/skeleton'
 import type { Ctx2D } from '../pose/draw'
-import { deviceScale, hexToRgb, mixHex, type CoachTheme, type CoachView } from '../render/coach'
+import { deviceScale, mixHex, type CoachTheme, type CoachView } from '../render/coach'
 import { highlightedLimbs } from '../render/stickFigure'
+import { getDancer, type Dancer } from './dancer'
+import { Kit, lathe, limbGeometry, paint, type Body, type Look } from './parts3d'
+import { buildPrince } from './prince3d'
 import { buildRig, RADIUS, SKIRT_RINGS, SKIRT_SEGMENTS, type Basis, type RigPart } from './rig'
 
 export interface Coach3dOptions {
@@ -39,55 +25,7 @@ export interface Coach3dOptions {
 const MAX_DPR = 2
 const MAX_SIDE = 2048
 
-// --- material: soft two-tone toon + porcelain highlight + theme rim ----------------------------
-
-const VERT = /* glsl */ `
-varying vec3 vN;
-void main() {
-  vN = normalize(normalMatrix * normal);
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}`
-
-const FRAG = /* glsl */ `
-uniform vec3 uBase;
-uniform vec3 uShade;
-uniform vec3 uBack;
-uniform vec3 uRim;
-uniform float uRimK;
-uniform float uSpec;
-uniform float uPulse;
-varying vec3 vN;
-void main() {
-  vec3 N = normalize(vN);
-  vec3 base = uBase;
-  if (!gl_FrontFacing) { N = -N; base = uBack; }
-  vec3 L = normalize(vec3(-0.42, 0.62, 0.66));
-  float d = dot(N, L);
-  float lit = smoothstep(-0.12, 0.22, d);
-  vec3 col = mix(uShade * (gl_FrontFacing ? 1.0 : 0.82), base, lit);
-  col += base * smoothstep(0.62, 0.7, d) * 0.07;
-  // Bounce from below-right in the theme colour, porcelain glint, rim glow.
-  col += uRim * max(dot(N, normalize(vec3(0.55, -0.45, 0.4))), 0.0) * 0.16;
-  float sp = pow(max(dot(N, normalize(L + vec3(0.0, 0.0, 1.0))), 0.0), 48.0);
-  col += vec3(smoothstep(0.35, 0.6, sp)) * uSpec;
-  float fr = 1.0 - max(N.z, 0.0);
-  col = mix(col, uRim, smoothstep(0.5, 0.95, fr) * uRimK);
-  col *= 1.0 + 0.12 * uPulse;
-  gl_FragColor = vec4(min(col, vec3(1.0)), 1.0);
-}`
-
-const rgb = (hex: string): Vector3 => {
-  const [r, g, b] = hexToRgb(hex)
-  return new Vector3(r / 255, g / 255, b / 255)
-}
-
-interface Look {
-  base: string
-  shade: string
-  back?: string
-  rimK?: number
-  spec?: number
-}
+// --- the princess ------------------------------------------------------------------------------
 
 type MatName = 'skin' | 'gown' | 'puff' | 'accent' | 'gold' | 'hair' | 'eye' | 'shine' | 'cheek' | 'gem'
 
@@ -109,59 +47,6 @@ function looks(t: CoachTheme): Record<MatName, Look> {
   }
 }
 
-function material(side = false): ShaderMaterial {
-  return new ShaderMaterial({
-    vertexShader: VERT,
-    fragmentShader: FRAG,
-    ...(side ? { side: DoubleSide } : {}),
-    uniforms: {
-      uBase: { value: new Vector3() },
-      uShade: { value: new Vector3() },
-      uBack: { value: new Vector3() },
-      uRim: { value: new Vector3() },
-      uRimK: { value: 0.5 },
-      uSpec: { value: 0.3 },
-      uPulse: { value: 0 },
-    },
-  })
-}
-
-// --- the figure --------------------------------------------------------------------------------
-
-interface Figure {
-  renderer: WebGLRenderer
-  canvas: HTMLCanvasElement
-  scene: Scene
-  camera: OrthographicCamera
-  mats: Record<MatName, ShaderMaterial>
-  parts: Partial<Record<RigPart, Mesh | Group>>
-  skirt: Mesh
-  skirtPos: BufferAttribute
-  tiara: Group
-  themeKey: string
-  lost: boolean
-  disposables: Array<{ dispose(): void }>
-}
-
-let fig: Figure | null = null
-let failed = false
-
-/** Body-unit lathe from (radius, height) pairs; depth scaled for an oval cross-section. */
-function lathe(pts: ReadonlyArray<readonly [number, number]>, depth: number): LatheGeometry {
-  const g = new LatheGeometry(
-    pts.map(([r, y]) => new Vector2(r, y)),
-    36,
-  )
-  g.scale(1, 1, depth)
-  return g
-}
-
-function limbGeometry(ra: number, rb: number): CylinderGeometry {
-  const g = new CylinderGeometry(rb, ra, 1, 20, 1, true)
-  g.translate(0, 0.5, 0)
-  return g
-}
-
 function skirtGeometry(): { geo: BufferGeometry; pos: BufferAttribute } {
   const geo = new BufferGeometry()
   const pos = new BufferAttribute(new Float32Array(SKIRT_RINGS * SKIRT_SEGMENTS * 3), 3)
@@ -180,47 +65,22 @@ function skirtGeometry(): { geo: BufferGeometry; pos: BufferAttribute } {
   return { geo, pos }
 }
 
-function create(): Figure | null {
-  if (typeof document === 'undefined') return null
-  const canvas = document.createElement('canvas')
-  canvas.width = 256
-  canvas.height = 256
-  let renderer: WebGLRenderer
-  try {
-    renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: true, powerPreference: 'high-performance' })
-  } catch {
-    return null
-  }
-  // A shader that fails to compile draws nothing: give up and let the 2D coach draw.
-  renderer.debug.onShaderError = () => {
-    failed = true
-  }
-  renderer.setPixelRatio(1)
-  renderer.autoClear = false
-  renderer.setClearColor(0x000000, 0)
+function buildPrincess(): Body {
+  const kit = new Kit()
+  const keep = kit.keep.bind(kit)
+  const mesh = kit.mesh.bind(kit)
+  const ellip = kit.ellip.bind(kit)
   const scene = new Scene()
-  const camera = new OrthographicCamera(0, 1, 0, -1, 0, 10)
-  const disposables: Array<{ dispose(): void }> = [renderer]
-  const keep = <T extends { dispose(): void }>(x: T): T => {
-    disposables.push(x)
-    return x
-  }
-  const mats = {} as Record<MatName, ShaderMaterial>
-  for (const name of ['skin', 'gown', 'puff', 'accent', 'gold', 'hair', 'eye', 'shine', 'cheek', 'gem'] as const) {
-    mats[name] = keep(material(name === 'gown'))
-  }
+  const mats = kit.mats(['skin', 'gown', 'puff', 'accent', 'gold', 'hair', 'eye', 'shine', 'cheek', 'gem'] as const, ['gown'])
   const sphere = keep(new SphereGeometry(1, 28, 18))
-  const parts: Figure['parts'] = {}
+  const parts: Body['parts'] = {}
+  const primary: Body['primary'] = {}
   const add = (part: RigPart, obj: Mesh | Group): void => {
     obj.matrixAutoUpdate = false
     obj.frustumCulled = false
     parts[part] = obj
+    if (obj instanceof Mesh) primary[part] = obj
     scene.add(obj)
-  }
-  const mesh = (geo: BufferGeometry, mat: ShaderMaterial): Mesh => {
-    const m = new Mesh(geo, mat)
-    m.frustumCulled = false
-    return m
   }
 
   const upper = keep(limbGeometry(RADIUS.shoulder, RADIUS.elbow))
@@ -285,12 +145,6 @@ function create(): Figure | null {
 
   // Head (frame radius 1): porcelain face, hair cap + back + bun, eyes, cheeks, tiara.
   const head = new Group()
-  const ellip = (geo: BufferGeometry, mat: ShaderMaterial, sx: number, sy: number, sz: number, x = 0, y = 0, z = 0): Mesh => {
-    const m = mesh(geo, mat)
-    m.scale.set(sx, sy, sz)
-    m.position.set(x, y, z)
-    return m
-  }
   const capTop = keep(new SphereGeometry(1.07, 32, 12, 0, Math.PI * 2, 0, Math.PI * 0.38))
   const capBack = keep(new SphereGeometry(1.08, 32, 16, Math.PI / 2 + 0.75, Math.PI * 2 - 1.5, 0, Math.PI * 0.82))
   head.add(
@@ -330,6 +184,63 @@ function create(): Figure | null {
   head.add(tiara)
   add('head', head)
 
+  return {
+    scene,
+    parts,
+    primary,
+    // ponytail: the waist torus has no base entry, so it draws in skin as it always has.
+    base: { l_shoulder: mats.puff, r_shoulder: mats.puff, l_foot: mats.puff, r_foot: mats.puff },
+    skin: mats.skin,
+    accent: mats.accent,
+    crown: tiara,
+    skirt: { mesh: skirt, pos: skirtPos },
+    mats: Object.values(mats),
+    setTheme: (t) => paint(mats, looks(t), t),
+    disposables: kit.disposables,
+  }
+}
+
+// --- the figure --------------------------------------------------------------------------------
+
+interface Figure {
+  renderer: WebGLRenderer
+  canvas: HTMLCanvasElement
+  camera: OrthographicCamera
+  /** The current dancer's meshes (rebuilt when the dancer changes). */
+  body: Body
+  dancer: Dancer
+  themeKey: string
+  lost: boolean
+}
+
+let fig: Figure | null = null
+let failed = false
+
+const buildBody = (d: Dancer): Body => (d === 'prince' ? buildPrince() : buildPrincess())
+
+function disposeBody(b: Body): void {
+  for (const d of b.disposables) d.dispose()
+}
+
+function create(): Figure | null {
+  if (typeof document === 'undefined') return null
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  let renderer: WebGLRenderer
+  try {
+    renderer = new WebGLRenderer({ canvas, alpha: true, antialias: true, premultipliedAlpha: true, powerPreference: 'high-performance' })
+  } catch {
+    return null
+  }
+  // A shader that fails to compile draws nothing: give up and let the 2D coach draw.
+  renderer.debug.onShaderError = () => {
+    failed = true
+  }
+  renderer.setPixelRatio(1)
+  renderer.autoClear = false
+  renderer.setClearColor(0x000000, 0)
+  const camera = new OrthographicCamera(0, 1, 0, -1, 0, 10)
   canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault()
     if (fig) fig.lost = true
@@ -337,25 +248,27 @@ function create(): Figure | null {
   canvas.addEventListener('webglcontextrestored', () => {
     if (fig) fig.lost = false
   })
-  return { renderer, canvas, scene, camera, mats, parts, skirt, skirtPos, tiara, themeKey: '', lost: false, disposables }
+  const dancer = getDancer()
+  return { renderer, canvas, camera, body: buildBody(dancer), dancer, themeKey: '', lost: false }
+}
+
+/** Swaps in the current dancer's body when the choice changed (same shader program: no recompile). */
+function syncDancer(f: Figure): void {
+  const d = getDancer()
+  if (d === f.dancer) return
+  disposeBody(f.body)
+  f.body = buildBody(d)
+  f.dancer = d
+  f.themeKey = ''
 }
 
 function setTheme(f: Figure, theme: CoachTheme, pulse: number): void {
   const key = `${theme.body}|${theme.glow}|${theme.accent}`
   if (f.themeKey !== key) {
     f.themeKey = key
-    const rim = rgb(mixHex(theme.glow, '#ffffff', 0.25))
-    for (const [name, look] of Object.entries(looks(theme)) as Array<[MatName, Look]>) {
-      const u = f.mats[name].uniforms
-      ;(u.uBase.value as Vector3).copy(rgb(look.base))
-      ;(u.uShade.value as Vector3).copy(rgb(look.shade))
-      ;(u.uBack.value as Vector3).copy(rgb(look.back ?? look.shade))
-      ;(u.uRim.value as Vector3).copy(rim)
-      u.uRimK.value = look.rimK ?? 0.55
-      u.uSpec.value = look.spec ?? 0.3
-    }
+    f.body.setTheme(theme)
   }
-  for (const m of Object.values(f.mats)) m.uniforms.uPulse.value = pulse
+  for (const m of f.body.mats) m.uniforms.uPulse.value = pulse
 }
 
 /** Accent gloves / sleeves / boots: the parts a highlighted (scored) limb paints in the accent colour. */
@@ -369,7 +282,6 @@ const HL_PARTS: ReadonlyArray<readonly [LimbName, readonly RigPart[]]> = [
   ['l_shin', ['l_shin', 'l_ankle', 'l_foot']],
   ['r_shin', ['r_shin', 'r_ankle', 'r_foot']],
 ]
-const BASE_MAT: Partial<Record<RigPart, MatName>> = { l_shoulder: 'puff', r_shoulder: 'puff', l_foot: 'puff', r_foot: 'puff', l_hip: 'skin', r_hip: 'skin' }
 
 function setBasis(obj: Object3D, b: Basis): void {
   const { o, x, y, z } = b
@@ -402,8 +314,9 @@ export function renderCoach3d(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachV
     return null
   }
   if (f.lost || f.renderer.getContext().isContextLost()) return null
+  syncDancer(f)
   const s = view.scale
-  const rig = buildRig(pose, root, view, performance.now() / 1000, opts.pulse)
+  const rig = buildRig(pose, root, view, performance.now() / 1000, opts.pulse, f.body.section)
   const { box } = rig
   if (!(s > 0) || !Number.isFinite(box.x0) || !Number.isFinite(box.y1)) return null
 
@@ -421,28 +334,32 @@ export function renderCoach3d(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachV
   const H = c.height
 
   setTheme(f, opts.theme, opts.pulse)
+  const body = f.body
   const hl = highlightedLimbs(opts.highlightJoints)
-  for (const [part, obj] of Object.entries(f.parts) as Array<[RigPart, Mesh | Group]>) {
+  for (const [part, obj] of Object.entries(body.parts) as Array<[RigPart, Object3D]>) {
     const b = rig.parts[part]
     obj.visible = b !== undefined
     if (b) setBasis(obj, b)
-    if (obj instanceof Mesh) obj.material = f.mats[BASE_MAT[part] ?? 'skin']
   }
+  for (const [part, m] of Object.entries(body.primary) as Array<[RigPart, Mesh]>) m.material = body.base[part] ?? body.skin
   for (const [limb, ps] of HL_PARTS) {
     if (!hl.has(limb)) continue
     for (const p of ps) {
-      const obj = f.parts[p]
-      if (obj instanceof Mesh) obj.material = f.mats.accent
+      const m = body.primary[p]
+      if (m) m.material = body.accent
     }
   }
-  f.tiara.visible = opts.crown
-  if (rig.skirt) {
-    ;(f.skirtPos.array as Float32Array).set(rig.skirt)
-    f.skirtPos.needsUpdate = true
-    f.skirt.geometry.computeVertexNormals()
-    f.skirt.visible = true
-  } else {
-    f.skirt.visible = false
+  body.crown.visible = opts.crown
+  if (body.skirt) {
+    const { mesh, pos } = body.skirt
+    if (rig.skirt) {
+      ;(pos.array as Float32Array).set(rig.skirt)
+      pos.needsUpdate = true
+      mesh.geometry.computeVertexNormals()
+      mesh.visible = true
+    } else {
+      mesh.visible = false
+    }
   }
 
   const cam = f.camera
@@ -461,7 +378,7 @@ export function renderCoach3d(ctx: Ctx2D, pose: Pose2D, root: Vec2, view: CoachV
   r.setScissor(0, H - ph, pw, ph)
   r.setScissorTest(true)
   r.clear()
-  r.render(f.scene, cam)
+  r.render(body.scene, cam)
   return { src: c, sw: pw, sh: ph, x: x0, y: y0, w: pw / k, h: ph / k }
 }
 
@@ -470,13 +387,14 @@ export function warmCoach3d(): void {
   if (failed || fig) return
   fig = create()
   if (!fig) failed = true
-  else fig.renderer.compile(fig.scene, fig.camera)
+  else fig.renderer.compile(fig.body.scene, fig.camera)
 }
 
 /** Frees the WebGL context and every GPU resource (the next draw rebuilds lazily). */
 export function disposeCoach3d(): void {
   if (!fig) return
-  for (const d of fig.disposables) d.dispose()
+  disposeBody(fig.body)
+  fig.renderer.dispose()
   fig.renderer.forceContextLoss()
   fig = null
 }
