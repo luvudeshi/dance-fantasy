@@ -114,7 +114,9 @@ function drawPartyMirror(
     drawSkeleton(ctx, f.points, { visibility: f.visibility, color: c.hex, outlineColor: NIGHT_DEEP, lineWidth: Math.max(3, unit * 0.42), minVisibility: 0.5 })
     const head = heads[i]
     if (!head) return
-    const topY = Math.max(unit * 1.2, head[1] - unit * 2.2)
+    // a name tag right next to an earlier one moves up a row instead of covering it
+    const crowded = heads.some((h2, k) => k < i && h2 !== undefined && Math.abs(h2[0] - head[0]) < unit * 4.5)
+    const topY = Math.max(unit * 1.2, head[1] - unit * (crowded ? 3.9 : 2.2))
     drawLabel(ctx, displayName(f.player), head[0], topY, c.hex, c.on, Math.round(unit * 0.85))
     const call = f.view?.callout
     if (!call) return
