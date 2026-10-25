@@ -1,7 +1,7 @@
-# Midnight Ball
+# Dance Fantasy
 
 *Once upon a time, twelve princesses slipped out every night to dance until their shoes
-wore through.* Midnight Ball turns any song into that ball: upload a track, and the app
+wore through.* Dance Fantasy turns any song into that ball: upload a track, and the app
 analyzes it, generates an original beat-synced dance routine, and plays it as a
 Just Dance-style game. A glowing silhouette dancer performs the routine, you dance along in
 front of your webcam, and the browser scores every move in real time. Friends in other
@@ -19,8 +19,8 @@ HackTX 2026 · storybook theme.
 | 3 | Glowing coach, smooth motion, `#/play` with cue strip + audio-clock sync | ✅ |
 | 4 | Calibration, per-beat webcam scoring, HUD, results (**MVP**, tag `mvp`) | ✅ |
 | 5 | Teach mode, judging presets, sound, polish | ✅ |
-| 6 | Remote dance-off | |
-| 7 | SerpApi features | |
+| 6 | Remote dance-off (rooms, QR join, synced start, live leaderboard, chat) | ✅ |
+| 7 | SerpApi signature dances + AI herald (Meta Muse / Gemini) | ✅ |
 | 8 | Smarter generation (flagged) | |
 | 9 | Deploy + demo hardening | |
 
@@ -38,7 +38,8 @@ make setup     # first time: Python venv + npm deps + MediaPipe wasm/models (~60
 make dev       # API on :8000 and web on :5173 together; Ctrl-C stops both
 ```
 
-Open **http://localhost:5173** in Chrome. It starts on **▶ Play**:
+Open **http://localhost:5173** in Chrome. It opens on the title menu; choose **Play**
+(or **Party** to open a ballroom friends join from their phones):
 
 1. Pick a song, difficulty (easy/normal/hard), standing or seated, and press **Start the ball**.
 2. **Magic mirror (calibration):** stand back until your whole body is in view (upper body
@@ -181,3 +182,6 @@ Required by the hackathon rules; kept up to date as we go.
 - **Claude Code** (Anthropic) helped scaffold and write code.
 - **MediaPipe PoseLandmarker** (Google) for in-browser pose estimation.
 - **librosa** for beat tracking and music structure analysis.
+- **Meta Muse** (Gemini as fallback) writes the royal herald's lines and summarises a song's
+  famous dance; **SerpApi** finds the web and YouTube sources for it.
+- **three.js** renders the 3D storybook dancer (built from primitives, no model files).

@@ -1,4 +1,4 @@
-# Midnight Ball: one-command dev workflow. Run `make help` for targets.
+# Dance Fantasy: one-command dev workflow. Run `make help` for targets.
 SHELL := /bin/bash
 
 .PHONY: help setup setup-server setup-web dev server web test test-server test-web build songs

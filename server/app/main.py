@@ -39,7 +39,7 @@ async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResp
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Midnight Ball API", version=__version__, lifespan=lifespan)
+    app = FastAPI(title="Dance Fantasy API", version=__version__, lifespan=lifespan)
     app.add_exception_handler(RequestValidationError, _validation_error)
     # Added first = inner: CORS stays outermost so even 413s carry CORS headers.
     app.add_middleware(

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://midnight-ball.dev/schemas/routine.schema.json",
-  "title": "Midnight Ball routine",
+  "title": "Dance Fantasy routine",
   "description": "A beat-synced dance routine for one song. Version 1. See shared/README.md for coordinate conventions. Keep in sync with shared/routine.ts and server/app/routine.py (tests enforce it).",
   "type": "object",
   "additionalProperties": false,

@@ -1,7 +1,7 @@
 [project]
 name = "midnight-ball-server"
 version = "0.0.1"
-description = "Midnight Ball backend: audio analysis, choreography, multiplayer"
+description = "Dance Fantasy backend: audio analysis, choreography, multiplayer"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",

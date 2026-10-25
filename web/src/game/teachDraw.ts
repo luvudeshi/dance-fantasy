@@ -17,8 +17,8 @@ import { drawPip, type PipFrame } from './hud'
 import { beatInSegment, countInAt, type TeachSegment } from './teach'
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
-const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
-const SERIF = "Georgia, 'Times New Roman', serif"
+const FONT = "Figtree, 'Avenir Next', system-ui, sans-serif"
+const SERIF = "Fraunces, 'Iowan Old Style', Georgia, serif"
 export const WRONG_COLOR = '#ff4d6d'
 
 export interface TeachLayout {

@@ -9,6 +9,7 @@ import { bodyToScreen } from '../pose/normalize'
 import { NEUTRAL_ANKLE_Y } from '../routine/pose'
 import { buildMotionTrack } from '../routine/track'
 import { coach3dActive } from '../render3d/load'
+import { UI_FONT } from '../theme/fonts'
 import { coachThemeFor, createLayer, deviceScale, drawCoach, mixHex, withAlpha, type CoachTheme, type Layer } from './coach'
 import { figureBodyView, type FigureView } from './stickFigure'
 
@@ -315,7 +316,7 @@ function paintPictogram(ctx: Ctx2D, move: PictogramMove, box: Box, opts: Pictogr
     band.addColorStop(1, 'rgba(8, 6, 24, 0.85)')
     ctx.fillStyle = band
     ctx.fillRect(box.x, box.y + box.h - labelH * 1.6, box.w, labelH * 1.6)
-    ctx.font = `600 ${Math.round(labelH * 0.78)}px system-ui, sans-serif`
+    ctx.font = `600 ${Math.round(labelH * 0.78)}px ${UI_FONT}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillStyle = active ? '#ffffff' : theme.body
