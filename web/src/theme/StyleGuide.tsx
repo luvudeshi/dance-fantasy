@@ -77,8 +77,8 @@ export default function StyleGuide() {
           <span className="df-brand">
             Dance <b>Fantasy</b>
           </span>
-          <div className="df-cluster">
-            <span className="df-voice">Chapter III of XII</span>
+          <div className="df-cluster" style={{ '--df-gap': '12px' } as CSSProperties}>
+            <span className="df-badge df-badge-gold">Song 3 of 12</span>
             <span className="df-code-chip" aria-label="Ballroom XQ7M">
               <small aria-hidden="true">Ballroom</small>
               <span className="df-foil" aria-hidden="true">
@@ -113,7 +113,7 @@ export default function StyleGuide() {
               strikes twelve.
             </p>
             <div className="df-cluster" style={{ '--df-gap': '16px 20px' } as CSSProperties}>
-              <Button size="lg" icon="play">
+              <Button size="lg" icon="sparkles">
                 Begin the dance
               </Button>
               <Button variant="secondary" icon="upload">
@@ -134,7 +134,7 @@ export default function StyleGuide() {
               <Button disabled>Disabled</Button>
             </div>
             <div className="df-cluster">
-              <Button size="sm" icon="music-note">
+              <Button size="sm" icon="sparkles">
                 Small
               </Button>
               <Button size="sm" variant="secondary">

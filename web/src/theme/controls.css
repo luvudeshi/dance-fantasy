@@ -396,6 +396,8 @@ select.df-field {
    <div class="df-segmented" role="radiogroup"><label class="df-segment"><input type="radio" name="x" class="df-sr-only"><span>Easy</span></label>...</div> */
 .df-segmented {
   display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
   flex-wrap: wrap;
   gap: 4px;
   padding: 5px;
@@ -442,6 +444,8 @@ select.df-field {
    <div class="df-tabs" role="tablist"><button class="df-tab" role="tab" aria-selected="true">Songs</button>...</div> */
 .df-tabs {
   display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
   flex-wrap: wrap;
   gap: 4px;
   padding: 6px;

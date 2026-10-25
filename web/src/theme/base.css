@@ -25,6 +25,7 @@ html:has(.df-screen) {
   --accent: var(--df-rasp-deep);
   --accent-2: var(--df-blue-deep);
   --gold: var(--df-gold-text);
+  --rose: var(--df-rasp-deep);
   --story: var(--df-font-display);
 }
 
@@ -52,7 +53,7 @@ html:has(.df-screen) body::before {
   box-shadow: var(--df-vignette);
 }
 
-html:has(.df-screen) :is(h1, h2, h3) {
+:where(html:has(.df-screen)) :is(h1, h2, h3) {
   font-family: var(--df-font-display);
   font-variation-settings: var(--df-fvs-display);
   font-weight: 700;
@@ -61,21 +62,21 @@ html:has(.df-screen) :is(h1, h2, h3) {
   text-wrap: balance;
 }
 
-html:has(.df-screen) p {
+:where(html:has(.df-screen)) p {
   text-wrap: pretty;
 }
 
-html:has(.df-screen) a {
+:where(html:has(.df-screen)) a {
   color: var(--df-rasp-deep);
   text-underline-offset: 4px;
 }
 
-html:has(.df-screen) :is(button, input, select, textarea) {
+:where(html:has(.df-screen)) :is(button, input, select, textarea) {
   font: inherit;
   color: inherit;
 }
 
-html:has(.df-screen) :focus-visible {
+:where(html:has(.df-screen)) :focus-visible {
   outline: 3px solid var(--df-rasp-deep);
   outline-offset: 3px;
 }
@@ -118,6 +119,15 @@ html:has(.df-screen) :focus-visible {
 }
 
 /* ---------- layout ---------- */
+/* layout knobs apply only to the element that sets them (a stack's gap must not leak into nested clusters) */
+@property --df-gap {
+  syntax: '*';
+  inherits: false;
+}
+@property --df-min {
+  syntax: '*';
+  inherits: false;
+}
 .df-container {
   width: 100%;
   max-width: 1680px;
@@ -133,7 +143,7 @@ html:has(.df-screen) :focus-visible {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--df-gap, 12px);
+  gap: var(--df-gap, 16px);
 }
 .df-spread {
   display: flex;
