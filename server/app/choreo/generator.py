@@ -40,8 +40,8 @@ import json
 import math
 import threading
 import weakref
-from dataclasses import dataclass
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 import numpy as np

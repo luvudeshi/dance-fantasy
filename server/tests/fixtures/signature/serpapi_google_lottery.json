@@ -1,0 +1,32 @@
+{
+  "search_metadata": { "id": "fixture", "status": "Success", "google_url": "https://www.google.com/search?q=Lottery+%28Renegade%29+dance" },
+  "search_parameters": { "engine": "google", "q": "Lottery (Renegade) dance", "api_key": "REDACTED" },
+  "inline_videos": [
+    {
+      "position": 1,
+      "title": "Renegade dance tutorial (Lottery by K CAMP)",
+      "link": "https://www.youtube.com/watch?v=EXAMPLE00001",
+      "thumbnail": "https://i.ytimg.com/vi/EXAMPLE00001/hqdefault.jpg",
+      "channel": "Dance Tutorials",
+      "duration": "4:12",
+      "platform": "YouTube"
+    }
+  ],
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "The Renegade dance was created by 14-year-old Jalaiah Harmon",
+      "link": "https://www.example-news.com/renegade-dance-creator",
+      "snippet": "Jalaiah Harmon created the Renegade to K CAMP's \"Lottery\" in 2019; it went viral on TikTok.",
+      "source": "Example News"
+    },
+    { "position": 2, "title": "No link here" },
+    { "position": 3, "title": "Plain http is skipped", "link": "http://insecure.example.com/x", "snippet": "" },
+    {
+      "position": 4,
+      "title": "#renegade on TikTok",
+      "link": "https://www.tiktok.com/tag/renegade",
+      "snippet": "Watch the Renegade challenge."
+    }
+  ]
+}
