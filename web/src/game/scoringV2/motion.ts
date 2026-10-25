@@ -51,6 +51,8 @@ const clamp01 = (u: number): number => (u <= 0 || Number.isNaN(u) ? 0 : u >= 1 ?
 export interface MotionBonus {
   direction: number
   snap: number
+  /** 0..1 how well the hero limbs travelled the coach's way; null when the coach's heroes hold still. */
+  travelMatch?: number | null
 }
 
 /**
@@ -107,5 +109,6 @@ export function motionBonus(
     const vout = angleBetweenDeg(now, after) / h
     snap = Math.max(snap, clamp01((0.5 - vout / vin) / 0.4))
   }
-  return { direction: dirN > 0 ? (c.directionBonus * dirSum) / dirN : 0, snap: c.snapBonus * snap }
+  const travelMatch = dirN > 0 ? dirSum / dirN : null
+  return { direction: travelMatch === null ? 0 : c.directionBonus * travelMatch, snap: c.snapBonus * snap, travelMatch }
 }

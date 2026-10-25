@@ -1,4 +1,4 @@
-export { DEFAULT_V2, timingFactor, v2ConfigFor, type V2Config } from './config'
+export { DEFAULT_V2, hasV2Settings, limbScoreV2, timingFactor, v2ConfigFor, type V2Config, type V2ScoringConfig } from './config'
 export { heroLimbs } from './heroLimbs'
 export { LimbCarry, scoreFrameV2, visibleLimbDirs, type FrameScoreV2, type LimbDirs } from './frame'
 export { LimbHistory, motionBonus, type MotionBonus } from './motion'

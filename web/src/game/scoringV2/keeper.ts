@@ -4,7 +4,8 @@
 //    heroWeight of the score, the rest only add; limbs carried through short dropouts);
 //  - timing: the frame where the hero limbs come closest to the target (ties go to the one nearest
 //    the beat) gives offsetSec, the Early / Late tag and a small timing factor on the best score;
-//  - a motion bonus (direction of travel, snap) is added to any hit that isn't a miss, capped at 100.
+//  - a motion bonus (direction of travel, snap) is added to any hit that isn't a miss, capped at 100;
+//  - with triedFloor (Relaxed), moving the hero limbs the coach's way earns at least an OK.
 // Shadow mode: the classic keeper runs on the same frames (`shadow`) for live comparison.
 
 import type { Routine } from '@shared/routine'
@@ -40,7 +41,8 @@ export type TimingTag = 'early' | 'late'
 export interface CheckpointResultV2 extends CheckpointResult {
   /** Set when the hero limbs peaked more than timingTagSec off the beat. */
   timing?: TimingTag
-  v2?: { raw: number; timingFactor: number; bonus: MotionBonus; heroes: LimbName[] }
+  /** tried: lifted to OK by the "tried it" floor (Relaxed). */
+  v2?: { raw: number; timingFactor: number; bonus: MotionBonus; heroes: LimbName[]; tried?: boolean }
 }
 
 export interface ScoreKeeperV2Options {
@@ -82,6 +84,8 @@ export class ScoreKeeperV2 {
 
   private readonly track: MotionTrack | null
   private readonly beatSec: number
+  /** Half-width (s) of each checkpoint's window: windowSec or windowBeats of a beat, whichever is wider. */
+  readonly windowSec: number
   private readonly carry: LimbCarry
   private readonly history = new LimbHistory()
   private readonly open: Open[]
@@ -101,6 +105,7 @@ export class ScoreKeeperV2 {
     this.shadow = opts.shadow === false ? null : new ScoreKeeper(this.checkpoints, config)
     this.track = opts.track ?? null
     this.beatSec = opts.beatSec ?? estimateBeatSec(this.checkpoints)
+    this.windowSec = Math.max(this.v2.windowSec, this.v2.windowBeats * this.beatSec)
     this.carry = new LimbCarry(this.v2.carrySec)
     this.open = this.checkpoints.map(() => ({ best: null, samples: [] }))
   }
@@ -111,7 +116,7 @@ export class ScoreKeeperV2 {
     if (Number.isFinite(t)) {
       const dirs = this.carry.apply(t, visibleLimbDirs(frame, this.config.minVisibility))
       this.history.push(t, dirs)
-      const w = this.v2.windowSec
+      const w = this.windowSec
       for (let i = this.next; i < this.checkpoints.length; i++) {
         const cp = this.checkpoints[i]
         if (cp.time - w > t) break
@@ -134,7 +139,7 @@ export class ScoreKeeperV2 {
 
   private close(songTime: number): CheckpointResultV2[] {
     const out: CheckpointResultV2[] = []
-    while (this.next < this.checkpoints.length && songTime > this.checkpoints[this.next].time + this.v2.windowSec) {
+    while (this.next < this.checkpoints.length && songTime > this.checkpoints[this.next].time + this.windowSec) {
       out.push(this.finalize(this.next))
       this.next++
     }
@@ -153,7 +158,7 @@ export class ScoreKeeperV2 {
       const q = Math.max(0.05, this.beatSec * this.v2.travelBeats)
       const coach = [-q, -q / 2, 0, q / 2, q].map((ds) => this.track!.sample(cp.time + ds).pose)
       const errs: Sample[] = []
-      const w = this.v2.windowSec
+      const w = this.windowSec
       for (let k = Math.ceil(-w * 60); k <= Math.floor(w * 60); k++) {
         const shift = k / 60
         let sum = 0
@@ -190,18 +195,23 @@ export class ScoreKeeperV2 {
     let offsetSec: number | null = null
     let timing: TimingTag | undefined
     let detail: CheckpointResultV2['v2']
+    let triedIt = false
     if (best) {
       const offset = this.timingOffset(i, samples)
       const factor = timingFactor(offset, this.v2)
       const timed = best.score * factor
-      const bonus: MotionBonus =
-        timed >= this.config.thresholds.ok
-          ? motionBonus(heroes, cp.time, cp.time + offset, this.beatSec, this.history, this.track, this.v2)
-          : { direction: 0, snap: 0 }
+      const ok = this.config.thresholds.ok
+      const motion = motionBonus(heroes, cp.time, cp.time + offset, this.beatSec, this.history, this.track, this.v2)
+      const bonus: MotionBonus = timed >= ok ? motion : { direction: 0, snap: 0, travelMatch: motion.travelMatch }
       score = Math.min(100, timed + bonus.direction + bonus.snap)
+      const tried = this.v2.triedFloor && best.score >= this.v2.triedMinRaw && (motion.travelMatch ?? 0) >= this.v2.triedMatch
+      if (tried && score < ok) {
+        score = ok
+        triedIt = true
+      }
       offsetSec = offset
       if (Math.abs(offset) > this.v2.timingTagSec) timing = offset > 0 ? 'late' : 'early'
-      detail = { raw: best.score, timingFactor: factor, bonus, heroes: [...heroes] }
+      detail = { raw: best.score, timingFactor: factor, bonus, heroes: [...heroes], ...(triedIt ? { tried: true } : {}) }
     }
     const judgment = judge(score, this.config)
     const points = Math.round(JUDGMENT_POINTS[judgment] * comboMultiplier(this.combo))

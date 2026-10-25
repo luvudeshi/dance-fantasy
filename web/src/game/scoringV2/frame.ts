@@ -2,9 +2,9 @@
 
 import { JOINTS, type LimbName, type Pose2D, type Vec2 } from '@shared/skeleton'
 import { NEUTRAL_POSE } from '../../routine/pose'
-import { angleBetweenDeg, DEFAULT_LIMB_WEIGHTS, LIMB_NAMES, limbScore, limbVector, NEUTRAL_SKIP_DEG, type Checkpoint, type ScoringConfig } from '../scoring'
+import { angleBetweenDeg, DEFAULT_LIMB_WEIGHTS, LIMB_NAMES, limbVector, NEUTRAL_SKIP_DEG, type Checkpoint, type ScoringConfig } from '../scoring'
 import type { PlayerFrame } from '../poseSource'
-import { DEFAULT_V2, type V2Config } from './config'
+import { DEFAULT_V2, limbScoreV2, type V2Config } from './config'
 
 export type LimbDirs = Partial<Record<LimbName, Vec2>>
 
@@ -77,7 +77,6 @@ export function scoreFrameV2(
   base: ScoringConfig,
   c: V2Config = DEFAULT_V2,
 ): FrameScoreV2 {
-  const geo = { ...base, perfectDeg: c.perfectDeg, zeroDeg: c.zeroDeg }
   const weights = base.limbWeights ?? DEFAULT_LIMB_WEIGHTS
   const perLimb: Partial<Record<LimbName, number>> = {}
   let hW = 0
@@ -92,7 +91,7 @@ export function scoreFrameV2(
     const err = angleBetweenDeg(pv, tv)
     const rest = NEUTRAL_DIR[limb]
     const atRest = rest !== undefined && angleBetweenDeg(tv, rest) > NEUTRAL_SKIP_DEG && angleBetweenDeg(pv, rest) < err
-    const s = atRest ? 0 : 100 * (limbScore(err, geo) / 100) ** c.falloffPower
+    const s = atRest ? 0 : limbScoreV2(err, c)
     const w = Math.max(0, weights[limb] ?? DEFAULT_LIMB_WEIGHTS[limb])
     perLimb[limb] = s
     if (heroes.includes(limb)) {

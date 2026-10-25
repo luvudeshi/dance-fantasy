@@ -10,7 +10,8 @@ import standingJson from '../__fixtures__/routine_synth120_normal.json'
 import { BotPoseSource, perturbPose, type BotSkill } from '../botSource'
 import { createScoreKeeper, scoringVersion, SCORING_STORAGE_KEY } from '../createScoreKeeper'
 import type { PlayerFrame } from '../poseSource'
-import { buildCheckpoints, DEFAULT_SCORING, ScoreKeeper, type Judgment, type ResultsSummary } from '../scoring'
+import { RELAXED_SCORING } from '../judging'
+import { buildCheckpoints, DEFAULT_SCORING, ScoreKeeper, type Judgment, type ResultsSummary, type ScoringConfig } from '../scoring'
 import { DEFAULT_V2, LimbCarry, ScoreKeeperV2, timingFactor, type CheckpointResultV2 } from '.'
 
 const ROUTINES: Record<string, Routine> = {
@@ -69,6 +70,8 @@ const CASES: Record<string, Case> = {
   noisy: { name: "correct + ±20° jitter + blur", skill: "good", noiseDeg: 25, transform: (s) => noisy(s, 20, 0.2) },
   late: { name: 'correct, 120 ms late', skill: 'perfect', lagSec: 0.12 },
   mirrored: { name: 'wrong side', skill: 'mirrored' },
+  // A hard real-webcam night: ~30° of drift, ±20° jitter, blur dropouts and 150 ms late.
+  rough: { name: 'rough webcam, 150 ms late', skill: 'sloppy', lagSec: 0.15, transform: (s) => noisy(s, 20, 0.2) },
 }
 
 interface Sim {
@@ -84,9 +87,9 @@ const fracOf = (s: ResultsSummary): Record<Judgment, number> => {
   return { perfect: counts.perfect / total, good: counts.good / total, ok: counts.ok / total, miss: counts.miss / total }
 }
 
-function simulate(routine: Routine, c: Case, seed = 1): Sim {
+function simulate(routine: Routine, c: Case, seed = 1, config: ScoringConfig = DEFAULT_SCORING): Sim {
   const track = buildMotionTrack(routine)
-  const keeper = new ScoreKeeperV2(buildCheckpoints(routine, routine.mode), DEFAULT_SCORING, { track })
+  const keeper = new ScoreKeeperV2(buildCheckpoints(routine, routine.mode), config, { track })
   const bot = new BotPoseSource({ track, skill: c.skill, lagSec: c.lagSec ?? 0, noiseDeg: c.noiseDeg, seed })
   const tf = c.transform?.(seed)
   let k = 0
@@ -182,12 +185,68 @@ describe.each(Object.entries(ROUTINES))('scoring v2 simulation: %s routine', (mo
   })
 })
 
+describe.each(Object.entries(ROUTINES))('Relaxed preset (v2): %s routine', (mode, routine) => {
+  const cache = new Map<string, Sim>()
+  const run = (key: keyof typeof CASES, relaxed: boolean, seed = 1): Sim => {
+    const id = `${key}/${relaxed}/${seed}`
+    const hit = cache.get(id) ?? simulate(routine, CASES[key], seed, relaxed ? RELAXED_SCORING : DEFAULT_SCORING)
+    cache.set(id, hit)
+    return hit
+  }
+
+  it('prints the Standard v2 vs Relaxed v2 table', () => {
+    const lines = [`${mode}: v2 Standard vs v2 Relaxed (seed 1)`, 'case                           standard P/G/O/M   acc |  relaxed P/G/O/M   acc  tried']
+    const f = (x: Record<Judgment, number>): string => `${pct(x.perfect)}${pct(x.good)}${pct(x.ok)}${pct(x.miss)}`
+    for (const key of Object.keys(CASES) as (keyof typeof CASES)[]) {
+      const a = run(key, false)
+      const b = run(key, true)
+      const tried = b.results.filter((r) => r.v2?.tried).length / b.results.length
+      lines.push(`${CASES[key].name.padEnd(30)} ${f(a.frac)} ${a.v2.accuracy.toFixed(1).padStart(5)} | ${f(b.frac)} ${b.v2.accuracy.toFixed(1).padStart(5)}  ${pct(tried)}`)
+    }
+    console.log(lines.join('\n'))
+    expect(cache.size).toBe(2 * Object.keys(CASES).length)
+  })
+
+  for (const seed of [1, 2, 3]) {
+    it(`still never rewards standing still or flailing (seed ${seed})`, () => {
+      const idle = run('idle', true, seed)
+      expect(idle.frac.miss).toBeGreaterThanOrEqual(0.9)
+      expect(idle.v2.state.stars).toBeLessThan(1)
+      const flail = run('flail', true, seed)
+      expect(flail.frac.miss).toBeGreaterThanOrEqual(0.5)
+      expect(goodPlus(flail.frac)).toBeLessThan(0.35)
+      expect(flail.v2.state.stars).toBeLessThan(2.5)
+    })
+
+    it(`is easier than Standard on hard nights and keeps the wrong side worse (seed ${seed})`, () => {
+      for (const key of ['sloppy', 'noisy', 'rough'] as const) {
+        expect(run(key, true, seed).v2.accuracy, key).toBeGreaterThanOrEqual(run(key, false, seed).v2.accuracy)
+      }
+      const rough = run('rough', true, seed)
+      expect(rough.frac.miss).toBeLessThan(0.1)
+      expect(rough.frac.miss).toBeLessThan(run('rough', false, seed).frac.miss + 1e-9)
+      expect(goodPlus(rough.frac)).toBeGreaterThan(goodPlus(run('rough', false, seed).frac))
+      expect(run('mirrored', true, seed).v2.accuracy).toBeLessThan(run('good', true, seed).v2.accuracy - 15)
+    })
+  }
+})
+
 describe('scoring v2 pieces', () => {
   it('timing factor: full on the beat, ~85% at ±150 ms', () => {
     expect(timingFactor(0)).toBe(1)
     expect(timingFactor(0.15)).toBeCloseTo(0.85, 5)
     expect(timingFactor(-0.15)).toBeCloseTo(0.85, 5)
     expect(timingFactor(Number.NaN)).toBe(DEFAULT_V2.timingMinFactor)
+  })
+
+  it('gaussian falloff keeps near-misses generous and never hits a hard zero', async () => {
+    const { limbScoreV2 } = await import('.')
+    const c = { ...DEFAULT_V2, falloff: 'gaussian' as const, perfectDeg: 28, gaussianSigmaDeg: 24 }
+    expect(limbScoreV2(28, c)).toBe(100)
+    expect(limbScoreV2(48, c)).toBeGreaterThan(65)
+    expect(limbScoreV2(90, c)).toBeGreaterThan(0)
+    expect(limbScoreV2(90, c)).toBeLessThan(5)
+    expect(limbScoreV2(48, DEFAULT_V2)).toBeLessThan(limbScoreV2(48, c))
   })
 
   it('carries a limb through a dropout of up to 100 ms only', () => {
@@ -231,6 +290,11 @@ describe('createScoreKeeper', () => {
     expect(scoringVersion({ search: '', hash: '#/play' }, store('v2'))).toBe('v2')
     expect(scoringVersion({ search: '', hash: '#/play?scoring=classic' }, store('v2'))).toBe('classic')
     expect(scoringVersion(null, null)).toBe('classic')
+  })
+
+  it('always uses v2 for the Relaxed preset', () => {
+    const cps = buildCheckpoints(ROUTINES.standing, 'standing')
+    expect(createScoreKeeper(cps, RELAXED_SCORING, null, 'classic')).toBeInstanceOf(ScoreKeeperV2)
   })
 
   it('returns the matching keeper', () => {

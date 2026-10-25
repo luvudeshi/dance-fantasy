@@ -1,11 +1,12 @@
 // Picks the scorer for a run: classic (game/scoring.ts) by default, v2 (game/scoringV2/) when the
 // URL has ?scoring=v2 (also inside the hash route, e.g. #/play?scoring=v2) or localStorage
-// "mb.scoring" is "v2". v2 shadows classic on the same frames; keeperDebugText shows both.
+// "mb.scoring" is "v2", and always for a preset carrying v2 settings (Relaxed). v2 shadows
+// classic on the same frames; keeperDebugText shows both.
 
 import type { MotionTrack } from '../routine/track'
 import type { KeeperLike } from './run'
 import { DEFAULT_SCORING, ScoreKeeper, type Checkpoint, type ScoringConfig } from './scoring'
-import { ScoreKeeperV2 } from './scoringV2'
+import { hasV2Settings, ScoreKeeperV2 } from './scoringV2'
 
 export type ScoringVersion = 'classic' | 'v2'
 
@@ -52,7 +53,7 @@ export function createScoreKeeper(
   track: MotionTrack | null = null,
   version: ScoringVersion = scoringVersion(),
 ): KeeperLike {
-  return version === 'v2' ? new ScoreKeeperV2(checkpoints, config, { track }) : new ScoreKeeper(checkpoints, config)
+  return version === 'v2' || hasV2Settings(config) ? new ScoreKeeperV2(checkpoints, config, { track }) : new ScoreKeeper(checkpoints, config)
 }
 
 /** Debug-overlay lines comparing v2 with its classic shadow; null for the classic keeper. */
