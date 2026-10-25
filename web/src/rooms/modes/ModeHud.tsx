@@ -112,7 +112,7 @@ export function VersusHud({ room, meId }: { room: ModeRoom; meId: string | null 
           <li key={r.player.id} className={`dfm-vs-row${r.player.id === meId ? ' is-me' : ''}${r.leader ? ' is-leader' : ''}`}>
             <span className="dfm-vs-token">
               <Token icon={tokenFor(room.players, r.player.id)} size="sm" off={!r.player.connected} />
-              {r.leader && <Icon name="crown" size={30} cut="sm" className="dfm-vs-crown" label="Leader" />}
+              {r.leader && <Icon name="crown" size={26} cut="sm" className="dfm-vs-crown" label="Leader" />}
             </span>
             <span className="dfm-vs-name">
               {r.player.name}

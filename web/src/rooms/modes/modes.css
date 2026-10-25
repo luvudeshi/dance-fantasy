@@ -229,7 +229,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 0;
+  margin: 6px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -259,7 +259,7 @@
 .dfm-vs-crown {
   position: absolute;
   left: 50%;
-  top: -16px;
+  top: -12px;
   translate: -50% 0;
   rotate: -10deg;
   animation: df-pop var(--df-dur-slow) var(--df-ease);
@@ -350,7 +350,7 @@
   align-items: end;
   gap: 12px;
   margin: 0;
-  padding: 0;
+  padding: 40px 0 0; /* room for the winner's crown */
   list-style: none;
 }
 .dfm-step {
@@ -513,5 +513,14 @@
   .dfm-step .df-tag {
     min-width: 0;
     padding-inline: 6px;
+  }
+  .dfm-burst {
+    top: 48%; /* below the crew panel */
+  }
+  .dfm-burst-ribbon {
+    font-size: 1.3rem;
+  }
+  .dfm-heat .df-panel-sticker {
+    right: -2px; /* keep the rotated sticker inside a 16 px gutter */
   }
 }

@@ -4,7 +4,7 @@ import { errorMessage, isAbortError } from '../../lib/errors'
 import { Button, Notice, Sparkle, Token } from '../../theme/components'
 import { Icon } from '../../theme/Icon'
 import { getHeatmap, rematch, type HeatBeat, type ModeRoom } from './api'
-import { hardestMoments, teamStars, tokenFor, versusRows } from './modeStats'
+import { beatsWonLabel, hardestMoments, teamStars, tokenFor, versusRows } from './modeStats'
 import './modes.css'
 
 const defaultBeatLabel = (beat: number): string => `Beat ${beat + 1}`
@@ -110,9 +110,7 @@ function VersusPodium({ room, meId }: { room: ModeRoom; meId: string | null }) {
               </div>
               <span className="df-tag">
                 <span className="df-tag-name">{r.player.name}</span>
-                <span className="df-tag-role">
-                  <b className="df-num">{r.player.beatsWon}</b> beats won
-                </span>
+                <span className="df-tag-role">{beatsWonLabel(r.player.beatsWon)}</span>
               </span>
               <span className="dfm-step-block">
                 <span className={`df-medal ${MEDALS[i] ?? ''}`}>{r.rank}</span>
@@ -130,7 +128,7 @@ function VersusPodium({ room, meId }: { room: ModeRoom; meId: string | null }) {
               <Icon name={tokenFor(room.players, r.player.id)} className="df-item-icon" cut="sm" />
               <span className="df-item-body">
                 <span className="df-item-title">{r.player.name}</span>
-                <span className="df-item-meta">{r.player.beatsWon} beats won</span>
+                <span className="df-item-meta">{beatsWonLabel(r.player.beatsWon)}</span>
               </span>
               <span className="df-item-end">{formatScore(r.player.score)}</span>
             </li>

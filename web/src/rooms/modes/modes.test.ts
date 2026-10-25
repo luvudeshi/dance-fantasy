@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ApiError } from '../../api'
 import { isModeRoom, type BeatJudgement, type ModePlayer, type ModeRoom } from './api'
 import { BeatReporter } from './beatReporter'
-import { hardestMoments, nextSyncPoints, syncBurst, syncMeter, teamStars, tokenFor, tugShare, versusRows } from './modeStats'
+import { beatsWonLabel, hardestMoments, nextSyncPoints, syncBurst, syncMeter, teamStars, tokenFor, tugShare, versusRows } from './modeStats'
 
 const player = (id: string, over: Partial<ModePlayer> = {}): ModePlayer => ({
   id,
@@ -72,8 +72,10 @@ describe('versus', () => {
   })
   it('gives tokens by join order', () => {
     const ps = [player('a'), player('b')]
-    expect(tokenFor(ps, 'a')).toBe('crown')
-    expect(tokenFor(ps, 'b')).toBe('slipper')
+    expect(tokenFor(ps, 'a')).toBe('slipper')
+    expect(tokenFor(ps, 'b')).toBe('frog-prince')
+    expect(beatsWonLabel(1)).toBe('1 beat won')
+    expect(beatsWonLabel(4)).toBe('4 beats won')
   })
 })
 

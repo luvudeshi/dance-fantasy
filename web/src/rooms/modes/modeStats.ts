@@ -8,13 +8,15 @@ import type { CrewStats, HeatBeat, ModePlayer, ModeRoom } from './api'
 export const SYNC_STREAK_CAP = 8
 export const SYNC_BEAT_POINTS = 25
 
-/** Default player tokens, by join order. */
-const TOKENS: readonly IconName[] = ['crown', 'slipper', 'frog-prince', 'red-hood', 'wolf', 'pumpkin', 'potion', 'wand']
+/** Default player tokens, by join order (the crown is kept for the leader). */
+const TOKENS: readonly IconName[] = ['slipper', 'frog-prince', 'red-hood', 'wolf', 'pumpkin', 'potion', 'wand', 'apple']
 
 export function tokenFor(players: readonly Pick<ModePlayer, 'id'>[], id: string): IconName {
   const i = players.findIndex((p) => p.id === id)
-  return TOKENS[(i < 0 ? 0 : i) % TOKENS.length] ?? 'crown'
+  return TOKENS[(i < 0 ? 0 : i) % TOKENS.length] ?? 'slipper'
 }
+
+export const beatsWonLabel = (n: number): string => `${n} ${n === 1 ? 'beat' : 'beats'} won`
 
 export interface VersusRow {
   player: ModePlayer
