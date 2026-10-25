@@ -395,6 +395,7 @@ version = "0.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "audioread" },
+    { name = "certifi" },
     { name = "fastapi" },
     { name = "librosa" },
     { name = "numpy" },
@@ -418,6 +419,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "audioread", specifier = ">=3.0" },
+    { name = "certifi", specifier = ">=2024.2" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "librosa", specifier = ">=0.10.2" },
     { name = "numpy", specifier = ">=1.26" },

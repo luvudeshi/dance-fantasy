@@ -76,12 +76,12 @@ def test_full_flow(client: TestClient) -> None:
     assert len(host["token"]) >= 30
 
     guest = client.post(f"/api/rooms/{code.lower()}/join", json={"name": "ana lopez"}).json()
-    third = client.post(f"/api/rooms/{code}/join", json={"name": "Bo"}).json()
+    third = client.post(f"/api/rooms/{code}/join", json={"name": "Zoë"}).json()
 
     room = client.get(f"/api/rooms/{code}").json()
     assert room["state"] == "lobby" and room["startAt"] is None and room["routine"] is None
     assert room["hostId"] == host["playerId"]
-    assert [p["name"] for p in room["players"]] == ["Ana Lopez", "ana lopez 2", "Bo"]
+    assert [p["name"] for p in room["players"]] == ["Ana Lopez", "ana lopez 2", "Zoë"]
     assert [p["isHost"] for p in room["players"]] == [True, False, False]
     assert all(p["connected"] and not p["ready"] and p["score"] == 0 for p in room["players"])
     assert abs(room["serverNow"] - now_ms()) < 2000
@@ -125,10 +125,10 @@ def test_full_flow(client: TestClient) -> None:
     assert late["state"] == "finished" and late["players"][2]["score"] == 900
 
     # Chat: polling with the last id seen returns only newer messages.
-    r = client.post(f"/api/rooms/{code}/chat", json={"text": "  good \n game!  "}, headers=auth(third["token"]))
+    r = client.post(f"/api/rooms/{code}/chat", json={"text": "  good \n game! 🎉 "}, headers=auth(third["token"]))
     assert r.status_code == 200
     first = client.get(f"/api/rooms/{code}").json()["chat"]
-    assert [(m["name"], m["text"], m["playerId"]) for m in first] == [("Bo", "good game!", third["playerId"])]
+    assert [(m["name"], m["text"], m["playerId"]) for m in first] == [("Zoë", "good game! 🎉", third["playerId"])]
     client.post(f"/api/rooms/{code}/chat", json={"text": "rematch?"}, headers=auth(host["token"]))
     newer = client.get(f"/api/rooms/{code}", params={"chatAfter": first[0]["id"]}).json()["chat"]
     assert [m["text"] for m in newer] == ["rematch?"]

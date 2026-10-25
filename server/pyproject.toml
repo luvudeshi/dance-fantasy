@@ -15,6 +15,7 @@ dependencies = [
     "audioread>=3.0",
     "vercel-blob>=0.5",
     "pg8000>=1.31",
+    "certifi>=2024.2",
 ]
 
 [dependency-groups]

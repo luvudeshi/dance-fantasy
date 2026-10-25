@@ -20,6 +20,7 @@ from collections.abc import Callable
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
+import certifi
 import pg8000.dbapi
 from fastapi import HTTPException, status
 
@@ -147,7 +148,7 @@ def _pg_connect(url: str) -> pg8000.dbapi.Connection:
     sslmode = parse_qs(u.query).get("sslmode", ["require"])[0]
     ctx: ssl.SSLContext | None = None
     if sslmode != "disable":
-        ctx = ssl.create_default_context()
+        ctx = ssl.create_default_context(cafile=certifi.where())  # the function image's system CA path may not exist
         if sslmode == "no-verify":
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
