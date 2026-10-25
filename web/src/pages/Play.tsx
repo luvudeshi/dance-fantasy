@@ -65,6 +65,7 @@ import { errorMessage, isAbortError } from '../lib/errors'
 import { isRoutineId, routineFromHash } from '../lib/hashRoute'
 import { useLatest } from '../lib/useLatest'
 import { createReelSession, reelEnabled, ReelLauncher } from '../reel'
+import { LobbySongBoard, SongLeaderboard } from '../leaderboard/SongLeaderboard'
 import { finishRoomRound, reportRoomBeat, roomRoundFor, useRoomReporter, waitForRoomStart } from '../rooms/gameLink'
 import RoomLeaderboard from '../rooms/RoomLeaderboard'
 import { getSettings } from '../settings'
@@ -210,6 +211,8 @@ export default function Play() {
   const [session, setSession] = useState<SessionState>({ status: 'idle' })
   /** The game waiting for calibration / the camera (not playing yet). */
   const [prepared, setPrepared] = useState<PreparedGame | null>(null)
+  /** Hall of Fame card refresh: 0 until this round's recordRound resolves (then "You placed #N"). */
+  const [boardKey, setBoardKey] = useState(0)
   const [active, setActive] = useState<ActiveGame | null>(null)
   const [results, setResults] = useState<ResultsView | null>(null)
   const [camSource, setCamSource] = useState<WebcamPoseSource | null>(null)
@@ -382,9 +385,10 @@ export default function Play() {
     const auto = run.source.kind === 'bot'
     const meta: RoundMeta = roundMetaRef.current ?? { preset: 'standard', config: scoringFor('standard'), calibration: null, auto }
     setResults(buildResultsView(summary, results, a.game.routine, meta.config.thresholds))
+    setBoardKey(0)
     if (!auto) {
       const { score, maxCombo, stars } = summary.state
-      void recordRound({ analysisId: a.game.analysis.id, songTitle: a.game.analysis.title, score, accuracy: summary.accuracy, maxCombo, stars, mode: wasRoomRound ? 'room' : 'solo' })
+      void recordRound({ analysisId: a.game.analysis.id, songTitle: a.game.analysis.title, score, accuracy: summary.accuracy, maxCombo, stars, mode: wasRoomRound ? 'room' : 'solo' }).then(() => setBoardKey(Date.now()))
     }
     announcer.results(summary)
     setRound({
@@ -1066,6 +1070,7 @@ export default function Play() {
             )}
           </label>
           {signatureOn && <SignaturePanel choice={choice} onPins={setSignaturePins} />}
+          {choice?.kind === 'library' && <LobbySongBoard title={choice.title} />}
         </div>
 
         <div className="lobby-card">
@@ -1427,6 +1432,7 @@ export default function Play() {
               onMenu={() => {
                 window.location.hash = '#/'
               }}
+              aside={<SongLeaderboard analysisId={active.game.analysis.id} title={active.game.analysis.title} refreshKey={boardKey} placed={boardKey > 0} />}
               herald={
                 <>
                   <HeraldBubble announcer={announcer} placement="inline" />

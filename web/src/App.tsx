@@ -5,6 +5,7 @@ import { loadShelf, SHELF_KEY } from './game/routineShelf'
 import { errorMessage, isAbortError } from './lib/errors'
 import { isRoutineId, parseHash } from './lib/hashRoute'
 import { InviteToast } from './account/InviteToast'
+import { BadgeToast } from './badges/BadgeToast'
 import { usePartyCount } from './party/usePartyCount'
 import { useSettings } from './settings'
 import { ShellBar, type ServerState } from './shell/ShellBar'
@@ -27,6 +28,7 @@ const PartyPlay = lazy(() => import('./party/PartyPlay'))
 const PartyHarness = lazy(() => import('./party/PartyHarness'))
 const ProfilePage = lazy(() => import('./account/ProfilePage'))
 const FriendsPage = lazy(() => import('./account/FriendsPage'))
+const HallOfFame = lazy(() => import('./leaderboard/HallOfFame'))
 
 /**
  * Every page. `shell`: a full-page Dance Fantasy screen (else the legacy .app column);
@@ -50,6 +52,7 @@ const ROUTES = [
   { hash: '#/ai', shell: true, bar: false, esc: true },
   { hash: '#/profile', shell: true, bar: true, esc: true },
   { hash: '#/friends', shell: true, bar: true, esc: true },
+  { hash: '#/hall', shell: true, bar: true, esc: true },
   { hash: '#/party-dev', shell: false, bar: true, esc: false, title: 'Party harness' },
 ] as const
 type RouteHash = (typeof ROUTES)[number]['hash']
@@ -194,6 +197,8 @@ export default function App() {
         <ProfilePage />
       ) : route === '#/friends' ? (
         <FriendsPage />
+      ) : route === '#/hall' ? (
+        <HallOfFame />
       ) : route === '#/teach' ? (
         <Teach />
       ) : route === '#/pose' ? (
@@ -231,6 +236,7 @@ export default function App() {
         </div>
       )}
       <InviteToast />
+      <BadgeToast />
     </>
   )
 }

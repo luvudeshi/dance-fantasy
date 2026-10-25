@@ -4,6 +4,7 @@
 // Every non-GET request sends `X-DF: 1` (the server's CSRF check).
 
 import { ApiError, SERVER_UNREACHABLE_MESSAGE } from '../api'
+import { isMyBadges, newBadgesOf, type EarnedBadge, type MyBadges } from '../badges/model'
 import { isAbortError } from '../lib/errors'
 import { ICON_NAMES, type IconName } from '../theme/icons'
 
@@ -280,7 +281,11 @@ export const peekRoom = (code: string, signal?: AbortSignal): Promise<{ code: st
 export const listPartners = (signal?: AbortSignal): Promise<Partner[]> =>
   call('GET', '/api/me/partners', listOf(isPartner), { signal })
 
-export const postRound = (round: RoundRecord): Promise<{ ok: true }> => call('POST', '/api/me/rounds', isOk, { body: round })
+/** Resolves the badges this round newly earned. */
+export const postRound = async (round: RoundRecord): Promise<EarnedBadge[]> =>
+  newBadgesOf(await call('POST', '/api/me/rounds', isOk, { body: round })) ?? []
+
+export const getMyBadges = (signal?: AbortSignal): Promise<MyBadges> => call('GET', '/api/me/badges', isMyBadges, { signal })
 
 export const getHistory = (signal?: AbortSignal): Promise<History> =>
   call('GET', `/api/me/history?tzOffset=${new Date().getTimezoneOffset()}`, isHistory, { signal })

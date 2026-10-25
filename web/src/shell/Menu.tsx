@@ -78,6 +78,7 @@ export default function Menu({ learn, server }: { learn: string | null; server: 
     },
     { icon: 'upload', title: 'Studio', meta: 'Bring a song, see its beats', href: '#/analysis' },
     { icon: 'storybook', title: 'Move Book', meta: 'Every step of the ball', href: '#/moves' },
+    { icon: 'trophy', title: 'Hall of Fame', meta: 'Best dancers of every song', href: '#/hall' },
     { icon: 'map', title: 'How to Play', meta: 'The rules of the ball', href: '#/how' },
     { icon: 'gear', title: 'Settings', meta: 'Sound, camera, difficulty', href: '#/settings' },
   ]

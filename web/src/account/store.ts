@@ -6,6 +6,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { ApiError } from '../api'
+import { announceBadges, type EarnedBadge } from '../badges/model'
 import { errorMessage } from '../lib/errors'
 import * as api from './client'
 import type { Invite, Me, RoundRecord } from './client'
@@ -208,13 +209,19 @@ export async function inviteToRoom(friendId: string, roomCode: string): Promise<
   }
 }
 
-/** Add a finished round to the history (values are clamped to what the server accepts). Never throws. */
-export async function recordRound(round: RoundRecord): Promise<void> {
-  if (!(await ensureSession())) return
+/**
+ * Add a finished round to the history (values are clamped to what the server accepts) and queue a
+ * "Badge unlocked!" toast for each badge it earned (<BadgeToast /> shows them). Resolves those badges. Never throws.
+ */
+export async function recordRound(round: RoundRecord): Promise<EarnedBadge[]> {
+  if (!(await ensureSession())) return []
   try {
-    await api.postRound(api.normalizeRound(round))
+    const badges = await api.postRound(api.normalizeRound(round))
+    announceBadges(badges)
     await refreshMe() // stats.rounds / bestScore
+    return badges
   } catch (err) {
     console.warn('[account] recordRound failed', err)
+    return []
   }
 }
