@@ -89,10 +89,10 @@
 .df-screen .calib-mirror::before {
   content: '';
   position: absolute;
-  top: -44px;
+  top: -36px;
   left: 50%;
   z-index: 3;
-  width: 96px;
+  width: 84px;
   aspect-ratio: 120 / 64;
   translate: -50% 0;
   background: url('/art/storybook/crest.svg') center / contain no-repeat;

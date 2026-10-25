@@ -169,12 +169,17 @@
 
 .df-screen .results-actions {
   gap: 12px;
-  /* a laptop-height card scrolls: the buttons stay in reach at the bottom of the window */
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  padding: 16px 0 12px;
-  background: linear-gradient(rgb(248 240 222 / 0), var(--df-paper) 35%);
+}
+/* a laptop-height card scrolls: the buttons stay in reach at the bottom of the window (phones just scroll:
+   four rows of buttons would cover half the screen) */
+@media (min-width: 641px) {
+  .df-screen .results-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: 16px 0 12px;
+    background: linear-gradient(rgb(248 240 222 / 0), var(--df-paper) 35%);
+  }
 }
 .df-screen .results-actions button:not([class*='df-']) {
   min-height: 3.25rem;
