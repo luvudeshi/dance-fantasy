@@ -21,6 +21,7 @@ from app.ai.prompts import (
     announcer_user,
     canned_lines,
     clip,
+    line_id,
     parse_lines,
 )
 from app.ai.provider import AIUnavailable, generate_text
@@ -95,6 +96,14 @@ def test_canned_lines_skip_templates_needing_missing_fields() -> None:
     seen = {line for _ in range(200) for line in canned_lines("combo", {"song": "S"})}
     assert len(seen) >= 3  # varied
     assert not any(ch.isdigit() for line in seen for ch in line)  # no {combo} without a combo
+
+
+def test_canned_lines_open_with_a_recorded_line_when_there_is_one() -> None:
+    combo = "The ballroom ERUPTS! 10 in a row, Your Highness!"
+    tier = prompts.RESULTS_BY_TIER["high"][-1]
+    for _ in range(30):
+        assert canned_lines("combo", {"song": "S", "combo": "10"}, {line_id(combo)}) == [combo]
+        assert canned_lines("results", {"song": "S", "stars": "5"}, {line_id(tier)})[0] == tier
 
 
 def test_parse_lines_tolerates_fences_and_cleans_up() -> None:

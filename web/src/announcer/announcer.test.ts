@@ -13,6 +13,7 @@ import {
   localLine,
   nextMilestone,
   pickVoice,
+  QUIET_MS,
   resultsContext,
 } from './announcer'
 
@@ -36,13 +37,11 @@ function summary(o: { miss?: number; accuracy?: number; stars?: number; judged?:
 }
 
 describe('comboMoment', () => {
-  it('calls out 10, 25, then every 50', () => {
-    expect(comboMoment([{ combo: 10 }], 9)).toEqual({ event: 'combo', combo: 10 })
-    expect(comboMoment([{ combo: 25 }], 24)).toEqual({ event: 'combo', combo: 25 })
-    expect(comboMoment([{ combo: 50 }], 49)).toEqual({ event: 'combo', combo: 50 })
-    expect(comboMoment([{ combo: 100 }], 99)).toEqual({ event: 'combo', combo: 100 })
+  it('calls out every 5 up to 25, then every 25', () => {
+    for (const n of [5, 10, 15, 20, 25, 50, 75, 100]) expect(comboMoment([{ combo: n }], n - 1)).toEqual({ event: 'combo', combo: n })
     expect(comboMoment([{ combo: 11 }], 10)).toBeNull()
-    expect(comboMoment([{ combo: 75 }], 74)).toBeNull()
+    expect(comboMoment([{ combo: 30 }], 29)).toBeNull()
+    expect(comboMoment([{ combo: 60 }], 59)).toBeNull()
   })
 
   it('finds a milestone crossed inside a batch', () => {
@@ -50,8 +49,8 @@ describe('comboMoment', () => {
   })
 
   it('flags a broken streak only from STREAK_MIN up', () => {
-    expect(comboMoment([{ combo: 0 }], 14)).toEqual({ event: 'streak_broken', combo: 14 })
-    expect(comboMoment([{ combo: 0 }], 9)).toBeNull()
+    expect(comboMoment([{ combo: 0 }], 5)).toEqual({ event: 'streak_broken', combo: 5 })
+    expect(comboMoment([{ combo: 0 }], 4)).toBeNull()
   })
 
   it('lets the last moment of a batch win', () => {
@@ -62,7 +61,7 @@ describe('comboMoment', () => {
 
 describe('results helpers', () => {
   it('next milestones', () => {
-    expect([0, 9, 10, 24, 25, 50, 51].map(nextMilestone)).toEqual([10, 10, 25, 25, 50, 100, 100])
+    expect([0, 4, 5, 24, 25, 50, 51].map(nextMilestone)).toEqual([5, 5, 10, 25, 50, 75, 75])
   })
 
   it('a perfect run has no misses and five-star accuracy', () => {
@@ -94,7 +93,7 @@ describe('results helpers', () => {
   it('local lines fill in the song and score', () => {
     expect(localLine('intro', { songTitle: 'Vibe Ace' }, () => 0)).toContain('Vibe Ace')
     expect(localLine('results', { songTitle: 'x', score: 12345 }, () => 0)).toContain('12,345')
-    for (const event of ['intro', 'combo', 'streak_broken', 'perfect_run', 'results'] as const) {
+    for (const event of ['intro', 'combo', 'streak_broken', 'cheer', 'perfect_run', 'results'] as const) {
       const line = localLine(event, { songTitle: 'S'.repeat(200), combo: 10 }, () => 0.999)
       expect(line.length).toBeGreaterThan(0)
       expect(line.length).toBeLessThanOrEqual(90)
@@ -167,6 +166,26 @@ describe('createAnnouncer', () => {
     a.onResults([{ combo: 10 }], 9)
     await vi.waitFor(() => expect(a.getSnapshot()?.event).toBe('combo'), { timeout: IN_GAME_WAIT_MS + 1000 })
     expect(performance.now() - t0).toBeLessThan(IN_GAME_WAIT_MS + 500)
+    a.dispose()
+  })
+
+  it('cheers after a quiet spell, and not while a line is up or soon after one', async () => {
+    let t = 0
+    const a = createAnnouncer({ endpoint: closedUrl, prefs: () => on, speak: () => {}, stop: () => {}, now: () => t })
+    a.intro({ songTitle: 'Vibe Ace' })
+    await vi.waitFor(() => expect(a.getSnapshot()?.event).toBe('intro'))
+    t = QUIET_MS + 1
+    a.onResults([{ combo: 1 }], 0) // the intro line is still up
+    a.hush()
+    t = QUIET_MS + 2
+    a.onResults([{ combo: 2 }], 1) // nothing up, and nothing said since t=0
+    await vi.waitFor(() => expect(a.getSnapshot()?.event).toBe('cheer'), { timeout: IN_GAME_WAIT_MS + 1000 })
+    const cheer = a.getSnapshot()?.key
+    a.hush()
+    t += QUIET_MS - 1
+    a.onResults([{ combo: 3 }], 2) // not quiet long enough since the cheer
+    await new Promise((r) => setTimeout(r, IN_GAME_WAIT_MS + 200))
+    expect(a.getSnapshot()?.key ?? cheer).toBe(cheer)
     a.dispose()
   })
 

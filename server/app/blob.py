@@ -90,6 +90,11 @@ def push(key: str, data: bytes) -> None:
     put_blob(key, data, access="public", content_type=content_type, allow_overwrite=True)
 
 
+def keys(prefix: str) -> set[str]:
+    """Pathnames of every blob under ``prefix`` (empty when Blob is off)."""
+    return {b.pathname for b in query_blobs(prefix=prefix)} if enabled() else set()
+
+
 def find_url(prefix: str) -> str | None:
     """Public URL of the first blob whose pathname starts with ``prefix``, or None (also when Blob is off)."""
     if not enabled():
