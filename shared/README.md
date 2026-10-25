@@ -202,5 +202,41 @@ Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py
   `<cache_dir>/rooms.sqlite3`. A Vercel deployment without `DATABASE_URL` answers 503 on every
   rooms route. Tables are `df_rooms`, `df_players`, `df_chat`, created on first use.
 
+AI endpoints (sponsor tracks; server/app/ai, keys in `.env.example`). Meta Muse answers first, Gemini is the
+fallback (`AI_PROVIDER=gemini` swaps them). Prompts and model output are never logged.
+
+| Method | Path | Returns |
+|---|---|---|
+| POST | `/api/announcer` (JSON `AnnouncerRequest`) | `{ lines: string[], source: "muse" \| "gemini" \| "canned" }`: 1-3 lines, each ≤ 90 chars |
+| GET | `/api/songs/signature?title=&artist=` | `Signature` (below); 404 without `SERPAPI_API_KEY` + an LLM key (unless cached), 502 search failed, 503 no usable AI answer |
+
+```ts
+// POST /api/announcer. Always 200 within ~2.5 s: no key, a slow model or a bad reply gives canned lines
+// (source "canned"). Identical requests within 30 s get the same answer.
+interface AnnouncerRequest {
+  event: 'intro' | 'combo' | 'streak_broken' | 'perfect_run' | 'results'
+  context: {
+    songTitle: string          // required, ≤ 200 chars
+    playerName?: string        // ≤ 40
+    score?: number             // int ≥ 0
+    accuracy?: number          // percent 0..100, like the results screen
+    combo?: number; maxCombo?: number
+    grade?: string             // e.g. the rank title, "Belle of the Ball"
+    stars?: number             // 0..5
+    bestMove?: string; hardestMove?: string   // display names
+    difficulty?: string
+  }
+}
+
+// GET /api/songs/signature. Cached by title + artist (case-insensitive), so a repeat costs no searches.
+interface Signature {
+  found: boolean               // false: no well-known dance; summary says so
+  summary: string              // 2-3 plain sentences on the signature moves
+  keyMoments: { label: string; approxTimeSec?: number }[]   // ≤ 5
+  suggestedMoveIds: string[]   // ≤ 8, always ids in GET /api/moves (re-checked on every read)
+  sources: { title: string; link: string; thumbnail?: string; source: string }[]  // ≤ 6, http(s) links
+}
+```
+
 Errors use FastAPI's `{ "detail": str }` with 400 (bad input), 404 (unknown song) or
 413 (upload too large); the rooms routes add 401, 403, 409, 429 and 503 as above.
