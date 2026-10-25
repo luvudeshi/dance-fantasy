@@ -6,8 +6,8 @@ import type { PinnedMoveRequest } from '@shared/moves'
 import type { SongChoice } from '../game/session'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { readSongTags, titleFromFileName } from './id3'
-import { inspiredBy, lookupSignature, pinsFor, safeLink, type SignatureLookup } from './signature'
-import './signature.css'
+import { inspiredBy, lookupSignature, pinsFor, safeLink, type SignatureLookup } from './dances'
+import './dances.css'
 
 const DEBOUNCE_MS = 450
 

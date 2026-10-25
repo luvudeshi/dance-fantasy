@@ -17,7 +17,7 @@ import { DEMO_LIBRARY } from '../routine/demo'
 import { allStyles, filterMoves, intensityColor, libraryStats, NO_FILTERS, type MoveFilters } from '../routine/library'
 import { poseInMove } from '../routine/pose'
 import { signatureEnabled } from '../signature/flag'
-import { signatureLabel, withSignatureMoves } from '../signature/signature'
+import { signatureLabel, withSignatureMoves } from '../signature/dances'
 
 interface ViewSettings {
   bpm: number

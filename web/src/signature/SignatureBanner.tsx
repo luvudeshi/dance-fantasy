@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from 'react'
 import type { Routine } from '@shared/routine'
-import { bannerText, inspiredBy, SIGNATURE_MULTIPLIER, signatureAt } from './signature'
-import './signature.css'
+import { bannerText, inspiredBy, SIGNATURE_MULTIPLIER, signatureAt } from './dances'
+import './dances.css'
 
 export function SignatureBanner({ routine, songTime }: { routine: Pick<Routine, 'moves'>; songTime: () => number }) {
   const [index, setIndex] = useState(-1)

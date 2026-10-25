@@ -16,7 +16,7 @@ import {
   signatureLabel,
   withSignatureMultiplier,
   type SignatureLookup,
-} from './signature'
+} from './dances'
 
 const ROUTINE = routineExample as unknown as Routine
 
