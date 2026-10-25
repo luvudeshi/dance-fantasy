@@ -4,6 +4,7 @@
 // for the page's lifetime (the server caches them on disk too); failures are not kept, so a retry asks again.
 
 import { apiUrl, getMoves } from '../api'
+import { withMirrorTwins } from '../routine/library'
 
 export interface KeyMoment {
   label: string
@@ -128,7 +129,7 @@ let moveNameMap: Promise<ReadonlyMap<string, string>> | null = null
 /** id -> display name from GET /api/moves (fetched once; an empty map if it fails, retried next time). */
 export function loadMoveNames(): Promise<ReadonlyMap<string, string>> {
   moveNameMap ??= getMoves().then(
-    (lib) => new Map(lib.moves.map((m) => [m.id, m.name])),
+    (lib) => new Map(withMirrorTwins(lib.moves).map((m) => [m.id, m.name])),
     () => {
       moveNameMap = null
       return new Map<string, string>()

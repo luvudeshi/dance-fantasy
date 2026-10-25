@@ -12,9 +12,10 @@ import { CanvasLoop } from '../render/canvasLoop'
 import { COACH_THEMES, coachThemeFor, drawCoach } from '../render/coach'
 import { drawPictogram } from '../render/pictogram'
 import { drawStage } from '../render/stage'
-import { coachStyle, drawFigure, drawFloor, fitFigureView, LEFT_COLOR, RIGHT_COLOR } from '../render/stickFigure'
+import { coachStyle, drawFigure, drawFloor, fitFigureView, LEFT_COLOR, RIGHT_COLOR, stageRoot } from '../render/stickFigure'
 import { DEMO_LIBRARY } from '../routine/demo'
-import { allStyles, filterMoves, intensityColor, libraryStats, NO_FILTERS, type MoveFilters } from '../routine/library'
+import { allStyles, filterMoves, intensityColor, libraryStats, MIRROR_SUFFIX, NO_FILTERS, withMirrorTwins, type ListedMove, type MoveFilters } from '../routine/library'
+import { AIST_CARD_CREDIT, librarySourceOf } from '../routine/moveSource'
 import { poseInMove } from '../routine/pose'
 
 interface ViewSettings {
@@ -30,7 +31,7 @@ interface ViewSettings {
 const THEME_NAMES = Object.keys(COACH_THEMES)
 
 const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard']
-const NO_MOVES: LibraryMove[] = []
+const NO_MOVES: ListedMove[] = []
 
 /** Fraction of `move` at time `nowSec` when looping at `bpm` (all cards share one phase). */
 function loopU(nowSec: number, move: LibraryMove, bpm: number): number {
@@ -45,7 +46,10 @@ function drawMove(canvas: HTMLCanvasElement, move: LibraryMove, u: number, s: Vi
   if (!prepared) return
   const { ctx, width, height } = prepared
   const view = fitFigureView(width, height, s.mirrored)
-  const { pose, root } = poseInMove(move.keyframes, u)
+  const at = poseInMove(move.keyframes, u)
+  const pose = at.pose
+  // Real-dancer clips travel up to ~2 body units: keep the figure on its card.
+  const root = stageRoot(at.root, view, 0, width)
   if (s.coachLook) {
     const theme = coachThemeFor(s.theme)
     // Beat pulse: 1 on each beat of the move, decaying over the beat.
@@ -84,7 +88,10 @@ function IntensityDots({ value }: { value: number }) {
   )
 }
 
-function MoveMeta({ move }: { move: LibraryMove }) {
+/** Tags + credit; `full`: the detail view's full credit (with the source take) instead of the card's short one. */
+function MoveMeta({ move, full = false }: { move: ListedMove; full?: boolean }) {
+  const aist = librarySourceOf(move) === 'aist'
+  const credit = aist ? (full ? (move.credit ?? AIST_CARD_CREDIT) : AIST_CARD_CREDIT) : move.credit
   return (
     <>
       <div className="move-meta">
@@ -93,19 +100,34 @@ function MoveMeta({ move }: { move: LibraryMove }) {
         <span className={`diff diff-${move.difficulty}`}>{move.difficulty}</span>
       </div>
       <div className="move-tags">
-        {move.upperBodyOnly && <span className="tag seated">seated ok</span>}
-        {move.styles.map((s) => (
-          <span key={s} className="tag">
-            {s}
+        {aist && <span className="tag real-dancer">real dancer</span>}
+        {move.hasMirror && (
+          <span className="tag" title="Also danced mirrored (left for right) in routines">
+            + mirrored
           </span>
-        ))}
+        )}
+        {move.upperBodyOnly && <span className="tag seated">seated ok</span>}
+        {move.styles
+          .filter((s) => s !== 'aist')
+          .map((s) => (
+            <span key={s} className="tag">
+              {s}
+            </span>
+          ))}
       </div>
+      {credit && <p className="move-credit">{credit}</p>}
     </>
   )
 }
 
+const SOURCE_FILTERS: readonly { value: MoveFilters['source']; label: string }[] = [
+  { value: '', label: 'any' },
+  { value: 'library', label: 'Classic' },
+  { value: 'aist', label: 'Real dancers' },
+]
+
 interface CardProps {
-  move: LibraryMove
+  move: ListedMove
   loop: CanvasLoop
   settings: RefObject<ViewSettings>
   onOpen: (id: string) => void
@@ -163,11 +185,13 @@ function Pictogram({ move, settings, active, size }: { move: LibraryMove; settin
   return <canvas ref={ref} style={{ width: size, height: size, display: 'block' }} aria-label={`${move.name} pictogram${active ? ' (active)' : ''}`} />
 }
 
-function MoveDetail({ move, loop, settings, onClose }: {
-  move: LibraryMove
+function MoveDetail({ move, loop, settings, onClose, onOpen }: {
+  move: ListedMove
   loop: CanvasLoop
   settings: ViewSettings
   onClose: () => void
+  /** Opens another move's detail (the mirrored twin, or the clip a twin mirrors). */
+  onOpen: (id: string) => void
 }) {
   const settingsRef = useLatest(settings)
   const [playing, setPlaying] = useState(true)
@@ -224,7 +248,24 @@ function MoveDetail({ move, loop, settings, onClose }: {
             <h2 className="detail-title">{move.name}</h2>
             <div className="move-id mono">
               {move.id}
-              {move.mirrorOf && <span className="dim"> · mirror of {move.mirrorOf}</span>}
+              {move.mirrorOf && (
+                <span className="dim">
+                  {' '}
+                  · mirror of{' '}
+                  <button type="button" className="link" onClick={() => onOpen(move.mirrorOf ?? move.id)}>
+                    {move.mirrorOf}
+                  </button>
+                </span>
+              )}
+              {move.hasMirror && (
+                <span className="dim">
+                  {' '}
+                  ·{' '}
+                  <button type="button" className="link" onClick={() => onOpen(move.id + MIRROR_SUFFIX)}>
+                    see it mirrored
+                  </button>
+                </span>
+              )}
             </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close">
@@ -234,7 +275,7 @@ function MoveDetail({ move, loop, settings, onClose }: {
         <div className="detail-body">
           <canvas ref={canvasRef} className="detail-canvas" aria-label={`${move.name} animation`} />
           <div className="detail-info">
-            <MoveMeta move={move} />
+            <MoveMeta move={move} full />
             <dl>
               <dt>side</dt>
               <dd>{move.side}</dd>
@@ -307,6 +348,8 @@ export default function MoveGallery() {
   const [coachLook, setCoachLook] = useState(true)
   const [theme, setTheme] = useState('intro')
   const [openId, setOpenId] = useState<string | null>(null)
+  /** Also list the real-dancer clips' mirrored twins (the server leaves them out; built here). */
+  const [twins, setTwins] = useState(false)
   const [loop] = useState(() => new CanvasLoop())
 
   const settings = useMemo<ViewSettings>(() => ({ bpm, mirrored, lrColors, coachLook, theme }), [bpm, mirrored, lrColors, coachLook, theme])
@@ -330,11 +373,16 @@ export default function MoveGallery() {
     return () => ac.abort()
   }, [reload])
 
-  const moves = state.kind === 'ok' ? state.lib.moves : NO_MOVES
+  const listed: readonly ListedMove[] = state.kind === 'ok' ? state.lib.moves : NO_MOVES
+  /** Every move incl. the twins the listing left out (detail links can open a twin either way). */
+  const full = useMemo(() => withMirrorTwins(listed), [listed])
+  const moves = twins ? full : listed
   const shown = useMemo(() => filterMoves(moves, filters), [moves, filters])
-  const styles = useMemo(() => allStyles(moves), [moves])
-  const stats = useMemo(() => libraryStats(moves), [moves])
-  const open = openId ? moves.find((m) => m.id === openId) : undefined
+  // 'aist' tags every real-dancer clip: the Source filter covers it (and the cards hide it), so it isn't offered as a style.
+  const styles = useMemo(() => allStyles(listed).filter((s) => s !== 'aist'), [listed])
+  const stats = useMemo(() => libraryStats(listed), [listed])
+  const open = openId ? (full.find((m) => m.id === openId) ?? listed.find((m) => m.id === openId)) : undefined
+  const hasTwins = useMemo(() => listed.some((m) => m.hasMirror), [listed])
   const onOpen = useCallback((id: string) => setOpenId(id), [])
   const onClose = useCallback(() => setOpenId(null), [])
   const setFilter = <K extends keyof MoveFilters>(k: K, v: MoveFilters[K]): void => setFilters((f) => ({ ...f, [k]: v }))
@@ -360,6 +408,7 @@ export default function MoveGallery() {
             normal {stats.byDifficulty.normal} / hard {stats.byDifficulty.hard} · showing <b>{shown.length}</b>
           </p>
         )}
+        {state.kind === 'ok' && state.lib.attribution && <p className="move-credit">{state.lib.attribution}</p>}
         <div className="toolbar">
           <input
             type="search"
@@ -401,10 +450,26 @@ export default function MoveGallery() {
               ))}
             </select>
           </label>
+          <label>
+            Source
+            <select value={filters.source} onChange={(e) => setFilter('source', SOURCE_FILTERS.find((f) => f.value === e.target.value)?.value ?? '')}>
+              {SOURCE_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="check">
             <input type="checkbox" checked={filters.seatedOnly} onChange={(e) => setFilter('seatedOnly', e.target.checked)} />
             Seated only
           </label>
+          {hasTwins && (
+            <label className="check" title="Every real-dancer move is also danced mirrored (left for right); show those twins as cards too">
+              <input type="checkbox" checked={twins} onChange={(e) => setTwins(e.target.checked)} />
+              Mirrored twins
+            </label>
+          )}
           {filters !== NO_FILTERS && (
             <button type="button" className="link" onClick={() => setFilters(NO_FILTERS)}>
               Clear filters
@@ -481,7 +546,7 @@ export default function MoveGallery() {
         ))}
       </div>
 
-      {open && <MoveDetail move={open} loop={loop} settings={settings} onClose={onClose} />}
+      {open && <MoveDetail key={open.id} move={open} loop={loop} settings={settings} onClose={onClose} onOpen={onOpen} />}
     </section>
   )
 }

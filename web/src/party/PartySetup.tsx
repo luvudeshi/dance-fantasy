@@ -3,6 +3,8 @@
 
 import { useEffect, useId, useState, type CSSProperties } from 'react'
 import type { Difficulty } from '@shared/routine'
+import { AIST_CREDIT, MOVE_SOURCES, type MoveSource } from '../routine/moveSource'
+import { moveSourceHint } from '../routine/useMoveSource'
 import type { SongInfo } from '../api'
 import { Badge, Button, Corners, Notice, Segmented, Title, Token } from '../theme/components'
 import { Icon } from '../theme/Icon'
@@ -34,6 +36,11 @@ interface Props {
   onSong: (file: string) => void
   difficulty: Difficulty
   onDifficulty: (d: Difficulty) => void
+  /** "Moves from" (the lobby's remembered choice). */
+  moveSource: MoveSource
+  onMoveSource: (m: MoveSource) => void
+  /** false: the server has no real-dancer clips (the choice is locked to classic). */
+  realDancers: boolean | null
   onStart: () => void
   /** "Listening to the song…" while the game is prepared. */
   busy?: string | null
@@ -206,6 +213,10 @@ export default function PartySetup(p: Props) {
                 ))}
               </select>
               <Segmented label="Difficulty" value={p.difficulty} options={DIFFICULTY} onChange={p.onDifficulty} />
+              <span className="df-label">Moves from</span>
+              <Segmented label="Moves from" value={p.moveSource} options={MOVE_SOURCES} onChange={p.onMoveSource} disabled={p.realDancers === false} />
+              <p className="df-note">{moveSourceHint(p.moveSource, p.realDancers)}</p>
+              {p.moveSource !== 'classic' && <p className="df-note party-credit">{AIST_CREDIT}</p>}
             </div>
 
             {p.error && <Notice inline tone="error" message={p.error} />}

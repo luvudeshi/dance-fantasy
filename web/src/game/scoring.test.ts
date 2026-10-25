@@ -8,7 +8,10 @@ import {
   comboMultiplier,
   DEFAULT_SCORING,
   judge,
+  LENIENT_SCORING,
   limbScore,
+  REST_PROOF_SCORE,
+  restPoseScore,
   ScoreKeeper,
   scoreFrame,
   type Checkpoint,
@@ -191,6 +194,20 @@ describe('buildCheckpoints', () => {
     const elbow: Vec2 = [sh[0] + upper[0], sh[1] + upper[1]]
     const ready: Pose2D = { ...N, r_elbow: elbow, r_wrist: [elbow[0] + fore[0], elbow[1] + fore[1]] }
     expect(buildCheckpoints({ moves: [move(0, 2, [[0, ready], [0.5, ready], [1, ready]])] }, 'standing')).toEqual([])
+  })
+
+  it('drops subtle targets the resting pose would nearly pass (real-dancer clips), keeps clear ones', () => {
+    // The whole right arm swung out from the shoulder: both limbs past NEUTRAL_SKIP_DEG (not resting).
+    const out = (deg: number): Pose2D => rotJoint(rotJoint(N, 'r_shoulder', 'r_elbow', deg), 'r_shoulder', 'r_wrist', deg)
+    const cps = (deg: number) => buildCheckpoints({ moves: [move(0, 2, [[0.5, out(deg)]])] }, 'standing')
+    // 40° out: standing still scores 60 on Lenient angles (an OK there): no checkpoint.
+    expect(restPoseScore({ target: out(40), limbs: ['r_upper_arm', 'r_forearm'], resting: [] })).toBeGreaterThanOrEqual(REST_PROOF_SCORE)
+    expect(cps(40)).toEqual([])
+    // 60° out (the classic library's smallest moving limb): standing still scores 20, the checkpoint stays.
+    expect(restPoseScore({ target: out(60), limbs: ['r_upper_arm', 'r_forearm'], resting: [] })).toBeLessThan(REST_PROOF_SCORE)
+    expect(cps(60)).toHaveLength(1)
+    // ...and standing still misses it on every scorer setting.
+    expect(judge(scoreFrame(cps(60)[0], frame(0.5, N), LENIENT_SCORING).score, LENIENT_SCORING)).toBe('miss')
   })
 
   it('applies the torso rule (only when the target leans > 10°)', () => {

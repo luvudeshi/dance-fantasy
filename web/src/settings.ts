@@ -2,8 +2,8 @@
 // the game and the 3D coach read the same values; React reads it via useSettings().
 //
 // Settings that already have their own store stay there (no second copy): sound on/off is
-// game/sfx.ts (load/saveSfxEnabled), judging is game/judging.ts, the camera delay is
-// game/calibration.ts. This store holds the rest.
+// game/sfx.ts (load/saveSfxEnabled), judging is game/judging.ts, "Moves from" is
+// routine/moveSource.ts, the camera delay is game/calibration.ts. This store holds the rest.
 
 import { useSyncExternalStore } from 'react'
 import type { Difficulty, Mode } from '@shared/routine'

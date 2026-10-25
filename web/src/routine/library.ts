@@ -2,6 +2,45 @@
 
 import type { LibraryMove } from '@shared/moves'
 import type { Difficulty, Routine } from '@shared/routine'
+import { JOINTS, MIRROR } from '@shared/skeleton'
+import { mirrorPose } from './pose'
+
+/**
+ * A move as GET /api/moves lists it. The mirrored twins `<id>_m` of real-dancer clips are left out
+ * by default (the payload would be twice the size); their base clips say `hasMirror: true` instead.
+ * Never assume a twin is listed: build it with mirrorTwin.
+ */
+export type ListedMove = LibraryMove & { hasMirror?: boolean }
+
+/** Suffix of a real-dancer clip's mirrored twin (server/app/moves/clips.py MIRROR_SUFFIX). */
+export const MIRROR_SUFFIX = '_m'
+
+/** The mirrored twin of a clip, exactly as the server compiles it (clips.py mirror_clip). */
+export function mirrorTwin(m: LibraryMove): LibraryMove {
+  const twin: LibraryMove = {
+    ...m,
+    id: m.id + MIRROR_SUFFIX,
+    name: `${m.name} (mirrored)`,
+    scoredJoints: JOINTS.filter((j) => m.scoredJoints.includes(MIRROR[j])),
+    keyframes: m.keyframes.map((k) => ({ t: k.t, pose: mirrorPose(k.pose), root: [k.root[0] === 0 ? 0 : -k.root[0], k.root[1]] })),
+    side: m.side === 'L' ? 'R' : m.side === 'R' ? 'L' : 'both',
+    mirrorOf: m.id,
+  }
+  delete (twin as ListedMove).hasMirror
+  return twin
+}
+
+/** Mirrored twins of hasMirror clips that the listing left out. */
+export function unlistedTwins(moves: readonly ListedMove[]): LibraryMove[] {
+  const ids = new Set(moves.map((m) => m.id))
+  return moves.filter((m) => m.hasMirror && !ids.has(m.id + MIRROR_SUFFIX)).map(mirrorTwin)
+}
+
+/** The listing with every unlisted twin right after its clip (the full library, as `?mirrors=1` lists it). */
+export function withMirrorTwins(moves: readonly ListedMove[]): LibraryMove[] {
+  const ids = new Set(moves.map((m) => m.id))
+  return moves.flatMap((m) => (m.hasMirror && !ids.has(m.id + MIRROR_SUFFIX) ? [m, mirrorTwin(m)] : [m]))
+}
 
 export interface MoveFilters {
   /** '' = any. */
@@ -12,9 +51,11 @@ export interface MoveFilters {
   seatedOnly: boolean
   /** Case-insensitive substring of name, id, baseId or a style. */
   search: string
+  /** '' = any; 'library' = classic moves, 'aist' = real-dancer clips. */
+  source: '' | 'library' | 'aist'
 }
 
-export const NO_FILTERS: MoveFilters = { style: '', difficulty: '', intensity: 0, seatedOnly: false, search: '' }
+export const NO_FILTERS: MoveFilters = { style: '', difficulty: '', intensity: 0, seatedOnly: false, search: '', source: '' }
 
 export function filterMoves(moves: readonly LibraryMove[], f: MoveFilters): LibraryMove[] {
   const q = f.search.trim().toLowerCase()
@@ -24,6 +65,7 @@ export function filterMoves(moves: readonly LibraryMove[], f: MoveFilters): Libr
       (!f.difficulty || m.difficulty === f.difficulty) &&
       (!f.intensity || m.intensity === f.intensity) &&
       (!f.seatedOnly || m.upperBodyOnly) &&
+      (!f.source || (m.source ?? 'library') === f.source) &&
       (!q || [m.name, m.id, m.baseId, ...m.styles].some((s) => s.toLowerCase().includes(q))),
   )
 }
@@ -34,6 +76,7 @@ export function allStyles(moves: readonly LibraryMove[]): string[] {
 }
 
 export interface LibraryStats {
+  /** Every playable move, incl. the mirrored twins the listing left out. */
   moves: number
   /** Distinct baseIds (mirror pairs count once). */
   base: number
@@ -41,7 +84,8 @@ export interface LibraryStats {
   byDifficulty: Record<Difficulty, number>
 }
 
-export function libraryStats(moves: readonly LibraryMove[]): LibraryStats {
+export function libraryStats(listed: readonly ListedMove[]): LibraryStats {
+  const moves = withMirrorTwins(listed)
   const byDifficulty: Record<Difficulty, number> = { easy: 0, normal: 0, hard: 0 }
   for (const m of moves) byDifficulty[m.difficulty] = (byDifficulty[m.difficulty] ?? 0) + 1
   return {

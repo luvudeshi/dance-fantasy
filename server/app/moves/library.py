@@ -3,21 +3,28 @@
 Authoring format: assets/moves/README.md. ``load_library()`` is cached per (directory, file names + mtimes),
 so editing a move file is picked up on the next call. Any problem raises MoveDefinitionError naming the
 file and move id.
+
+The same directory may hold ``aist_clips.json`` (real-dancer clips, app.moves.clips): when present its clips
+(and their mirrors) are appended after the library moves and the file is part of the library version; when
+absent the library is the classic moves only.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 import threading
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from app.config import get_settings
 from app.moves.anchors import ANCHOR_TOLERANCE, ANCHORS, anchor_distance
+from app.moves.clips import CLIPS_FILE, ClipError, parse_clips
 from app.moves.fk import ANGLE_KEYS, LATERAL_KEYS, LEG_KEYS, RANGES, forward_kinematics
 from app.moves.types import BodyPart, CompiledMove, MoveKeyframe, MoveLibrary, Pose
 from app.skeleton import JOINTS, MIRROR
@@ -37,6 +44,9 @@ KEYFRAME_FIELDS = {"t", "beat", "from", "angles"}
 ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 SCORE_THRESHOLD = 0.1  # a limb is scored when its distal joint leaves neutral by more than this
 ARM_ANGLES = {"l": ("l_shoulder", "l_elbow"), "r": ("r_shoulder", "r_elbow")}
+
+
+log = logging.getLogger(__name__)
 
 
 class MoveDefinitionError(ValueError):
@@ -271,20 +281,44 @@ def _parse_file(name: str, content: bytes) -> list[dict[str, Any]]:
     return [{**defaults, **m} if isinstance(m, dict) else m for m in doc["moves"]]
 
 
-def build_library(files: list[tuple[str, bytes]]) -> MoveLibrary:
-    """Compile (file name, content) pairs into a MoveLibrary."""
+def build_library(files: list[tuple[str, bytes]], clips: bytes | None = None, strict_clips: bool = True) -> MoveLibrary:
+    """Compile (file name, content) pairs, plus the optional real-dancer clip file, into a MoveLibrary.
+
+    Library moves come first, clips after them (so adding clips never reorders the classic moves). An invalid
+    clip file raises MoveDefinitionError, or with ``strict_clips=False`` is skipped (the library is then the
+    classic moves only, with the reason in ``clipsError``): optional data never takes the classic moves down.
+    """
+    if clips is not None and not strict_clips:
+        try:
+            parse_clips(CLIPS_FILE, clips)
+        except ClipError as exc:
+            log.warning("skipping %s: %s", CLIPS_FILE, exc)
+            return replace(build_library(files), clipsError=str(exc))
     digest = hashlib.sha256(COMPILER_VERSION.encode() + json.dumps(ANCHORS, sort_keys=True).encode())
     moves: list[CompiledMove] = []
     seen_ids: dict[str, str] = {}
+
+    def add(move: CompiledMove, name: str) -> None:
+        if move.id in seen_ids:
+            raise MoveDefinitionError(f"{name}: duplicate move id {move.id!r} (also in {seen_ids[move.id]})")
+        seen_ids[move.id] = name
+        moves.append(move)
+
     for name, content in sorted(files):
         digest.update(b"\0" + name.encode() + b"\0" + content)
         for raw in _parse_file(name, content):
             for move in compile_move(raw, where=name):
-                if move.id in seen_ids:
-                    raise MoveDefinitionError(f"{name}: duplicate move id {move.id!r} (also in {seen_ids[move.id]})")
-                seen_ids[move.id] = name
-                moves.append(move)
-    return MoveLibrary(moves=tuple(moves), version=digest.hexdigest()[:12])
+                add(move, name)
+    attribution = None
+    if clips is not None:
+        digest.update(b"\0clips\0" + CLIPS_FILE.encode() + b"\0" + clips)
+        try:
+            clip_moves, attribution = parse_clips(CLIPS_FILE, clips)
+        except ClipError as exc:
+            raise MoveDefinitionError(str(exc)) from None
+        for move in clip_moves:
+            add(move, CLIPS_FILE)
+    return MoveLibrary(moves=tuple(moves), version=digest.hexdigest()[:12], attribution=attribution)
 
 
 _cache: dict[tuple[str, tuple[tuple[str, int, int], ...]], MoveLibrary] = {}
@@ -292,7 +326,8 @@ _lock = threading.Lock()
 
 
 def load_library(moves_dir: Path | None = None) -> MoveLibrary:
-    """Load and compile every ``*.json`` move file in ``moves_dir`` (default: assets/moves). Cached per file mtimes."""
+    """Load and compile every ``*.json`` move file in ``moves_dir`` (default: assets/moves), plus
+    ``aist_clips.json`` when it is there. Cached per file mtimes."""
     directory = (moves_dir or default_moves_dir()).resolve()
     if not directory.is_dir():
         raise MoveDefinitionError(f"move directory not found: {directory}")
@@ -302,15 +337,28 @@ def load_library(moves_dir: Path | None = None) -> MoveLibrary:
         hit = _cache.get(key)
         if hit is not None:
             return hit
-        library = build_library([(p.name, p.read_bytes()) for p in paths])
+        clips = next((p for p in paths if p.name == CLIPS_FILE), None)
+        library = build_library(
+            [(p.name, p.read_bytes()) for p in paths if p is not clips],
+            clips.read_bytes() if clips else None,
+            strict_clips=False,
+        )
         _cache.clear()  # keep only the latest state of each directory around (small)
         _cache[key] = library
         return library
 
 
-def move_to_json(m: CompiledMove) -> dict[str, Any]:
-    """CompiledMove -> LibraryMove (shared/moves.ts)."""
-    return {
+LISTING_DIGITS = 3  # decimals of the pose / root coordinates GET /api/moves serves (0.001 body units)
+LISTING_SOURCES = {"classic": "library", "library": "library", "aist": "aist"}  # ?source= -> CompiledMove.source
+
+
+def move_to_json(m: CompiledMove, digits: int = ROUND, has_mirror: bool = False) -> dict[str, Any]:
+    """CompiledMove -> LibraryMove (shared/moves.ts), coordinates rounded to ``digits`` decimals."""
+
+    def r(v: float) -> float:
+        return round(v, digits) + 0.0
+
+    out: dict[str, Any] = {
         "id": m.id,
         "baseId": m.baseId,
         "name": m.name,
@@ -322,15 +370,44 @@ def move_to_json(m: CompiledMove) -> dict[str, Any]:
         "styles": list(m.styles),
         "scoredJoints": list(m.scoredJoints),
         "keyframes": [
-            {"t": k.t, "pose": {j: [x, y] for j, (x, y) in k.pose.items()}, "root": [k.root[0], k.root[1]]}
+            {"t": k.t, "pose": {j: [r(x), r(y)] for j, (x, y) in k.pose.items()}, "root": [r(k.root[0]), r(k.root[1])]}
             for k in m.keyframes
         ],
         "startAnchor": m.startAnchor,
         "endAnchor": m.endAnchor,
         "side": m.side,
         "mirrorOf": m.mirrorOf,
+        "source": m.source,
+        "credit": m.credit,
     }
+    if has_mirror:
+        out["hasMirror"] = True
+    return out
 
 
-def library_to_json(lib: MoveLibrary) -> dict[str, Any]:
-    return {"version": lib.version, "moves": [move_to_json(m) for m in lib.moves]}
+def library_to_json(
+    lib: MoveLibrary, source: str | None = None, mirrors: bool = False, digits: int = LISTING_DIGITS
+) -> dict[str, Any]:
+    """GET /api/moves (MoveLibraryResponse).
+
+    By default the mirrored twins of real-dancer clips (``<id>_m``) are left out, and their base clips carry
+    ``hasMirror: true`` (the twin is the exact geometric mirror, shared/README.md): that halves the payload.
+    ``mirrors=True`` lists every move. ``source`` ("classic" / "library" or "aist") keeps one source only.
+    """
+    want = LISTING_SOURCES[source] if source else None
+    twins = {m.mirrorOf for m in lib.moves if m.source == "aist" and m.mirrorOf is not None}
+    moves = [
+        move_to_json(m, digits, has_mirror=m.id in twins)
+        for m in lib.moves
+        if (want is None or m.source == want) and (mirrors or m.source != "aist" or m.mirrorOf is None)
+    ]
+    return {"version": lib.version, "moves": moves, "attribution": lib.attribution}
+
+
+def source_counts(lib: MoveLibrary) -> dict[str, Any]:
+    """GET /api/moves/sources: how many moves (and distinct base moves) each source has."""
+    out: dict[str, Any] = {"version": lib.version, "attribution": lib.attribution, "clipsError": lib.clipsError}
+    for source in ("library", "aist"):
+        moves = [m for m in lib.moves if m.source == source]
+        out[source] = {"moves": len(moves), "baseMoves": len({m.baseId for m in moves})}
+    return out

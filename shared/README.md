@@ -136,14 +136,33 @@ Stage 2 endpoints (moves + choreography):
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/api/moves` | `MoveLibraryResponse` (`shared/moves.ts`): every compiled move incl. mirrored variants |
-| POST | `/api/choreograph` (JSON `ChoreographRequest`: `analysisId`, `difficulty`, `mode`, `seed`) | a `routine.json` (`Routine`); 404 if the analysis isn't cached yet |
+| GET | `/api/moves?source=classic\|aist&mirrors=1` | `MoveLibraryResponse` (`shared/moves.ts`): the compiled moves (classic moves with their L/R variants, real-dancer clips); both parameters optional, see below |
+| GET | `/api/moves/sources` | `MoveSourcesResponse`: move counts per source (`library`, `aist`) + the data attribution |
+| POST | `/api/choreograph` (JSON `ChoreographRequest`: `analysisId`, `difficulty`, `mode`, `seed`, `moveSource`) | a `routine.json` (`Routine`); 404 if the analysis isn't cached yet |
 | GET | `/api/routines/{routineId}` | a previously generated routine (for share links / multiplayer later) |
 
-Generated routines put `routineId`, `generator`, `libraryVersion`, `analysisId` and
-`analysisVersion` in `meta`. The same request always returns the same routine (cached by
-`routineId` = hash of analysis id + versions + difficulty + mode + seed); a new seed gives a
-new routine. Keyframes may carry `root` (rendering-only hip offset, see the schema).
+Generated routines put `routineId`, `generator`, `libraryVersion`, `analysisId`,
+`analysisVersion`, `moveSource` and `aistMoves` (how many moves are real-dancer clips; plus `credit`
+when there are any) in `meta`. The same request always returns the same routine (cached by
+`routineId` = hash of analysis id + versions + difficulty + mode + seed + move source); a new seed
+gives a new routine. `moveSource` is `classic` (default: the angle-based library), `aist`
+(real-dancer clips from AIST++, library moves only as a fallback and for the closing bow) or `mix`.
+Library moves carry `source` (`library` / `aist`) and `credit`; real-dancer clips have
+`startAnchor` / `endAnchor` `"free"` and mirrored twins `<id>_m`. Keyframes may carry `root` (rendering-only hip offset, see the schema).
+
+`GET /api/moves` payload (Vercel caps a function response at 4.5 MB):
+- By default the real-dancer clips' mirrored twins `<id>_m` are **left out** and each clip that has one
+  carries `hasMirror: true`. The twin is the exact geometric mirror of its clip: id `<id>_m`, name
+  `<name> (mirrored)`, `mirrorOf: "<id>"`, `side` L <-> R (`both` stays), `scoredJoints` with `l_` / `r_`
+  swapped, every keyframe pose `twin[j] = [-clip[mirror(j)][0], clip[mirror(j)][1]]` (`mirror` swaps
+  `l_` / `r_`, `skeleton.json`) and `root = [-x, y]`; every other field is the clip's. Routines always
+  carry the poses of the moves they use, twins included, so only a move browser needs this.
+- `?mirrors=1` lists every move, twins included (about twice the bytes). `?source=classic` (or `library`)
+  / `?source=aist` keeps one source; anything else is 400. The classic moves' own L/R variants (`_L` / `_R`)
+  are always listed.
+- Coordinates are rounded to 3 decimals (0.001 body units); `t` is exact.
+- Big JSON responses (`/api/moves`, `/api/choreograph`, `/api/routines/{id}`) are gzip-encoded for
+  clients that send `Accept-Encoding: gzip` (browsers do): ~2.7 MB -> ~0.54 MB for the default listing.
 
 Stage 6 endpoints (remote dance-off rooms; models in `server/app/rooms/models.py`):
 

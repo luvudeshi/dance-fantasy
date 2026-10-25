@@ -14,6 +14,7 @@ import {
   poseDistance,
   poseInMove,
   smoothstep,
+  BLEND_SPEED,
   transitionSec,
   type KeyframeLike,
 } from './pose'
@@ -203,6 +204,23 @@ describe('poseAtTime', () => {
     expect(poseAtTime(r, 2.25).pose).toEqual(poseInMove(r.moves[1].keyframes, 0.125).pose)
     // 15% caps it for long beats: 1 beat over 2 s -> min(1, 0.3) = 0.3.
     expect(transitionSec(move('x', 0, 2, [], 1))).toBeCloseTo(0.3)
+  })
+
+  it('gives a big jump more time, up to half a beat (real-dancer clips chain by distance)', () => {
+    // 2 beats over 1 s: beat 0.5 s; base = min(0.25, 0.15) = 0.15 s.
+    const two = move('x', 0, 1, [], 2)
+    expect(transitionSec(two)).toBeCloseTo(0.15)
+    expect(transitionSec(two, 0.6)).toBeCloseTo(0.15) // 0.6 / 6 = 0.1 < base
+    expect(transitionSec(two, 1.2)).toBeCloseTo(1.2 / BLEND_SPEED)
+    expect(transitionSec(two, 9)).toBeCloseTo(0.25) // never past half a beat
+    expect(transitionSec(two, Number.NaN)).toBeCloseTo(0.15)
+    // 4-beat moves already blend over half a beat.
+    expect(transitionSec(move('y', 0, 2, []), 3)).toBeCloseTo(0.25)
+    // poseAtTime uses the longer window: still blending at 0.18 s after a 1.2-unit jump.
+    const r = { moves: [move('a', 0, 1, [{ t: 0, pose: A }, { t: 1, pose: A }], 2), move('b', 1, 2, [{ t: 0, pose: shift(A, 1.2, 0) }, { t: 1, pose: shift(A, 1.2, 0) }], 2)] }
+    const at = poseAtTime(r, 1.18).pose
+    expect(at.nose?.[0]).toBeCloseTo(1.2 * smoothstep(0.18 / 0.2), 9)
+    expect(poseAtTime(r, 1.2).pose.nose?.[0]).toBeCloseTo(1.2, 12)
   })
 
   it('is continuous across a gap and all boundaries of a generated routine', () => {

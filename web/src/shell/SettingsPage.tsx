@@ -6,6 +6,8 @@ import { JUDGING_PRESETS, loadJudging, saveJudging, type JudgingPreset } from '.
 import { loadSfxEnabled, saveSfxEnabled } from '../game/sfx'
 import { defaultStorage } from '../lib/storage'
 import { REEL_STORAGE_KEY } from '../reel/flag'
+import { AIST_CREDIT, MOVE_SOURCES } from '../routine/moveSource'
+import { moveSourceHint, useMoveSource } from '../routine/useMoveSource'
 import { getDancer, setDancer, subscribeDancer, type Dancer } from '../render3d/dancer'
 import { updateSettings, useSettings } from '../settings'
 import { Button, Corners, Panel, Segmented, Slider, Title, Toggle } from '../theme/components'
@@ -14,7 +16,8 @@ import { uiSound, unlockUiSound } from './uiSound'
 import './shell.css'
 
 // Settings (#/settings). Each control writes to the store that already owns the value: sound on/off
-// (game/sfx.ts), judging (game/judging.ts), camera delay (game/calibration.ts), the rest settings.ts.
+// (game/sfx.ts), judging (game/judging.ts), "Moves from" (routine/moveSource.ts), camera delay
+// (game/calibration.ts), the rest settings.ts.
 
 const DIFFICULTIES = [
   { value: 'easy', label: 'Easy' },
@@ -76,6 +79,7 @@ export default function SettingsPage() {
   const settings = useSettings()
   const [sfxOn, setSfxOn] = useState(() => loadSfxEnabled())
   const [judging, setJudging] = useState<JudgingPreset>(() => loadJudging())
+  const moves = useMoveSource()
   const [cal, setCal] = useState<Calibration>(() => loadCalibration())
   const dancer = useSyncExternalStore(subscribeDancer, getDancer)
   const [reel, setReel] = useState(reelOn)
@@ -199,6 +203,22 @@ export default function SettingsPage() {
             </Field>
             <Field label="Dance" note="Seated routines move only the upper body.">
               <Segmented label="Dance" value={settings.mode} options={MODES} onChange={(mode) => updateSettings({ mode })} />
+            </Field>
+            <Field
+              label="Moves from"
+              note={
+                <>
+                  {moveSourceHint(moves.value, moves.realDancers)}
+                  {moves.value !== 'classic' && (
+                    <>
+                      <br />
+                      {AIST_CREDIT}
+                    </>
+                  )}
+                </>
+              }
+            >
+              <Segmented label="Moves from" value={moves.value} options={MOVE_SOURCES} onChange={moves.choose} disabled={moves.realDancers === false} />
             </Field>
             <Field label="Judging" note={JUDGING_PRESETS.find((p) => p.value === judging)?.hint}>
               <Segmented

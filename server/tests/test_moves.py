@@ -9,6 +9,7 @@ import random
 import re
 import shutil
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -40,8 +41,15 @@ LEGS = (("l_hip", "l_knee", "l_ankle"), ("r_hip", "r_knee", "r_ankle"))
 
 
 @pytest.fixture(scope="module")
-def lib() -> MoveLibrary:
+def full_lib() -> MoveLibrary:
     return load_library(MOVES_DIR)
+
+
+@pytest.fixture(scope="module")
+def lib(full_lib: MoveLibrary) -> MoveLibrary:
+    """The classic (angle-based) moves: the FK / anchor / authoring invariants below are theirs. Real-dancer
+    clips (assets/moves/aist_clips.json, when present) are tested in test_aist_clips.py."""
+    return replace(full_lib, moves=tuple(m for m in full_lib.moves if m.source == "library"))
 
 
 @pytest.fixture(scope="module")
@@ -386,11 +394,15 @@ def test_load_library_caches_until_a_file_changes(moves_copy: Path) -> None:
 # --- HTTP API --------------------------------------------------------------------------------------------
 
 
-def ts_interface_fields(name: str) -> list[str]:
+def ts_interface_fields(name: str, required_only: bool = False) -> list[str]:
     source = (SHARED_DIR / "moves.ts").read_text()
     body = re.search(rf"export interface {name} \{{(.*?)\n\}}", source, re.S)
     assert body, name
-    return re.findall(r"^\s+(\w+)\??:", body.group(1), re.M)
+    return re.findall(r"^\s+(\w+):" if required_only else r"^\s+(\w+)\??:", body.group(1), re.M)
+
+
+# Optional LibraryMove fields the server always sends (older servers didn't); hasMirror is sent only when true.
+ALWAYS_SENT = {"source", "credit"}
 
 
 @pytest.fixture
@@ -403,19 +415,24 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     get_settings.cache_clear()
 
 
-def test_api_moves_matches_the_contract(client: TestClient, lib: MoveLibrary) -> None:
-    res = client.get("/api/moves")
+def test_api_moves_matches_the_contract(client: TestClient, full_lib: MoveLibrary) -> None:
+    res = client.get("/api/moves", params={"mirrors": 1})
     assert res.status_code == 200
     body = res.json()
     assert list(body) == ts_interface_fields("MoveLibraryResponse")
-    assert body["version"] == lib.version
-    assert [m["id"] for m in body["moves"]] == [m.id for m in lib.moves]
+    assert body["version"] == full_lib.version
+    assert [m["id"] for m in body["moves"]] == [m.id for m in full_lib.moves]
+    assert body["attribution"] == full_lib.attribution
     move_fields = set(ts_interface_fields("LibraryMove"))
+    required = set(ts_interface_fields("LibraryMove", required_only=True)) | ALWAYS_SENT
     keyframe_fields = set(ts_interface_fields("MoveKeyframe"))
     for move in body["moves"]:
-        assert set(move) == move_fields, move["id"]
+        assert required <= set(move) <= move_fields, move["id"]
+        assert move.get("hasMirror", True) is True, move["id"]
         assert move["mirrorOf"] is None or isinstance(move["mirrorOf"], str)
         assert isinstance(move["upperBodyOnly"], bool) and isinstance(move["lengthBeats"], int)
+        assert move["source"] in ("library", "aist")
+        assert (move["credit"] is None) == (move["source"] == "library")
         for kf in move["keyframes"]:
             assert set(kf) == keyframe_fields
             assert list(kf["pose"]) == list(JOINTS)

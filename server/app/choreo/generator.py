@@ -30,6 +30,22 @@ Transitions, repetition and usage see the whole routine so far, across group bou
 
 1-beat moves: hard places them anywhere; easy/normal only as an identical pair filling a 2-beat slot
 (clap_clap x2 on beats 1-2 or 3-4 of a bar). The repeat pays its static and self-transition cost only.
+
+Move sources (``move_source``): "classic" uses the angle-based library moves only (exactly the v3 search);
+"aist" prefers the real-dancer clips (app.moves.clips) and keeps library moves only as a fallback, at
+w_off_source per bar, except the storybook finisher that ends the routine; "mix" uses both, with clips
+nudged by mix_aist_bias per bar so neither source crowds out the other. Clips have free anchors, so the
+transition distance *is* the motion-graph edge weight: transitions into or out of a clip cost
+w_free_trans x the distance, and an edge longer than trans_cap (mean joint distance + w_root x root jump,
+body units) is taken only when a state has no other way on, at an extra w_over_cap. A search costs the edge
+into its segment and every edge inside it, but a group plan is replayed after other sections than the one
+it was searched after, and its end (or a shorter occurrence's cut) leads into sections it never saw. So with
+clips in the pool the plan also pays those section-boundary edges when the move on the other side is already
+settled (``_Planner.exit_cost`` / ``entry_cost``): into the opening move of a section that replays a planned
+group (a chorus coming back), out of the settled last move of the section before a later occurrence; and an
+end pose with no edge under the cap (a dead end) costs w_over_cap where an unknown section follows. The
+(moves + neutral) x moves distance matrices are computed once per library and sliced to the eligible pool
+per call, so the search only ever looks at eligible moves.
 """
 
 from __future__ import annotations
@@ -46,6 +62,7 @@ from typing import Any, NamedTuple
 import numpy as np
 
 from app.analysis import Analysis, AnalysisSection, song_from_analysis
+from app.moves.clips import FREE_ANCHOR
 from app.moves.types import NEUTRAL_ANCHOR, CompiledMove, MoveLibrary
 from app.routine import Routine
 from app.skeleton import JOINTS
@@ -53,7 +70,13 @@ from app.skeleton import JOINTS
 # Bump when output for the same inputs changes (it is part of routine ids).
 # v2: finishers are moves styled "finale" (v1 treated every storybook move as one).
 # v3: 1-beat moves as pairs in easy/normal, novelty bonus for not-yet-used moves.
-GENERATOR = "procedural-v3"
+# v4: move sources (classic / real-dancer clips / mix), capped clip transitions; moveSource in routine ids.
+# v5: with clips in the pool, group plans also cost the section-boundary edges around their replays
+#     (exit / entry / dead-end costs); classic routines are unchanged.
+GENERATOR = "procedural-v5"
+MOVE_SOURCES = ("classic", "aist", "mix")
+DEFAULT_MOVE_SOURCE = "classic"  # what the API uses when a request doesn't say
+AIST_CREDIT = "Real-dancer moves: AIST++ (CC BY 4.0) · AIST Dance Video Database"
 BEATS_PER_BAR = 4
 MODES = ("standing", "seated")
 DIFFICULTY_LEVEL = {"easy": 0, "normal": 1, "hard": 2}
@@ -115,6 +138,12 @@ class ChoreoConfig:
     length_cost_normal: tuple[float, float, float, float] = (0.15, 0.25, 0.0, 0.05)
     length_cost_hard: tuple[float, float, float, float] = (0.1, 0.0, 0.0, 0.1)
     min_pool_bases: int = 6  # easy also uses normal moves when fewer distinct easy baseIds are eligible
+    # Real-dancer clips (free anchors): see "Move sources" above.
+    w_free_trans: float = 2.0  # transition weight multiplier for an edge into or out of a clip
+    trans_cap: float = 0.35  # longest clip edge taken freely (mean joint distance + w_root * root jump)
+    w_over_cap: float = 3.0  # extra cost of a longer edge, taken only when a state has nothing shorter
+    w_off_source: float = 2.5  # per bar: a library move in an "aist" routine (fallback only)
+    mix_aist_bias: float = 0.25  # per bar: bonus for clips in a "mix" routine (~half the moves when standing)
 
     def length_cost(self, difficulty: str) -> tuple[float, float, float, float]:
         return {"easy": self.length_cost_easy, "normal": self.length_cost_normal, "hard": self.length_cost_hard}[
@@ -132,6 +161,7 @@ def routine_id(
     difficulty: str,
     mode: str,
     seed: int,
+    move_source: str = DEFAULT_MOVE_SOURCE,
     generator: str = GENERATOR,
 ) -> str:
     """First 16 hex chars of sha256 over the canonical JSON of everything that determines a routine."""
@@ -143,6 +173,7 @@ def routine_id(
         "difficulty": difficulty,
         "mode": mode,
         "seed": seed,
+        "moveSource": move_source,
     }
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
@@ -173,8 +204,10 @@ class _Prepared:
     partner: np.ndarray  # int (M + 1,): L/R mirror partner, -1 if none; last row = neutral start
     joint_dist: np.ndarray  # (M + 1, M) mean joint distance end(row) -> start(col); row M = neutral pose
     root_dist: np.ndarray  # (M + 1, M)
-    anchor_diff: np.ndarray  # (M + 1, M) 1.0 where end anchor != start anchor
+    anchor_diff: np.ndarray  # (M + 1, M) 1.0 where end anchor != start anchor (a free anchor matches any)
     keyframes: tuple[list[dict[str, Any]], ...]  # JSON-ready, per move
+    aist: np.ndarray  # bool (M,): a real-dancer clip (source "aist")
+    free: np.ndarray  # bool (M + 1, 2): free start / free end anchor; last row = neutral start (not free)
 
 
 def _pose_array(pose: dict[str, Any]) -> np.ndarray:
@@ -193,6 +226,14 @@ def _keyframes_json(move: CompiledMove) -> list[dict[str, Any]]:
     return out
 
 
+def _mean_joint_distance(ends: np.ndarray, starts: np.ndarray) -> np.ndarray:
+    """(E, S) mean over joints of |end_j - start_j|, one joint at a time (no (E, S, J, 2) temporary)."""
+    out = np.zeros((len(ends), len(starts)))
+    for j in range(ends.shape[1]):
+        out += np.hypot(ends[:, None, j, 0] - starts[None, :, j, 0], ends[:, None, j, 1] - starts[None, :, j, 1])
+    return out / max(1, ends.shape[1])
+
+
 def _prepare(library: MoveLibrary) -> _Prepared:
     moves = tuple(m for m in library.moves if _usable_length(m.lengthBeats) and m.keyframes)
     n = len(moves)
@@ -205,12 +246,18 @@ def _prepare(library: MoveLibrary) -> _Prepared:
     root_e = np.array([m.keyframes[-1].root for m in moves] + [(0.0, 0.0)], dtype=np.float64)
     start_anchor = np.array([m.startAnchor for m in moves], dtype=object)
     end_anchor = np.array([m.endAnchor for m in moves] + [NEUTRAL_ANCHOR], dtype=object)
+    free_start = start_anchor == FREE_ANCHOR
+    free_end = end_anchor == FREE_ANCHOR
 
     by_side: dict[tuple[str, str], int] = {}
+    index = {m.id: i for i, m in enumerate(moves)}
     for i, m in enumerate(moves):
         by_side.setdefault((m.baseId, m.side), i)
     flip = {"L": "R", "R": "L"}
     partner = [by_side.get((m.baseId, flip[m.side]), -1) if m.side in flip else -1 for m in moves] + [-1]
+    for i, m in enumerate(moves):  # side-"both" mirror twins (real-dancer clips <id> / <id>_m) pair up too
+        if m.side == "both" and m.mirrorOf is not None and m.mirrorOf in index:
+            partner[i], partner[index[m.mirrorOf]] = index[m.mirrorOf], i
 
     return _Prepared(
         moves=moves,
@@ -223,10 +270,41 @@ def _prepare(library: MoveLibrary) -> _Prepared:
         base=np.array([base_index[m.baseId] for m in moves], dtype=np.int64),
         n_bases=len(base_ids),
         partner=np.array(partner, dtype=np.int64),
-        joint_dist=np.linalg.norm(ends[:, None] - starts[None], axis=-1).mean(axis=-1),
-        root_dist=np.linalg.norm(root_e[:, None] - root_s[None], axis=-1),
-        anchor_diff=(end_anchor[:, None] != start_anchor[None, :]).astype(np.float64),
+        joint_dist=_mean_joint_distance(ends, starts),
+        root_dist=np.hypot(root_e[:, None, 0] - root_s[None, :, 0], root_e[:, None, 1] - root_s[None, :, 1]),
+        anchor_diff=(
+            (end_anchor[:, None] != start_anchor[None, :]) & ~free_end[:, None] & ~free_start[None, :]
+        ).astype(np.float64),
         keyframes=tuple(_keyframes_json(m) for m in moves),
+        aist=np.array([m.source == "aist" for m in moves], dtype=bool),
+        free=np.stack([np.append(free_start, False), free_end], axis=1).astype(bool),
+    )
+
+
+def _subset(prep: _Prepared, idx: np.ndarray) -> _Prepared:
+    """The prepared arrays restricted to moves ``idx`` (in order); the neutral row stays last."""
+    rows = np.append(idx, len(prep.moves))
+    local = np.full(len(prep.moves) + 1, -1, dtype=np.int64)
+    local[idx] = np.arange(len(idx))
+    partner = prep.partner[rows]
+    partner = np.where(partner >= 0, local[partner], -1)
+    return _Prepared(
+        moves=tuple(prep.moves[i] for i in idx),
+        length=prep.length[idx],
+        length_class=prep.length_class[idx],
+        intensity=prep.intensity[idx],
+        level=prep.level[idx],
+        upper=prep.upper[idx],
+        finisher=prep.finisher[idx],
+        base=prep.base[idx],
+        n_bases=prep.n_bases,
+        partner=partner,
+        joint_dist=prep.joint_dist[np.ix_(rows, idx)],
+        root_dist=prep.root_dist[np.ix_(rows, idx)],
+        anchor_diff=prep.anchor_diff[np.ix_(rows, idx)],
+        keyframes=tuple(prep.keyframes[i] for i in idx),
+        aist=prep.aist[idx],
+        free=np.concatenate([prep.free[idx], prep.free[-1:]]),
     )
 
 
@@ -249,16 +327,24 @@ def _prepared(library: MoveLibrary) -> _Prepared:
     return prep
 
 
-def _eligible(prep: _Prepared, difficulty: str, mode: str, cfg: ChoreoConfig) -> tuple[np.ndarray, np.ndarray]:
-    """(pool mask, per-move length cost with inf outside the pool)."""
-    base_mask = prep.upper.copy() if mode == "seated" else np.ones(len(prep.moves), dtype=bool)
+def _eligible(
+    prep: _Prepared, difficulty: str, mode: str, cfg: ChoreoConfig, move_source: str = DEFAULT_MOVE_SOURCE
+) -> tuple[np.ndarray, np.ndarray]:
+    """(pool mask, per-move length cost with inf outside the pool).
+
+    "classic" leaves the clips out; "aist" keeps library moves in the pool as a (penalized) fallback, so the
+    difficulty fallback below counts only the clips ("preferred") when deciding whether a level set is enough.
+    """
+    source_mask = ~prep.aist if move_source == "classic" else np.ones(len(prep.moves), dtype=bool)
+    preferred = prep.aist if move_source == "aist" else source_mask
+    base_mask = (prep.upper.copy() if mode == "seated" else np.ones(len(prep.moves), dtype=bool)) & source_mask
     len_cost = np.array(cfg.length_cost(difficulty), dtype=np.float64)[prep.length_class]
     len_ok = np.isfinite(len_cost)
     level_sets = {"easy": [(0,), (0, 1)], "normal": [(0, 1)], "hard": [(0, 1, 2)]}[difficulty]
     pool = base_mask
     for i, levels in enumerate(level_sets):
         pool = base_mask & np.isin(prep.level, levels)
-        enough = len(set(prep.base[pool & len_ok].tolist())) >= cfg.min_pool_bases
+        enough = len(set(prep.base[pool & len_ok & preferred].tolist())) >= cfg.min_pool_bases
         if enough or i == len(level_sets) - 1:
             break
     fills_bar = BEATS_PER_BAR % np.maximum(prep.length, 1) == 0
@@ -284,15 +370,43 @@ class _Costs(NamedTuple):
 
 
 class _Planner:
-    """Places moves in playback order; each search sees everything placed so far as context."""
+    """Places moves in playback order; each search sees everything placed so far as context.
 
-    def __init__(self, prep: _Prepared, difficulty: str, mode: str, seed: int, cfg: ChoreoConfig) -> None:
-        self.prep, self.cfg, self.seed = prep, cfg, seed
+    Works on the eligible pool only: ``self.prep`` is the library's _Prepared sliced to the pool (indices in
+    ``placed`` are pool-local; ``self.idx`` maps them back to the library).
+    """
+
+    def __init__(
+        self, full: _Prepared, difficulty: str, mode: str, seed: int, cfg: ChoreoConfig, move_source: str
+    ) -> None:
+        self.cfg, self.seed = cfg, seed
         self.level = DIFFICULTY_LEVEL[difficulty]
         self.pairs = difficulty != "hard"  # 1-beat moves only as identical pairs on even beats
-        self.pool, self.len_cost = _eligible(prep, difficulty, mode, cfg)
-        self.trans = cfg.w_trans * (prep.joint_dist + cfg.w_root * prep.root_dist + cfg.w_anchor * prep.anchor_diff)
-        self.placed: list[tuple[int, int]] = []  # (move index, start beat)
+        pool, len_cost = _eligible(full, difficulty, mode, cfg, move_source)
+        self.n_full = len(full.moves)
+        self.idx = np.flatnonzero(pool)
+        self.prep = prep = _subset(full, self.idx)
+        self.pool = np.ones(len(self.idx), dtype=bool)
+        self.len_cost = len_cost[self.idx]
+        bars = prep.length / BEATS_PER_BAR
+        if move_source == "aist":
+            self.source_cost = cfg.w_off_source * bars * ~prep.aist
+        elif move_source == "mix":
+            self.source_cost = -cfg.mix_aist_bias * bars * prep.aist
+        else:
+            self.source_cost = np.zeros(len(self.idx))
+        # The finisher that ends an "aist" routine is the one library move that pays no off-source cost.
+        self.finale_bonus = (cfg.w_finale + cfg.w_finisher_mid + np.maximum(self.source_cost, 0.0)) * prep.finisher
+        # Motion-graph edges: end of row (pool moves + neutral) -> start of column (pool moves).
+        dist = prep.joint_dist + cfg.w_root * prep.root_dist
+        free_edge = prep.free[:, 1][:, None] | prep.free[:-1, 0][None, :]
+        self.trans = cfg.w_trans * (np.where(free_edge, cfg.w_free_trans * dist, dist) + cfg.w_anchor * prep.anchor_diff)
+        self.over = free_edge & (dist > cfg.trans_cap)  # clip edges taken only when nothing shorter fits
+        self.capped = bool(self.over.any())
+        # Section-boundary edges (exit_cost / entry_cost), only with clips in the pool: classic stays the v3 search.
+        self.lookahead = bool(prep.free[:-1].any())
+        self.lead_in = self.trans[:-1] + cfg.w_over_cap * self.over[:-1]  # rows: pool moves (never neutral)
+        self.placed: list[tuple[int, int]] = []  # (pool-local move index, start beat)
         self.usage = np.zeros(prep.n_bases)
 
     def static_cost(self, target: float, salt: str) -> _Costs:
@@ -300,12 +414,14 @@ class _Planner:
         bars = p.length / BEATS_PER_BAR
         dev = np.abs(p.intensity - target)
         rng = np.random.default_rng([self.seed % 2**64, _stable_hash(salt)])
-        jitter = (rng.random(len(p.moves)) - 0.5) * cfg.jitter
+        # Drawn for the whole library, then sliced: a move's jitter doesn't depend on which others are eligible.
+        jitter = (rng.random(self.n_full)[self.idx] - 0.5) * cfg.jitter
         static = (
             (cfg.w_int * dev + cfg.w_int2 * dev**2) * bars
             + cfg.w_diff * np.abs(p.level - self.level) * bars
             + cfg.w_finisher_mid * p.finisher
             + self.len_cost
+            + self.source_cost
             + jitter
         )
         over = np.maximum(p.intensity - target, 0.0) / cfg.novel_over
@@ -319,15 +435,47 @@ class _Planner:
             return beats
         return 2 if beats >= 2 and lengths & {1, 2} else 0
 
-    def search(self, total: int, costs: _Costs, finale: bool) -> list[tuple[int, int]]:
-        """Best (move index, beat offset) sequence tiling ``total`` beats, offset 0 on a downbeat."""
+    def exit_cost(self, followed: bool, then: int | None = None, into: np.ndarray | None = None) -> np.ndarray | None:
+        """Extra cost of a move that ends a section, for the edge out of it (None: nothing to add).
+
+        Only with clips in the pool (classic routines stay the v3 search) and when more moves follow
+        (``followed``): the edge into ``then`` (the move the next section opens with, when that is already
+        known), else w_over_cap if the move's end pose is a dead end: every edge from it into the moves that
+        can come next (``into``, a pool mask; default all) is over the cap.
+        """
+        if not (followed and self.lookahead):
+            return None
+        if then is not None:
+            return self.lead_in[:, then]
+        over = self.over[:-1] if into is None else self.over[:-1][:, into]
+        return self.cfg.w_over_cap * (over.all(axis=1) if over.shape[1] else np.zeros(len(over)))
+
+    def entry_cost(self, before: list[int]) -> np.ndarray | None:
+        """Extra cost of the opening move of a group plan, for the edges into it from the moves that will
+        precede its later occurrences (``before``, already known): only with clips in the pool."""
+        if not (before and self.lookahead):
+            return None
+        return self.lead_in[before].sum(axis=0)
+
+    def search(
+        self,
+        total: int,
+        costs: _Costs,
+        ends: dict[int, np.ndarray] | None = None,
+        entry: np.ndarray | None = None,
+    ) -> list[tuple[int, int]]:
+        """Best (move index, beat offset) sequence tiling ``total`` beats, offset 0 on a downbeat.
+
+        ``ends[offset]`` is added for a move that ends exactly at that offset (a section boundary: the end of
+        the segment, or where a shorter occurrence of the group stops), ``entry`` for the move at offset 0.
+        The search itself costs the edge from the routine so far into the segment and every edge inside it.
+        """
         p, cfg = self.prep, self.cfg
         static, novel = costs
         n_moves, width, window = len(p.moves), cfg.beam_width, cfg.rep_window
         lens = p.length
         prev0 = self.placed[-1][0] if self.placed else n_moves  # row n_moves = neutral pose
         recent0 = [int(p.base[m]) for m, _ in self.placed[-window:]] if window > 0 else []
-        finale_bonus = (cfg.w_finale + cfg.w_finisher_mid) * p.finisher if finale else None
 
         # bucket[offset] = [(cost, move indices so far)]
         buckets: dict[int, list[tuple[float, tuple[int, ...]]]] = {0: [(0.0, ())]}
@@ -364,20 +512,30 @@ class _Planner:
             rep_m[rows, partner[rows]] -= 1.0  # X_L then X_R is a pair, not a repeat
             base_cost = np.array([s[0] for s in states])
             used_m = use[:, p.base]
-            cost = (
+            cost0 = (
                 base_cost[:, None]
                 + static[None, :]
-                + self.trans[prev]
                 + cfg.w_rep * rep_m
                 + cfg.w_usage * np.minimum(used_m, cfg.usage_cap)
                 - novel[None, :] * (used_m == 0)
             )
-            cost[rows, partner[rows]] -= cfg.w_mirror
+            cost0[rows, partner[rows]] -= cfg.w_mirror
+            trans = self.trans[prev]
+            if self.capped:  # clip edges over the cap: only for states with no other way on
+                over = self.over[prev]
+                cost = cost0 + np.where(over, INF, trans)
+                stuck = ~np.isfinite(cost[:, allowed]).any(axis=1)
+                if stuck.any():
+                    cost[stuck] = cost0[stuck] + trans[stuck] + cfg.w_over_cap * over[stuck]
+            else:
+                cost = cost0 + trans
             if self.pairs and o % 2 == 1:  # finish the pair: the same 1-beat move again (no rep/usage/novelty)
                 cost = np.full_like(cost, INF)
                 cost[np.arange(n_states), prev] = base_cost + static[prev] + self.trans[prev, prev]
-            if finale_bonus is not None:
-                cost -= np.where(o + lens == total, finale_bonus, 0.0)[None, :]
+            if o == 0 and entry is not None:
+                cost += entry[None, :]
+            for offset, extra in (ends or {}).items():
+                cost += np.where(o + lens == offset, extra, 0.0)[None, :]
             for length in np.unique(lens[allowed]).tolist():
                 cols = np.flatnonzero(allowed & (lens == length))
                 flat = cost[:, cols].ravel()
@@ -446,14 +604,17 @@ def generate_routine(
     mode: str = "standing",
     seed: int = 0,
     config: ChoreoConfig = DEFAULT_CONFIG,
+    move_source: str = DEFAULT_MOVE_SOURCE,
 ) -> Routine:
     """A beat-synced routine for ``analysis``. Same inputs (incl. seed) -> identical routine."""
     if difficulty not in DIFFICULTY_LEVEL:
         raise ValueError(f"difficulty must be one of {sorted(DIFFICULTY_LEVEL)}")
     if mode not in MODES:
         raise ValueError(f"mode must be one of {list(MODES)}")
-    prep = _prepared(library)
-    planner = _Planner(prep, difficulty, mode, seed, config)
+    if move_source not in MOVE_SOURCES:
+        raise ValueError(f"move_source must be one of {list(MOVE_SOURCES)}")
+    planner = _Planner(_prepared(library), difficulty, mode, seed, config, move_source)
+    prep = planner.prep  # the eligible pool; planner.placed indexes it
 
     beats = [float(b) for b in analysis.beats]
     n_beats = len(beats)
@@ -488,6 +649,44 @@ def generate_routine(
     statics: dict[str, _Costs] = {}
     plans: dict[str, list[tuple[int, int]]] = {}
     variants: dict[tuple[str, int], list[tuple[int, int]]] = {}
+
+    def prefix_of(g: str, k: int) -> list[tuple[int, int]]:
+        return [(m, o) for m, o in plans[g] if o + prep.length[m] <= BEATS_PER_BAR * k]
+
+    def opening_move(j: int) -> int | None:
+        """The move section ``j`` will open with, when its group is already planned (else None)."""
+        g, k = sections[j].group, len(sec_bars[j])
+        known = variants.get((g, k)) or (prefix_of(g, k) if g in plans else None)
+        return known[0][0] if known else None
+
+    def closing_move(j: int) -> int | None:
+        """The move section ``j`` will end on, when that is already settled (else None: a patch still to search)."""
+        g, k = sections[j].group, len(sec_bars[j])
+        if (g, k) in variants:
+            return variants[(g, k)][-1][0]
+        prefix = prefix_of(g, k) if g in plans else []
+        return prefix[-1][0] if prefix and sum(int(prep.length[m]) for m, _ in prefix) == BEATS_PER_BAR * k else None
+
+    # Beats after the last full bar (less than a bar) get short moves when they fit; see the end.
+    tail = bars[-1] + BEATS_PER_BAR if bars else n_beats
+    fill = planner.tileable(n_beats - tail) if 0 < n_beats - tail < BEATS_PER_BAR and tail in downbeat_idx else 0
+    next_of: dict[int, int | None] = dict(zip(with_bars, [*with_bars[1:], None]))  # the section that plays next
+    prev_of: dict[int, int | None] = dict(zip(with_bars, [None, *with_bars[:-1]]))
+
+    def exit_cost(j: int) -> np.ndarray | None:
+        """planner.exit_cost for the move that ends section ``j``: the next section or the tail follows."""
+        nxt = next_of[j]
+        if nxt is not None:
+            return planner.exit_cost(True, opening_move(nxt))
+        return planner.exit_cost(fill > 0, into=(prep.length <= fill) & (BEATS_PER_BAR % prep.length == 0))
+
+    def ends_at(*pairs: tuple[int, np.ndarray | None]) -> dict[int, np.ndarray] | None:
+        out: dict[int, np.ndarray] = {}
+        for offset, extra in pairs:
+            if extra is not None:
+                out[offset] = out[offset] + extra if offset in out else extra
+        return out or None
+
     for i in order:
         sec = sections[i]
         first = len(planner.placed)
@@ -496,16 +695,26 @@ def generate_routine(
             g, k = sec.group, len(occ_bars)
             if g not in plans:
                 statics[g] = planner.static_cost(group_target[g], f"group:{g}")
-                plans[g] = planner.search(BEATS_PER_BAR * group_bars[g], statics[g], finale=g == finale_group)
+                total = BEATS_PER_BAR * group_bars[g]
+                # Section boundaries the plan lays out: where each occurrence stops (the edge out of it, when
+                # costed) and, for the later occurrences, the edges in from moves that are already settled.
+                ends = ends_at(
+                    (total, -planner.finale_bonus if g == finale_group else None),
+                    *((BEATS_PER_BAR * len(sec_bars[j]), exit_cost(j)) for j in occurrences[g]),
+                )
+                before = [prev_of[j] for j in occurrences[g][1:]]
+                entry = planner.entry_cost([m for j in before if j is not None and (m := closing_move(j)) is not None])
+                plans[g] = planner.search(total, statics[g], ends, entry)
             if (g, k) in variants:
                 planner.place(variants[(g, k)], occ_bars)
             else:  # first occurrence with this many bars: play the plan's prefix, patch a cut 8-beat move
-                prefix = [(m, o) for m, o in plans[g] if o + prep.length[m] <= BEATS_PER_BAR * k]
+                prefix = prefix_of(g, k)
                 planner.place(prefix, occ_bars)
                 covered = sum(int(prep.length[m]) for m, _ in prefix)
                 patch: list[tuple[int, int]] = []
                 if covered < BEATS_PER_BAR * k:
-                    rest = planner.search(BEATS_PER_BAR * k - covered, statics[g], finale=False)
+                    rest_beats = BEATS_PER_BAR * k - covered
+                    rest = planner.search(rest_beats, statics[g], ends_at((rest_beats, exit_cost(i))))
                     patch = [(m, covered + o) for m, o in rest]
                     planner.place(patch, occ_bars)
                 variants[(g, k)] = prefix + patch
@@ -521,15 +730,14 @@ def generate_routine(
 
     # Beats after the last full bar: short moves, unless the routine already ends on a finisher.
     if bars:
-        tail = bars[-1] + BEATS_PER_BAR
         ends_on_finisher = bool(planner.placed) and bool(prep.finisher[planner.placed[-1][0]])
-        fill = planner.tileable(n_beats - tail) if 0 < n_beats - tail < BEATS_PER_BAR else 0
-        if fill and tail in downbeat_idx and not ends_on_finisher:
+        if fill and not ends_on_finisher:
             si = order[_section_of(starts_sorted, tail)] if sections else None
             energy = sections[si].energy if si is not None else 0.5
             first = len(planner.placed)
             static = planner.static_cost(_target(energy, difficulty), "trailing")
-            planner.place(planner.search(fill, static, finale=has_finisher), [tail])
+            finale = ends_at((fill, -planner.finale_bonus if has_finisher else None))
+            planner.place(planner.search(fill, static, finale), [tail])
             if si is not None:
                 row = rows[si]
                 row["firstMove"] = first if row["firstMove"] is None else row["firstMove"]
@@ -557,7 +765,11 @@ def generate_routine(
             }
         )
 
-    rid = routine_id(analysis.id, analysis.analysisVersion, library.version, difficulty, mode, seed)
+    rid = routine_id(analysis.id, analysis.analysisVersion, library.version, difficulty, mode, seed, move_source)
+    n_aist = sum(1 for m_idx, _ in planner.placed if prep.aist[m_idx])
+    sources: dict[str, Any] = {"moveSource": move_source, "aistMoves": n_aist}
+    if n_aist:
+        sources["credit"] = library.attribution or AIST_CREDIT
     return Routine.model_validate(
         {
             "version": 1,
@@ -572,6 +784,7 @@ def generate_routine(
                 "libraryVersion": library.version,
                 "analysisId": analysis.id,
                 "analysisVersion": analysis.analysisVersion,
+                **sources,
                 "sectionPlan": [rows[i] for i in range(len(sections))],
             },
         }

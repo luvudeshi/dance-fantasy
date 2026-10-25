@@ -13,6 +13,7 @@ import { renderPlayFrame } from '../game/render'
 import { buildCheckpoints, DEFAULT_SCORING } from '../game/scoring'
 import { prepareCanvas } from '../lib/canvas'
 import { parseHash } from '../lib/hashRoute'
+import type { MoveSource } from '../routine/moveSource'
 import { buildMotionTrack } from '../routine/track'
 import '../pages/play.css'
 import PartyHud from './PartyHud'
@@ -72,6 +73,7 @@ function SetupView({ count }: { count: number }) {
   useEffect(() => tracker.attach(), [tracker])
   const [players, setPlayers] = useState<PartyPlayer[]>(() => partyPlayers(count))
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const [moveSource, setMoveSource] = useState<MoveSource>('mix')
   useSyntheticClock(feed, 12)
   return (
     <PartySetup
@@ -84,6 +86,9 @@ function SetupView({ count }: { count: number }) {
       onSong={() => undefined}
       difficulty={difficulty}
       onDifficulty={setDifficulty}
+      moveSource={moveSource}
+      onMoveSource={setMoveSource}
+      realDancers={null}
       onStart={() => undefined}
     />
   )

@@ -3,7 +3,7 @@ import { bodyToScreen } from '../pose/normalize'
 import type { Ctx2D } from '../pose/draw'
 import { DEMO_LIBRARY } from '../routine/demo'
 import { NEUTRAL_POSE } from '../routine/pose'
-import { drawFigure, figureBodyView, fitFigureView, headCircle, highlightedLimbs, type FigureView } from './stickFigure'
+import { drawFigure, FIGURE_HALF_REACH, figureBodyView, fitFigureView, headCircle, highlightedLimbs, stageRoot, type FigureView } from './stickFigure'
 
 const VIEW: FigureView = { cx: 200, floorY: 500, scale: 100, mirrored: true }
 
@@ -21,6 +21,30 @@ describe('figure view math', () => {
     const bv = figureBodyView(VIEW, [0, 0])
     expect(bodyToScreen(NEUTRAL_POSE.r_wrist, bv)[0]).toBeGreaterThan(200)
     expect(bodyToScreen(NEUTRAL_POSE.r_wrist, { ...bv, mirrored: false })[0]).toBeLessThan(200)
+  })
+
+  it('keeps real-dancer root travel on a narrow stage, untouched on a wide one', () => {
+    // A phone held upright: 390 px wide, the figure fits the width.
+    const phone = fitFigureView(390, 700)
+    for (const x of [-1.4, -0.9, 0.5, 1.4, 3]) {
+      const [rx, ry] = stageRoot([x, -0.3], phone, 0, 390)
+      expect(ry).toBe(-0.3)
+      expect(Math.sign(rx)).toBe(Math.sign(x))
+      const mid = bodyToScreen([rx, 0], { cx: phone.cx, cy: 0, scale: phone.scale, mirrored: true })[0]
+      expect(mid - FIGURE_HALF_REACH * phone.scale).toBeGreaterThanOrEqual(-1e-6)
+      expect(mid + FIGURE_HALF_REACH * phone.scale).toBeLessThanOrEqual(390 + 1e-6)
+    }
+    // Monotonic: more travel never draws less.
+    let prev = 0
+    for (let x = 0; x <= 3; x += 0.05) {
+      const rx = stageRoot([x, 0], phone, 0, 390)[0]
+      expect(rx).toBeGreaterThanOrEqual(prev - 1e-9)
+      prev = rx
+    }
+    // A wide stage (landscape) leaves the travel alone.
+    const wide = fitFigureView(1280, 560)
+    expect(stageRoot([1.4, 0.2], wide, 0, 1280)).toEqual([1.4, 0.2])
+    expect(stageRoot([Number.NaN, 0.1], wide, 0, 1280)).toEqual([0, 0.1])
   })
 
   it('fits every demo keyframe (incl. jumps and overhead arms) inside the box', () => {

@@ -42,6 +42,29 @@ export function figureBodyView(view: FigureView, root: Vec2): BodyView {
   return { cx, cy: cyRoot, scale: view.scale, mirrored: view.mirrored }
 }
 
+/** Half the figure's width around mid-hip with the arms out (body units): what stays on screen. */
+export const FIGURE_HALF_REACH = 1.15
+/** Root travel up to this share of the room is drawn as is; beyond it, it eases into the edge. */
+const STAGE_ROOT_EASE_FROM = 0.7
+
+/**
+ * The root to draw so the figure stays on a stage spanning screen x0..x1 (CSS px). Real-dancer
+ * clips step and slide up to ~1.4 body units sideways; on a wide stage that's drawn as is, on a
+ * narrow one (a phone held upright) the sideways travel eases smoothly into the room left beside
+ * the figure. y (jumps, crouches) is untouched: fitFigureView leaves headroom for it.
+ */
+export function stageRoot(root: Vec2, view: FigureView, x0: number, x1: number): Vec2 {
+  const s = view.scale
+  if (!(s > 0) || !Number.isFinite(root[0])) return [0, Number.isFinite(root[1]) ? root[1] : 0]
+  const room = Math.max(0, Math.min(view.cx - x0, x1 - view.cx) / s - FIGURE_HALF_REACH)
+  const a = Math.abs(root[0])
+  const k = STAGE_ROOT_EASE_FROM * room
+  if (a <= k) return root
+  const r = room - k
+  const x = r > 0 ? k + r * Math.tanh((a - k) / r) : k
+  return [Math.sign(root[0]) * x, root[1]]
+}
+
 /**
  * View that fits a dancing figure in a width x height box: room for arms overhead plus a
  * jump above the head, arms out sideways plus some travel, feet on a floor near the bottom.

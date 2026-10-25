@@ -43,6 +43,8 @@ class CompiledMove:
     endAnchor: str = NEUTRAL_ANCHOR  # ... and ends in
     side: Side = "both"  # which side leads; mirrored variants flip L <-> R
     mirrorOf: str | None = None  # id of the move this one was mirrored from
+    source: Literal["library", "aist"] = "library"  # "aist": a real-dancer clip (app.moves.clips), free anchors
+    credit: str | None = None  # attribution line shown with the move (real-dancer clips)
 
     @property
     def startPose(self) -> Pose:
@@ -57,6 +59,8 @@ class CompiledMove:
 class MoveLibrary:
     moves: tuple[CompiledMove, ...]
     version: str  # short content hash of the move definition files; part of routine cache keys
+    attribution: str | None = None  # data credit for the real-dancer clips, when the library has any
+    clipsError: str | None = None  # why aist_clips.json was skipped (invalid), if it was
 
     def by_id(self) -> dict[str, CompiledMove]:
         return {m.id: m for m in self.moves}

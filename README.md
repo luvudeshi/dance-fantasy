@@ -21,7 +21,7 @@ HackTX 2026 · storybook theme.
 | 5 | Teach mode, judging presets, sound, polish | ✅ |
 | 6 | Remote dance-off (rooms, QR join, synced start, live leaderboard, chat) | ✅ |
 | 7 | SerpApi signature dances + AI herald (Meta Muse / Gemini) | ✅ |
-| 8 | Smarter generation (flagged) | |
+| 8 | Real-dancer moves: AIST++ motion graph ("Moves from: Classic / Real dancers / Mix") | ✅ |
 | 9 | Deploy + demo hardening | |
 
 ## Run it locally
@@ -41,7 +41,8 @@ make dev       # API on :8000 and web on :5173 together; Ctrl-C stops both
 Open **http://localhost:5173** in Chrome. It opens on the title menu; choose **Play**
 (or **Party** to open a ballroom friends join from their phones):
 
-1. Pick a song, difficulty (easy/normal/hard), standing or seated, and press **Start the ball**.
+1. Pick a song, difficulty (easy/normal/hard), standing or seated, **Moves from** (Classic, Real
+   dancers or Mix, see [AIST++ motion clips](#aist-motion-clips)), and press **Start the ball**.
 2. **Magic mirror (calibration):** stand back until your whole body is in view (upper body
    when seated), hold a star pose (both hands up and out) for a second, then clap along
    with 8 clicks so the game can measure your camera's delay. `K` skips it.
@@ -90,7 +91,7 @@ Dev pages:
   generates a routine (difficulty, standing/seated, seed): moves appear as a timeline row
   and a stick-figure preview dances along during playback.
 - `#/moves`: the move library. Every move loops on a stick figure (gold limbs are scored);
-  filter by style, difficulty, intensity or seated-friendly.
+  filter by style, difficulty, intensity, seated-friendly or source (Classic / Real dancers).
 
 Without `make`:
 
@@ -163,6 +164,53 @@ One Vercel project, two services ([vercel.json](vercel.json)): `web/` (static Vi
   `assets/moves` into `server/assets`.
 - **Cold starts:** a fresh instance compiles librosa's beat tracker (numba) on its first analysis,
   ~30 s; later analyses take about a second, and cached ones are instant.
+## AIST++ motion clips
+
+**Moves from: Real dancers** (or **Mix**) choreographs with short moves captured from real dancers
+instead of (or alongside) our hand-authored library. They come from
+[AIST++](https://google.github.io/aistplusplus_dataset/), a dataset of 3D dance keypoints
+reconstructed from the multi-camera [AIST Dance Video Database](https://aistdancedb.ongaaccel.jp/):
+ten street and jazz genres (break, pop, lock, middle and LA hip-hop, house, waack, krump, street
+jazz, ballet jazz).
+
+How it works:
+
+- `server/scripts/aist/build_clips.py` turns a ~200 MB subset of the 3D keypoints into
+  `assets/moves/aist_clips.json`: tempo and beat phase estimated from the motion itself, 2D
+  projection into our body frame (retargeted to the coach's proportions), 4- and 8-beat windows with
+  a keyframe every half beat (so every on-beat scoring target is exact), quality filters, genre and
+  intensity tags, and a diverse, well-connected selection per genre.
+- The server loads the clip file next to the classic moves (`app/moves/clips.py`); each clip also gets
+  its left/right mirror (`<id>_m`). The file is part of the library version, so routines change when
+  it does. Without the file the game is classic-only, and an invalid file is skipped with a warning.
+- Clips have no named start/end poses, so the choreographer treats the library as a **motion graph**:
+  the edge from one move to the next costs the distance from its end pose to the next start pose,
+  and edges longer than a cap are only taken when nothing else fits. Real-dancer routines still end
+  with the storybook curtsy or royal wave when the last clip lands close to it. `Classic` is
+  unchanged by any of this.
+
+Rebuild the clips (the raw keypoints stay in the gitignored `assets/cache/`):
+
+```bash
+cd server
+uv run python -I scripts/aist/fetch_subset.py ../assets/cache/aistpp/keypoints3d    # ~200 MB, 193 sequences
+uv run python -I scripts/aist/build_clips.py ../assets/cache/aistpp/keypoints3d ../assets/moves/aist_clips.json
+```
+
+The keypoint files are Python pickles: both scripts read them only through a restricted unpickler
+that rebuilds plain numpy arrays and refuses everything else.
+
+**License and attribution.** AIST++ annotations are © Google LLC under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); they are derived from the AIST Dance Video
+Database (© AIST), whose terms allow research and non-commercial use and forbid redistributing its
+content. We use no AIST videos or music. Only our processed, transformed 2D clips are committed
+(`assets/moves/aist_clips.json`); the raw keypoints are downloaded on demand and never committed. The
+app credits the data wherever real-dancer moves appear (lobby, results, move gallery): "Real-dancer
+moves: AIST++ (CC BY 4.0) · AIST Dance Video Database". Midnight Ball is a non-commercial hackathon
+project; check the AIST terms before any other use.
+
+> Li, Yang, Ross, Kanazawa. *AI Choreographer: Music Conditioned 3D Dance Generation with AIST++*.
+> ICCV 2021. Tsuchida, Fukayama, Hamasaki, Goto. *AIST Dance Video Database*. ISMIR 2019.
 
 ## Privacy
 
@@ -193,3 +241,8 @@ Required by the hackathon rules; kept up to date as we go.
 - **Meta Muse** (Gemini as fallback) writes the royal herald's lines and summarises a song's
   famous dance; **SerpApi** finds the web and YouTube sources for it.
 - **three.js** renders the 3D storybook dancer (built from primitives, no model files).
+
+Data:
+
+- **AIST++** 3D dance keypoints (Google LLC, CC BY 4.0), derived from the **AIST Dance Video
+  Database** (AIST): the source of the real-dancer moves. See [AIST++ motion clips](#aist-motion-clips).

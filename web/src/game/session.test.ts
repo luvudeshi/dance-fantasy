@@ -77,7 +77,7 @@ describe('prepareGame', () => {
     expect(states[2]).toMatchObject({ label: 'Lacing up the glass slippers…' })
     expect(deps.analyzeLibrarySong).toHaveBeenCalledWith('synth_120bpm.wav', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(deps.choreograph).toHaveBeenCalledWith(
-      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7 },
+      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'classic' },
       expect.any(AbortSignal),
     )
     expect(deps.loadAudio).toHaveBeenCalledWith(ANALYSIS.id, { url: ANALYSIS.audioUrl }, expect.any(AbortSignal))
@@ -87,6 +87,15 @@ describe('prepareGame', () => {
     expect(game?.timeline.countdown.times).toHaveLength(4)
     expect(game?.track.sample(ROUTINE.moves[0].startTime).moveIndex).toBe(0)
     expect(states[3]).toEqual({ status: 'ready', game })
+  })
+
+  it('sends the lobby\'s "Moves from" choice', async () => {
+    const deps = mockDeps()
+    await run({ ...REQ, moveSource: 'aist' }, deps)
+    expect(deps.choreograph).toHaveBeenCalledWith(
+      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'aist' },
+      expect.any(AbortSignal),
+    )
   })
 
   it('upload: POST /api/analyze and play the local file', async () => {
@@ -210,6 +219,9 @@ describe('prepareFromRoutine (deep link / Your routines)', () => {
   it('recipeFromRoutine', () => {
     expect(recipeFromRoutine(SAVED)).toEqual({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7 })
     expect(recipeFromRoutine(ROUTINE)).toBeNull()
+    const mixed = { ...SAVED, meta: { ...SAVED.meta, moveSource: 'mix' } }
+    expect(recipeFromRoutine(mixed)).toEqual({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'mix' })
+    expect(recipeFromRoutine({ ...SAVED, meta: { ...SAVED.meta, moveSource: 'disco' } })).not.toHaveProperty('moveSource')
   })
 })
 
@@ -224,7 +236,11 @@ describe('prepareFromRecipe (generate it again / new seed)', () => {
     const deps = mockDeps()
     const { game, states } = await build(deps, RECIPE)
     expect(statuses(states)).toEqual(['analyzing', 'choreographing', 'loadingAudio', 'ready'])
-    expect(deps.choreograph).toHaveBeenCalledWith({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7 }, expect.any(AbortSignal))
+    // Recipes from before move sources are classic, explicitly (whatever the server's default).
+    expect(deps.choreograph).toHaveBeenCalledWith(
+      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'classic' },
+      expect.any(AbortSignal),
+    )
     expect(deps.loadAudio).toHaveBeenCalledWith(ANALYSIS.id, { url: ANALYSIS.audioUrl }, expect.any(AbortSignal))
     expect(game).not.toBeNull()
   })
@@ -244,6 +260,15 @@ describe('prepareFromRecipe (generate it again / new seed)', () => {
     expect(deps.choreograph).not.toHaveBeenCalled()
   })
 
+  it('keeps the move source (real dancers) when rebuilding', async () => {
+    const deps = mockDeps()
+    await build(deps, { ...RECIPE, moveSource: 'aist' })
+    expect(deps.choreograph).toHaveBeenCalledWith(
+      { analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'aist' },
+      expect.any(AbortSignal),
+    )
+  })
+
   it('reuses the analysis on stage (new seed)', async () => {
     const deps = mockDeps()
     const { states } = await build(deps, { ...RECIPE, seed: 8 }, { analysis: ANALYSIS })
@@ -259,9 +284,11 @@ describe('routineFor ("Learn it first")', () => {
     const steps: string[] = []
     const out = await routineFor(REQ, deps, new AbortController().signal, (s) => steps.push(s))
     expect(out.routine.meta?.routineId).toBe(ROUTINE_ID)
-    expect(deps.choreograph).toHaveBeenCalledWith({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7 }, expect.anything())
+    expect(deps.choreograph).toHaveBeenCalledWith({ analysisId: ANALYSIS.id, difficulty: 'hard', mode: 'seated', seed: 7, moveSource: 'classic' }, expect.anything())
     expect(deps.loadAudio).not.toHaveBeenCalled()
     expect(steps).toEqual(['analyzing', 'choreographing'])
+    await routineFor({ ...REQ, moveSource: 'mix' }, deps, new AbortController().signal)
+    expect(deps.choreograph).toHaveBeenLastCalledWith(expect.objectContaining({ moveSource: 'mix' }), expect.anything())
   })
 
   it('rejects with the failing step in the message', async () => {

@@ -4,7 +4,7 @@
 // calls are injected (SessionDeps) so the state machine is unit-tested without a server.
 
 import type { Analysis } from '@shared/analysis'
-import type { ChoreographRequest } from '@shared/moves'
+import type { ChoreographRequest, MoveSource } from '@shared/moves'
 import type { Difficulty, Mode, Routine } from '@shared/routine'
 import { analyzeLibrarySong, analyzeUpload, ApiError, choreograph, getAnalysis, getRoutine } from '../api'
 import { errorMessage, isAbortError } from '../lib/errors'
@@ -19,14 +19,18 @@ export interface SessionRequest {
   difficulty: Difficulty
   mode: Mode
   seed: number
+  /** "Moves from" (absent = classic). */
+  moveSource?: MoveSource
 }
 
-/** Everything that rebuilds a routine: same analysis + difficulty + mode + seed = same routine. */
+/** Everything that rebuilds a routine: same analysis + difficulty + mode + seed (+ move source) = same routine. */
 export interface RoutineRecipe {
   analysisId: string
   difficulty: Difficulty
   mode: Mode
   seed: number
+  /** Absent = classic (routines from before move sources). */
+  moveSource?: MoveSource
   /** Library song file, so a cleared analysis can be recomputed. */
   songFile?: string
 }
@@ -113,10 +117,24 @@ class GoneError extends Error {
 
 const isNotFound = (err: unknown): boolean => err instanceof ApiError && err.status === 404
 
+const isMoveSource = (v: unknown): v is MoveSource => v === 'classic' || v === 'aist' || v === 'mix'
+
+/**
+ * The request body for a recipe. The move source is always explicit: recipes from before move sources
+ * (none recorded) are classic, so they keep rebuilding the same routine whatever the server's default.
+ */
+export function choreographRequest(analysisId: string, r: Omit<RoutineRecipe, 'analysisId'>): ChoreographRequest {
+  return { analysisId, difficulty: r.difficulty, mode: r.mode, seed: r.seed, moveSource: r.moveSource ?? 'classic' }
+}
+
 /** The recipe recorded in a generated routine's meta (null without an analysisId). */
 export function recipeFromRoutine(routine: Routine): RoutineRecipe | null {
   const id = routine.meta?.analysisId
-  return typeof id === 'string' && id ? { analysisId: id, difficulty: routine.difficulty, mode: routine.mode, seed: routine.seed } : null
+  if (typeof id !== 'string' || !id) return null
+  const recipe: RoutineRecipe = { analysisId: id, difficulty: routine.difficulty, mode: routine.mode, seed: routine.seed }
+  const source = routine.meta?.moveSource
+  if (isMoveSource(source)) recipe.moveSource = source
+  return recipe
 }
 
 type Enter = (step: SessionStep) => void
@@ -174,7 +192,7 @@ async function finishGame(
 
 async function choreographFor(analysis: Analysis, r: Omit<RoutineRecipe, 'analysisId'>, deps: SessionDeps, enter: Enter, signal: AbortSignal): Promise<Routine> {
   enter('choreographing')
-  const { routine } = await deps.choreograph({ analysisId: analysis.id, difficulty: r.difficulty, mode: r.mode, seed: r.seed }, signal)
+  const { routine } = await deps.choreograph(choreographRequest(analysis.id, r), signal)
   signal.throwIfAborted()
   return routine
 }
@@ -297,7 +315,7 @@ export async function routineFor(
     signal.throwIfAborted()
     step = 'choreographing'
     onStep?.(step)
-    const { routine } = await deps.choreograph({ analysisId: analysis.id, difficulty: req.difficulty, mode: req.mode, seed: req.seed }, signal)
+    const { routine } = await deps.choreograph(choreographRequest(analysis.id, req), signal)
     signal.throwIfAborted()
     if (routine.moves.length === 0) throw new Error('the choreographer returned no moves for this song')
     return { analysis, routine }

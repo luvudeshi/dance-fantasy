@@ -173,6 +173,15 @@
   flex: 1 1 14rem;
   width: auto;
 }
+.party-song > .df-note {
+  flex-basis: 100%;
+  margin: -4px 0 0;
+}
+/* Data credit whenever real-dancer (AIST++) moves are in play. */
+.party-credit {
+  font-size: 0.8em;
+  opacity: 0.85;
+}
 .party-start {
   display: flex;
   flex-wrap: wrap;

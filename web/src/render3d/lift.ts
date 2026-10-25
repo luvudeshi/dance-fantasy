@@ -26,6 +26,8 @@ const midOf = (a: Vec2, b: Vec2): Vec2 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
 
 const SHOULDER_SPAN = dist(N.l_shoulder, N.r_shoulder)
 const HIP_SPAN = dist(N.l_hip, N.r_hip)
+/** How far the nose sits in front of the ear line (body units; server/app/moves/fk.py face depths). */
+const NOSE_DEPTH = 0.17
 
 /** Neutral bone lengths (body units): the 3D lengths every lifted limb keeps. */
 export const BONE_LENGTH = {
@@ -67,7 +69,12 @@ export function estimateYaw(pose: Pose2D): number {
       off = (nose[0] - ref[0]) * across[0] + (nose[1] - ref[1]) * across[1]
     }
   }
-  const sin = Math.sqrt(Math.max(0, 1 - c * c))
+  // The side of the turn comes from the nose offset, which is NOSE_DEPTH * sin(yaw) for a real turn.
+  // When it is small the side is a coin toss (real-dancer poses: shoulders narrowed by a shrug, a
+  // lean or a reach while the face looks ahead), so the turn fades out with it instead of snapping
+  // between left and right from one frame to the next. A real turn keeps its full angle (the cap is
+  // twice the offset's own estimate).
+  const sin = Math.min(Math.sqrt(Math.max(0, 1 - c * c)), (2 * Math.abs(off)) / NOSE_DEPTH)
   return Math.atan2(off < 0 ? -sin : sin, c)
 }
 

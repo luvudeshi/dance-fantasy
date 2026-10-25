@@ -7,7 +7,9 @@
 //     limbs follow the distal-joint rule on move.scoredJoints, plus the torso when the target
 //     leans; seated mode drops legs (and the torso, whose mid-hip end is built from leg joints).
 //     Checkpoints whose target is the resting pose on every compared limb are skipped, so a
-//     player who just stands there earns nothing between moves.
+//     player who just stands there earns nothing between moves; so are checkpoints that the
+//     resting pose itself would nearly pass on the most forgiving angles (REST_PROOF_*: subtle
+//     real-dancer poses, arms low and loose, a small step).
 //  2. scoreFrame: per limb, the 2D angle between the player's and the target's limb direction
 //     -> 100 at <= perfectDeg, linear to 0 at >= zeroDeg; weighted mean over usable limbs.
 //     The player's sides are compared directly (the webcam body frame already reports the
@@ -108,6 +110,15 @@ export const TORSO_LEAN_DEG = 10
 /** A limb within this angle (degrees) of NEUTRAL_POSE counts as resting; a checkpoint whose compared
  *  limbs all rest is skipped. Wide enough to cover the library's relaxed "ready" stance. */
 export const NEUTRAL_SKIP_DEG = 30
+/**
+ * Standing still must never pass a checkpoint. NEUTRAL_SKIP_DEG only drops targets that rest on
+ * every compared limb; a target a little past it on each moving limb (common in real-dancer clips:
+ * arms low and loose, a small step) still let the resting pose score OK on Lenient / Relaxed. So a
+ * checkpoint is also dropped when the resting pose scores at least REST_PROOF_SCORE on it with
+ * REST_PROOF_SCORING (Lenient's angles, the most forgiving classic ones). The margin under Lenient's
+ * OK (48) covers a natural idle sway. Classic library checkpoints score <= 33 here, so they all stay.
+ */
+export const REST_PROOF_SCORE = 40
 /** Target limbs shorter than this (body units) have no reliable 2D direction and aren't compared. */
 export const MIN_TARGET_LIMB_LEN = 0.05
 
@@ -261,6 +272,21 @@ export function isRestingPose(target: Pose2D, limbs: readonly LimbName[], restDe
   return restingLimbs(target, limbs, restDeg).length === limbs.length
 }
 
+/** See REST_PROOF_SCORE. */
+export const REST_PROOF_SCORING: ScoringConfig = LENIENT_SCORING
+
+const REST_FRAME: PlayerFrame = {
+  songTime: 0,
+  pose: NEUTRAL_POSE,
+  visibility: Object.fromEntries(Object.keys(NEUTRAL_POSE).map((j) => [j, 1])),
+  valid: true,
+}
+
+/** What standing in the resting pose scores on a checkpoint (0..100) with REST_PROOF_SCORING. */
+export function restPoseScore(cp: Pick<Checkpoint, 'target' | 'limbs' | 'resting'>): number {
+  return scoreFrame(cp, REST_FRAME, REST_PROOF_SCORING).score
+}
+
 interface Candidate {
   moveIndex: number
   time: number
@@ -273,8 +299,9 @@ interface Candidate {
  * startTime + t * (endTime - startTime). Keyframes at the same instant (a move's t=0 and the
  * previous move's t=1) merge into one checkpoint that keeps the earlier keyframe's pose (the
  * coach holds the previous end pose at the boundary) and compares the union of both moves'
- * limbs. Checkpoints with no comparable limb, or whose target is the resting pose on every
- * compared limb, are dropped. Result is sorted by time and indexed 0..n-1.
+ * limbs. Checkpoints with no comparable limb, whose target is the resting pose on every
+ * compared limb, or that the resting pose would nearly pass (restPoseScore >= REST_PROOF_SCORE)
+ * are dropped. Result is sorted by time and indexed 0..n-1.
  */
 export function buildCheckpoints(routine: Pick<Routine, 'moves'>, mode: Mode, restDeg = NEUTRAL_SKIP_DEG): Checkpoint[] {
   const cands: Candidate[] = []
@@ -301,6 +328,7 @@ export function buildCheckpoints(routine: Pick<Routine, 'moves'>, mode: Mode, re
     const limbs = checkpointLimbs(c.joints, c.target, mode)
     const resting = restingLimbs(c.target, limbs, restDeg)
     if (limbs.length === 0 || resting.length === limbs.length) continue
+    if (restPoseScore({ target: c.target, limbs, resting }) >= REST_PROOF_SCORE) continue
     out.push({ index: out.length, moveIndex: c.moveIndex, time: c.time, target: c.target, limbs, resting })
   }
   return out

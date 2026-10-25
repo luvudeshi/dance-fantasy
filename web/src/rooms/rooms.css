@@ -324,3 +324,11 @@
 .rm-overlay-inline .rm-overlay-board {
   display: block;
 }
+
+/* Data credit whenever real-dancer (AIST++) moves are picked. */
+.rm-credit {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.85em;
+  opacity: 0.85;
+}

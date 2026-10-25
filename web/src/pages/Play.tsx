@@ -71,6 +71,8 @@ import { Icon } from '../theme/Icon'
 import type { IconName } from '../theme/icons'
 import { PauseMenu } from '../theme/screens/PauseMenu'
 import { setVoiceDucker, unlockVoice } from '../voice/voice'
+import { AIST_CREDIT, MOVE_SOURCES, moveSourceSuffix, movesFromDetail, routineMoveSource, type MoveSource } from '../routine/moveSource'
+import { moveSourceHint as hintForMoveSource, useMoveSource } from '../routine/useMoveSource'
 import './play.css'
 
 const randomSeed = (): number => Math.floor(Math.random() * 1_000_000)
@@ -107,7 +109,12 @@ function songListError(err: unknown): string {
 const choiceTitle = (c: SongChoice | null): string =>
   !c ? '' : c.kind === 'upload' ? c.file.name.replace(/\.[^.]+$/, '') : (c.title ?? c.file)
 
-const setupLabel = (s: { difficulty: Difficulty; mode: Mode; seed: number }): string => `${s.difficulty} · ${s.mode} · seed ${s.seed}`
+const setupLabel = (s: { difficulty: Difficulty; mode: Mode; seed: number; moveSource?: MoveSource }): string =>
+  `${s.difficulty} · ${s.mode} · seed ${s.seed}${moveSourceSuffix(s.moveSource)}`
+
+/** setupLabel of a generated routine (its move source is in meta). */
+const routineSetupLabel = (r: Parameters<typeof routineMoveSource>[0] & { difficulty: Difficulty; mode: Mode; seed: number }): string =>
+  setupLabel({ ...r, moveSource: routineMoveSource(r) })
 
 function blurFocus(): void {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -172,6 +179,8 @@ export default function Play() {
   const [difficulty, setDifficulty] = useState<Difficulty>(() => getSettings().difficulty)
   const [mode, setMode] = useState<Mode>(() => getSettings().mode)
   const [seed, setSeed] = useState(randomSeed)
+  /** Lobby: "Moves from" (remembered on this device; classic when the server has no real-dancer clips). */
+  const { value: moveSource, realDancers, choose: chooseMoveSource } = useMoveSource()
   const [autoplay, setAutoplay] = useState(false)
   const [skipCal, setSkipCal] = useState(false)
   /** The lobby's "Before the ball" (remembered on this device). */
@@ -372,7 +381,7 @@ export default function Play() {
         latencySec: meta.calibration?.latencySec ?? null,
         latencySource: meta.calibration?.source,
         autoplay: auto,
-      }),
+      }) + movesFromDetail(a.game.routine),
       log: buildSessionLog({
         routine: a.game.routine,
         title: a.game.analysis.title,
@@ -555,7 +564,7 @@ export default function Play() {
   /** Lobby Start: the chosen song + settings. */
   const start = (): void => {
     if (!choice) return
-    const req = { song: choice, difficulty, mode, seed }
+    const req = { song: choice, difficulty, mode, seed, moveSource }
     launch({ load: (deps, on, signal) => prepareGame(req, deps, on, signal), firstStep: 'analyzing', title: choiceTitle(choice), subtitle: setupLabel(req) })
   }
 
@@ -781,7 +790,7 @@ export default function Play() {
     setLearnError(null)
     setLearnBusy(STEP_LABELS.analyzing)
     try {
-      const req = { song: choice, difficulty, mode, seed }
+      const req = { song: choice, difficulty, mode, seed, moveSource }
       const { analysis, routine } = await routineFor(req, apiSessionDeps(clock), ac.signal, (step) => setLearnBusy(STEP_LABELS[step]))
       const id = routine.meta?.routineId
       const entry = shelfEntryFor(routine, analysis, 'play')
@@ -805,7 +814,13 @@ export default function Play() {
     if (!game) return
     const s = randomSeed()
     setSeed(s)
-    const recipe: RoutineRecipe = { analysisId: game.analysis.id, difficulty: game.routine.difficulty, mode: game.routine.mode, seed: s }
+    const recipe: RoutineRecipe = {
+      analysisId: game.analysis.id,
+      difficulty: game.routine.difficulty,
+      mode: game.routine.mode,
+      seed: s,
+      moveSource: routineMoveSource(game.routine),
+    }
     launch({
       load: (deps, on, signal) => prepareFromRecipe(recipe, deps, on, signal, { analysis: game.analysis }),
       firstStep: 'choreographing',
@@ -905,7 +920,8 @@ export default function Play() {
   const shown = active?.game ?? prepared
   const routine = shown?.routine
   const stageTitle = shown ? shown.analysis.title : (pending?.title ?? choiceTitle(choice))
-  const stageSubtitle = routine ? setupLabel(routine) : (pending?.subtitle ?? setupLabel({ difficulty, mode, seed }))
+  const stageSubtitle = routine ? routineSetupLabel(routine) : (pending?.subtitle ?? setupLabel({ difficulty, mode, seed, moveSource }))
+  const moveSourceHint = hintForMoveSource(moveSource, realDancers)
   // The calibration screen shows camera errors itself (with a retry); warmup needs this overlay.
   const camTrouble = camError !== null && phase === 'warmup'
   const rehearsalHint =
@@ -1079,6 +1095,25 @@ export default function Play() {
             </div>
           </div>
           <div className="field">
+            <span className="field-label">Moves from</span>
+            <div className="segmented" role="radiogroup" aria-label="Moves from">
+              {MOVE_SOURCES.map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={moveSource === m.value}
+                  className={moveSource === m.value ? 'on' : undefined}
+                  disabled={realDancers === false && m.value !== 'classic'}
+                  onClick={() => chooseMoveSource(m.value)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <span className="hint rehearsal-hint">{moveSourceHint}</span>
+          </div>
+          <div className="field">
             <label className="field-label" htmlFor="play-seed">
               Seed
             </label>
@@ -1182,6 +1217,7 @@ export default function Play() {
               </li>
             ))}
           </ul>
+          {moveSource !== 'classic' && <p className="hint lobby-credit">{AIST_CREDIT}</p>}
         </div>
       </div>
 

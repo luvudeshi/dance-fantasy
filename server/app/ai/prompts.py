@@ -340,10 +340,17 @@ def signature_user(title: str, artist: str, hits: Sequence[Hit], moves: Sequence
 
 
 def move_id_lookup(moves: Sequence[CompiledMove]) -> dict[str, str]:
-    """Lowercase id or base id (e.g. "floss") -> a real move id, so a near-miss from the model still maps."""
-    lookup = {m.id.lower(): m.id for m in moves}
-    for m in moves:
+    """Lowercase id or base id (e.g. "floss") -> a real move id, so a near-miss from the model still maps.
+
+    Real-dancer clips' mirrored twins (``<id>_m``) map to their clip: GET /api/moves leaves the twins out.
+    """
+    listed = [m for m in moves if not (m.source == "aist" and m.mirrorOf is not None)]
+    lookup = {m.id.lower(): m.id for m in listed}
+    for m in listed:
         lookup.setdefault(m.baseId.lower(), m.id)
+    for m in moves:
+        if m.source == "aist" and m.mirrorOf is not None and m.mirrorOf.lower() in lookup:
+            lookup.setdefault(m.id.lower(), lookup[m.mirrorOf.lower()])
     return lookup
 
 
