@@ -5,18 +5,36 @@ a dance routine for it that has never existed before, and teaches it to you with
 dancer while your webcam scores every beat. Dance alone, with friends in front of one laptop, or
 in an online ballroom with friends on their own phones.
 
-**[Play it live](https://midnight-ball.vercel.app)** · HackTX 2026 · *Once upon a time…*
+*HackTX 2026 · Once upon a time…*
+
+[![Play it live](https://img.shields.io/badge/▶_Play_it_live-midnight--ball.vercel.app-8B2252?style=for-the-badge)](https://midnight-ball.vercel.app)
+[![Meta Muse](https://img.shields.io/badge/Meta-Muse_Spark-0467DF?style=for-the-badge&logo=meta&logoColor=white)](#-meta-muse-the-royal-heralds-voice-of-the-ball)
+[![Google Gemini](https://img.shields.io/badge/Google-Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-google-gemini-three-jobs)
+[![SerpApi](https://img.shields.io/badge/SerpApi-Search-2F9E44?style=for-the-badge)](#-serpapi-search-results-that-change-the-game)
+[![Tiger Data](https://img.shields.io/badge/Tiger_Data-TimescaleDB-F5A623?style=for-the-badge)](#-tiger-data-the-memory-of-the-ball)
+[![Cursor](https://img.shields.io/badge/Built_with-Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](#-ai-tools-used)
+[![Grok](https://img.shields.io/badge/Built_with-Grok-111111?style=for-the-badge&logo=x&logoColor=white)](#-ai-tools-used)
+
+### 🏆 Sponsor tracks at a glance
+
+| | Track | What it does in Dance Fantasy |
+|---|---|---|
+| 🎺 | **Meta Muse** | Writes the Royal Herald's live intro and final verdict from your name, song, score and best move |
+| ✨ | **Google Gemini** | The herald's expressive voice, turns a viral dance into playable moves, backup writer |
+| 🔎 | **SerpApi** | Finds the song's viral dance online; those moves get pinned to the chorus and score **2x** |
+| 🐯 | **Tiger Data** | Hypertables + continuous aggregates: ballrooms, friends, history, "hardest moments", Hall of Fame |
+| 🤖 | **Cursor · Grok** | AI tools we built the project with (see [AI tools used](#-ai-tools-used)) |
 
 ![A round in progress: the 3D prince dances the routine, the Royal Herald cheers a 25-beat streak, and the next moves slide in at the bottom](docs/screenshots/game.jpg)
 
-## Inspiration
+## 💡 Inspiration
 
 Dance games only let you dance to the songs someone already choreographed. We wanted the opposite:
 *any* song, even one you recorded yesterday, becomes a playable dance. Then we wrapped it in the
 fairy tale of the Twelve Dancing Princesses, who slip out every night to dance until their
 slippers wear through, because a dance game should feel like a night at the ball.
 
-## What it does
+## 🩰 What it does
 
 - **Any song becomes an original routine.** Upload a track; the server finds its beats, bars and
   sections (verse, chorus, bridge…) and choreographs moves that land on the downbeats, repeat on
@@ -47,7 +65,7 @@ slippers wear through, because a dance game should feel like a night at the ball
 |---|---|
 | ![Title menu](docs/screenshots/menu.jpg) | ![A ballroom lobby: the room code in a magic mirror, a QR code to join, and the dancers who arrived](docs/screenshots/ballroom.jpg) |
 
-## What makes it different
+## 🌟 What makes it different
 
 - **Truly any song.** Other dance games ship hand-made routines for a fixed song list. We generate
   an original, playable routine from the audio itself in seconds: beat tracking, section analysis,
@@ -62,16 +80,17 @@ slippers wear through, because a dance game should feel like a night at the ball
   a magic mirror, a clock that strikes twelve when the song ends, and party awards like the Glass
   Slipper.
 
-## How we used each sponsor's tools
+## 🏆 How we used each sponsor's tools
 
-### Meta Muse: the Royal Herald's voice of the ball
+### 🎺 Meta Muse: the Royal Herald's voice of the ball
 **Muse Spark** writes the herald's big moments live, from what *you* did: it throws open the
 ballroom doors with your name and the song, and delivers the final verdict with your score, grade,
 best move and longest combo. During the song the herald calls out every combo and cheers you on
-with recorded lines, so it never lags behind your feet. Muse goes first, Gemini is the fallback, and
-a hand-written line covers anything slower than 2.5 seconds, so the show never waits.
+with recorded lines, so it never lags behind your feet. Muse writes the intro while you calibrate, so
+it's ready the moment the music starts. Gemini is the fallback, and a hand-written line covers
+anything neither answers in time, so the show never waits.
 
-### Google Gemini: three jobs
+### ✨ Google Gemini: three jobs
 1. **The herald's voice.** Gemini text-to-speech performs every line with a directed delivery
    ("an ecstatic royal herald announcing the star of the ball"). Lines are voiced once and cached,
    and the music dips while the herald speaks.
@@ -79,13 +98,13 @@ a hand-written line covers anything slower than 2.5 seconds, so the show never w
    song's signature dance, and maps it onto moves in our library so the dance becomes playable.
 3. **Backup writer** for the herald when Muse is busy.
 
-### SerpApi: search results that change the game
+### 🔎 SerpApi: search results that change the game
 When you pick a song, SerpApi searches Google and YouTube for its dance challenge. The result
 doesn't just show a link: Gemini identifies the moves, our choreographer **pins them onto the
 chorus**, an in-game banner announces "Signature: YMCA arms", and those beats **score double**.
 The source video is linked so you can watch the original.
 
-### Tiger Data: the memory of the ball
+### 🐯 Tiger Data: the memory of the ball
 Tiger Data (Postgres + TimescaleDB) holds everything multiplayer and social: ballrooms, dancers,
 chat, accounts, friends and invites. Every round and every beat danced in a ballroom is stored in
 **hypertables**, and a **continuous aggregate** rolls those beats up into each song's "hardest
@@ -93,12 +112,12 @@ moments", the beats that trip up dancers across every ballroom. A second continu
 up each dancer's score per day for the Hall of Fame's top dancers of the week. It also keeps the paid AI and search
 calls within daily and per-visitor limits.
 
-### Also built with
+### 🧰 Also built with
 **MediaPipe** (Google) for in-browser pose tracking · **librosa** for beat and structure analysis ·
 **three.js** for the 3D dancers · **React + TypeScript + Vite** · **FastAPI (Python)** ·
 **Vercel** (web, API and Blob storage).
 
-## How it works
+## ⚙️ How it works
 
 1. **Listen.** librosa finds the tempo, beats, downbeats and song sections, grouping repeats so
    every chorus is recognized as the same music.
@@ -113,7 +132,7 @@ calls within daily and per-visitor limits.
 
 ![Move Book: every move in the library, danced by the 3D prince, with its length, energy and difficulty](docs/screenshots/move-book.jpg)
 
-## Challenges we ran into
+## 🧗 Challenges we ran into
 
 - **Depth from flat poses.** Moves are stored as 2D joint positions, so making a convincing 3D
   dancer meant reconstructing depth (knee lifts, spins) from limb foreshortening.
@@ -123,7 +142,7 @@ calls within daily and per-visitor limits.
 - **Real-time play without a game server.** We built rooms on short polling and a shared start
   time, so up to 8 phones and laptops dance the same beat on a serverless backend.
 
-## Try it
+## 🎮 Try it
 
 **[midnight-ball.vercel.app](https://midnight-ball.vercel.app)** in Chrome with a webcam. Pick a
 song, press **Start the ball**, stand back so your whole body is in the mirror, and dance. No webcam?
@@ -139,11 +158,11 @@ make dev     # opens the API on :8000 and the game on http://localhost:5173
 API keys are optional (see [.env.example](.env.example)): without them the herald uses hand-written
 lines and ballrooms use a local database. Technical docs: [shared/README.md](shared/README.md).
 
-## Team
+## 👑 Team
 
 **Toyeshh Medikonda**, **Luv Udeshi** and **Suchay Kommisetty**, in one night at HackTX 2026.
 
-## AI tools used
+## 🤖 AI tools used
 
 - **Claude Code** (Anthropic) helped us scaffold and write the code, including parallel agents that
   built and reviewed features on separate branches.
@@ -152,7 +171,7 @@ lines and ballrooms use a local database. Technical docs: [shared/README.md](sha
 - **Meta Muse**, **Google Gemini** and **SerpApi** power features in the game, as described above.
 - **MediaPipe** (Google) for pose tracking.
 
-## Credits
+## 📜 Credits
 
 Real-dancer moves: [AIST++](https://google.github.io/aistplusplus_dataset/) annotations (© Google LLC,
 CC BY 4.0), derived from the [AIST Dance Video Database](https://aistdancedb.ongaaccel.jp/) (research and
