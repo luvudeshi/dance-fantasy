@@ -10,6 +10,7 @@ import { coachThemeFor } from '../render/coach'
 import { drawPictogram } from '../render/pictogram'
 import { Icon } from '../theme/Icon'
 import { gradeFor } from '../theme/screens/grade'
+import { useInertSiblings } from '../theme/useInertSiblings'
 import { formatPercent, scoreColor, type ResultsView } from './results'
 
 interface Props {
@@ -68,12 +69,14 @@ export default function ResultsScreen(props: Props) {
   const playAgainRef = useRef<HTMLButtonElement>(null)
   // Enter replays straight away (Space stays the stage's pause key, which is off here).
   useEffect(() => playAgainRef.current?.focus(), [])
+  const overlayRef = useRef<HTMLDivElement>(null)
+  useInertSiblings(overlayRef)
 
   const hardMove = view.hardest ? moves[view.hardest.moveIndex] : undefined
   const bestMove = view.best ? moves[view.best.moveIndex] : undefined
 
   return (
-    <div className="play-overlay dim-bg results-overlay">
+    <div ref={overlayRef} className="play-overlay dim-bg results-overlay">
       <div className="results-card" role="dialog" aria-modal="true" aria-labelledby="results-title">
         <header className="results-head">
           <Icon name="clock-tower" size={72} className="results-icon df-pop-in" />

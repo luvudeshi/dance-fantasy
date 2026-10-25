@@ -16,6 +16,7 @@
     var(--df-shadow-lift),
     0 30px 80px rgb(10 16 28 / 0.45);
   animation: df-rise var(--df-dur-slow) var(--df-ease) both;
+  margin-top: 52px; /* room for the clock-tower sticker that pokes out of the top */
 }
 
 /* ---------- head ---------- */
@@ -37,7 +38,7 @@
   font-style: normal;
   font-weight: 700;
   font-variation-settings: var(--df-fvs-cut);
-  font-size: clamp(2.4rem, 5.5vw, 4.4rem);
+  font-size: clamp(2.4rem, min(5.5vw, 7vh), 4.4rem);
   line-height: 0.98;
   background: none;
   -webkit-background-clip: border-box;
@@ -63,7 +64,7 @@
 }
 .df-screen .results-plate .results-score {
   font-family: var(--df-font-display);
-  font-size: clamp(3.4rem, 8vw, 5.6rem);
+  font-size: clamp(3rem, min(8vw, 9vh), 5.6rem);
   font-weight: 700;
   font-variant-numeric: lining-nums tabular-nums;
   letter-spacing: 0.02em;
@@ -168,6 +169,12 @@
 
 .df-screen .results-actions {
   gap: 12px;
+  /* a laptop-height card scrolls: the buttons stay in reach at the bottom of the window */
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: 16px 0 12px;
+  background: linear-gradient(rgb(248 240 222 / 0), var(--df-paper) 35%);
 }
 .df-screen .results-actions button:not([class*='df-']) {
   min-height: 3.25rem;
@@ -281,6 +288,10 @@
 }
 
 @media (max-width: 640px) {
+  /* the grade medal pokes up out of the plate: keep it clear of the herald bubble's tail */
+  .df-screen .results-grid {
+    margin-top: 14px;
+  }
   .df-screen .results-grade {
     --df-medal-size: 3.8rem;
     top: -16px;

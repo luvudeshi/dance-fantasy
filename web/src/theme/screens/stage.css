@@ -7,6 +7,10 @@
 .df-screen:has(.play-stage) {
   z-index: calc(var(--df-z-sticky) + 1);
 }
+/* ...and take the covered header out of the Tab order (its links would get focus behind the stage) */
+html:has(.play-stage) .shell-bar {
+  visibility: hidden;
+}
 
 /* ---------- the window: paper top bar, gold + cream rim, paper all around ---------- */
 .df-screen .play-stage {

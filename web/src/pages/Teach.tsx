@@ -294,9 +294,9 @@ function TeachStudio({ game, clock, routineId, start }: { game: PreparedGame; cl
         </div>
         <span className={`teach-cam ${st.source ?? camera.status}`}>
           {st.source === 'bot'
-            ? '🤖 Bot demo'
+            ? 'Bot demo'
             : st.source === 'webcam'
-              ? '📷 Camera on'
+              ? 'Camera on'
               : camera.status === 'starting'
                 ? 'Waking the camera…'
                 : camera.status === 'error'
@@ -366,7 +366,7 @@ function TeachStudio({ game, clock, routineId, start }: { game: PreparedGame; cl
                         actions.toggle()
                       })}
                     >
-                      🤖 Teach me with the bot
+                      Teach me with the bot
                     </button>
                   )}
                 </div>
@@ -384,7 +384,7 @@ function TeachStudio({ game, clock, routineId, start }: { game: PreparedGame; cl
               </p>
               <div className="teach-card-actions">
                 <button type="button" className="teach-button primary" onClick={click(actions.bot)}>
-                  🤖 Teach me with the bot
+                  Teach me with the bot
                 </button>
                 <button type="button" className="teach-button" onClick={click(actions.camera)}>
                   Try the camera again

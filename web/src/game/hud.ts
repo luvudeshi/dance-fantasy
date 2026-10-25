@@ -425,9 +425,11 @@ function drawPops(ctx: Ctx2D, anchor: Vec2, align: CanvasTextAlign, area: Box, v
     if (p.alpha <= 0) continue
     ctx.save()
     ctx.globalAlpha = p.alpha
-    ctx.translate(anchor[0], anchor[1] - p.rise * size * 0.5)
-    ctx.scale(p.scale, p.scale)
     ctx.font = `italic 800 ${size}px ${STORY_FONT}`
+    const w = ctx.measureText(p.label).width * p.scale // keep the scaled text inside the coach area
+    const x = Math.max(area.x + 8 + (align === 'right' ? w : align === 'center' ? w / 2 : 0), Math.min(area.x + area.w - 8 - (align === 'left' ? w : align === 'center' ? w / 2 : 0), anchor[0]))
+    ctx.translate(x, anchor[1] - p.rise * size * 0.5)
+    ctx.scale(p.scale, p.scale)
     ctx.lineWidth = Math.max(3, size * 0.12)
     ctx.strokeStyle = 'rgba(21, 35, 56, 0.92)'
     ctx.shadowColor = p.color
@@ -512,8 +514,7 @@ function drawToast(ctx: Ctx2D, area: Box, title: string, pulse: number): void {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.font = `800 ${size}px ${UI_FONT}`
-  const head = `📷  ${title}`
-  const w1 = ctx.measureText(head).width
+  const w1 = ctx.measureText(title).width
   ctx.font = `600 ${sub}px ${UI_FONT}`
   const w2 = ctx.measureText(UNSEEN_TOAST_HINT).width
   const w = Math.min(area.w - 16, Math.max(w1, w2) + size * 1.6)
@@ -529,7 +530,7 @@ function drawToast(ctx: Ctx2D, area: Box, title: string, pulse: number): void {
   ctx.stroke()
   ctx.fillStyle = '#fffaf0'
   ctx.font = `800 ${size}px ${UI_FONT}`
-  ctx.fillText(head, cx, cy - sub * 0.75, w - 16)
+  ctx.fillText(title, cx, cy - sub * 0.75, w - 16)
   ctx.fillStyle = 'rgba(255, 248, 236, 0.95)'
   ctx.font = `600 ${sub}px ${UI_FONT}`
   ctx.fillText(UNSEEN_TOAST_HINT, cx, cy + size * 0.6, w - 16)
@@ -543,7 +544,7 @@ export function drawHud(ctx: Ctx2D, f: HudFrame, v: HudView, opts: { scorePanel?
   drawPops(ctx, f.popAnchor, f.popAlign ?? 'right', f.layout.coachArea, v)
   const area = f.layout.coachArea
   if (v.autoplay) {
-    drawPill(ctx, '🤖 AUTOPLAY', 96, TOP_BAR_PX + 38, 15, '#4a3612', 'rgba(219, 179, 94, 0.96)', '#fffaf0')
+    drawPill(ctx, 'AUTOPLAY', 96, TOP_BAR_PX + 38, 15, '#4a3612', 'rgba(219, 179, 94, 0.96)', '#fffaf0')
   }
   if (v.toast) drawToast(ctx, area, v.toast, v.toastPulse)
 }

@@ -173,10 +173,10 @@
 }
 .rm-chat-name {
   font-weight: 800;
-  color: var(--df-blue-deep);
+  color: var(--df-night); /* ~8.7:1 on the chat well */
 }
 .rm-chat-list .is-me .rm-chat-name {
-  color: var(--df-rasp-deep);
+  color: var(--df-burg); /* ~7.4:1 */
 }
 .rm-chat-form {
   display: flex;

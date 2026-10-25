@@ -68,22 +68,41 @@
   box-shadow: var(--df-shadow-medal);
 }
 
-/* the mirror: night glass in a gold dotted frame */
+/* the mirror: night glass in Body Double's dotted antique-gold hand-mirror frame, crest on top */
 .df-screen .calib-body {
   gap: 32px;
 }
 .df-screen .calib-mirror {
-  border: 12px solid var(--df-gold);
+  overflow: visible; /* the crest pokes out; the glass children round their own corners */
+  border: 12px solid transparent;
   border-radius: var(--df-r-xl);
-  background: var(--df-night);
+  background:
+    linear-gradient(var(--df-night), var(--df-night)) padding-box,
+    radial-gradient(circle, var(--df-gold-light) 2.1px, transparent 2.6px) 6px 6px / 12px 12px border-box,
+    linear-gradient(var(--df-gold), var(--df-gold)) border-box;
   box-shadow:
     inset 0 0 0 3px var(--df-gold-light),
     inset 0 0 50px rgb(0 0 0 / 0.45),
     0 0 0 3px var(--df-gold-shade),
     var(--df-shadow-lift);
 }
+.df-screen .calib-mirror::before {
+  content: '';
+  position: absolute;
+  top: -44px;
+  left: 50%;
+  z-index: 3;
+  width: 96px;
+  aspect-ratio: 120 / 64;
+  translate: -50% 0;
+  background: url('/art/storybook/crest.svg') center / contain no-repeat;
+  pointer-events: none;
+}
+.df-screen .calib-mirror > :is(video, canvas) {
+  border-radius: 16px;
+}
 .df-screen .calib-mirror.ok {
-  border-color: var(--df-gold);
+  border-color: transparent;
   box-shadow:
     inset 0 0 0 3px var(--df-gold-light),
     inset 0 0 50px rgb(0 0 0 / 0.35),

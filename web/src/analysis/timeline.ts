@@ -140,30 +140,21 @@ export function sectionAt(sections: readonly AnalysisSection[], t: number): Anal
 
 // --- colors ---------------------------------------------------------------------------
 
-const GOLDEN_ANGLE = 137.508
-
-function hslToHex(h: number, s: number, l: number): string {
-  // https://en.wikipedia.org/wiki/HSL_and_HSV#HSL_to_RGB_alternative
-  const a = s * Math.min(l, 1 - l)
-  const f = (n: number): number => {
-    const k = (n + h / 30) % 12
-    return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
-  }
-  return `#${[f(0), f(8), f(4)].map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('')}`
-}
-
-/** Hue for a section group: golden-angle steps from A so neighbouring letters differ a lot. */
-export function groupHue(group: string): number {
+/** A section group's index: A = 0, B = 1, ...; other labels get a stable hash. */
+function groupIndex(group: string): number {
   const g = group.trim().toUpperCase()
+  if (/^[A-Z]$/.test(g)) return g.charCodeAt(0) - 65
   let k = 0
-  if (/^[A-Z]$/.test(g)) k = g.charCodeAt(0) - 65
-  else for (const ch of g) k = (k * 31 + (ch.codePointAt(0) ?? 0)) % 997 // off-contract: stable hash
-  return (265 + k * GOLDEN_ANGLE) % 360
+  for (const ch of g) k = (k * 31 + (ch.codePointAt(0) ?? 0)) % 997 // off-contract: stable hash
+  return k
 }
 
-/** Stable, distinct `#rrggbb` per group letter, light enough for a dark background. */
+/** Body Double's sticker palette (raspberry, blue, sage, gold, rose, deep blue, glass, light gold), A first. */
+const GROUP_COLORS = ['#c04f66', '#a3c3d8', '#a8bc8b', '#dbb35e', '#e6939f', '#56789a', '#d2e3ec', '#f2db94'] as const
+
+/** Stable `#rrggbb` per group letter from the storybook palette (the first 8 groups all differ). */
 export function groupColor(group: string): string {
-  return hslToHex(groupHue(group), 0.78, 0.7)
+  return GROUP_COLORS[groupIndex(group) % GROUP_COLORS.length] ?? GROUP_COLORS[0]
 }
 
 /** `#rrggbb` + alpha (0..1) -> `#rrggbbaa`. */

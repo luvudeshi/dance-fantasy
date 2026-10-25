@@ -42,6 +42,7 @@
 .df-screen .live-section {
   font-family: var(--df-font-display);
   font-variation-settings: var(--df-fvs-display);
+  color: var(--df-gold-light); /* >= 7:1 on night */
 }
 .df-screen .live-barbeat {
   color: var(--df-on-night);
@@ -181,4 +182,66 @@
 }
 .df-screen .thumb canvas {
   background: var(--df-night);
+}
+
+/* ---------- native checkboxes and ranges (Studio, Move Book): Body Double's switch and gold-knob slider ---------- */
+.df-screen:is(.analysis-debug, .move-gallery) input[type='checkbox']:not([class*='df-']) {
+  appearance: none;
+  flex: none;
+  width: 3rem;
+  height: 1.75rem;
+  margin: 0;
+  border-radius: var(--df-r-pill);
+  background:
+    radial-gradient(circle, var(--df-cut) 0 9px, transparent 10px) no-repeat left 4px center / 20px 20px,
+    var(--df-parchment-edge);
+  box-shadow: var(--df-shadow-well);
+  cursor: pointer;
+  transition: background-position var(--df-dur) var(--df-ease);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='checkbox']:not([class*='df-']):checked {
+  background:
+    radial-gradient(circle, var(--df-cut) 0 9px, transparent 10px) no-repeat right 4px center / 20px 20px,
+    var(--df-rasp-deep);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-']) {
+  appearance: none;
+  height: 1.75rem;
+  background: transparent;
+  cursor: pointer;
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-'])::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: var(--df-r-pill);
+  background: var(--df-parchment-edge);
+  box-shadow: var(--df-shadow-well);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-'])::-moz-range-track {
+  height: 10px;
+  border-radius: var(--df-r-pill);
+  background: var(--df-parchment-edge);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-'])::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--df-gold);
+  box-shadow:
+    inset -2px -2px 0 var(--df-gold-shade),
+    inset 2px 2px 0 var(--df-gold-light),
+    0 0 0 3px var(--df-cut);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input[type='range']:not([class*='df-'])::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--df-gold);
+  box-shadow: 0 0 0 3px var(--df-cut);
+}
+.df-screen:is(.analysis-debug, .move-gallery) input:not([class*='df-']):focus-visible {
+  outline: 3px solid var(--df-rasp-deep);
+  outline-offset: 3px;
 }

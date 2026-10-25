@@ -92,8 +92,8 @@ export const popTextWidth = (size: number): number => size * 0.62 * 8 * 1.15
 /** Where judgment pops go and which way their text runs from the anchor. */
 export interface PopPlacement {
   anchor: Vec2
-  /** 'right': the text ends at the anchor (pops left of the face); 'left': it starts there. */
-  align: 'left' | 'right'
+  /** 'right': the text ends at the anchor (pops left of the face); 'left': it starts there; 'center': over the head (phones). */
+  align: 'left' | 'right' | 'center'
 }
 
 /** The coach's head on screen: centre and a radius (face box half-size). */
@@ -119,6 +119,8 @@ export function popPlacement(pose: Pose2D, root: Vec2, L: Pick<PlayLayout, 'coac
   const textW = popTextWidth(size)
   const y = clamp(c[1], a.y + size * 0.9, a.y + Math.max(size * 0.9, a.h - size))
   const leftX = c[0] - r - gap
+  // phones: no room beside the head on either side, so centre it above the head
+  if (textW > a.w / 2 - 8) return { anchor: [a.x + a.w / 2, clamp(c[1] - r - size * 0.6, a.y + size * 0.9, a.y + Math.max(size * 0.9, a.h - size))], align: 'center' }
   if (leftX - textW >= a.x + 8 || leftX - a.x >= a.x + a.w - (c[0] + r + gap)) {
     return { anchor: [clamp(leftX, a.x + Math.min(textW, a.w / 2), a.x + a.w), y], align: 'right' }
   }

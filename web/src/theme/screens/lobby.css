@@ -222,6 +222,20 @@
   box-shadow: var(--df-shadow-pressed);
   filter: url(#dc-sm);
 }
+/* phones: equal segments on one row instead of a wrapped, lopsided pill */
+@media (max-width: 420px) {
+  .df-screen .segmented {
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    align-self: stretch;
+  }
+  .df-screen .segmented button {
+    padding-inline: 8px;
+    font-size: var(--df-text-sm);
+    white-space: nowrap;
+  }
+}
 .df-screen .seed-row {
   align-items: center;
   gap: 10px;

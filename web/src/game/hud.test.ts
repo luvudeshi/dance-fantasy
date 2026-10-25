@@ -237,7 +237,7 @@ describe('HUD drawing', () => {
     const { ctx, calls } = measuringStub()
     drawHud(ctx, { width: 1280, height: 720, layout: L, popAnchor: [300, 300] }, v)
     const texts = calls.filter((c) => c.name === 'fillText').map((c) => c.args[0])
-    expect(texts).toEqual(expect.arrayContaining(['1,234', 'MISS', 'Watch your left leg', `📷  ${UNSEEN_TOAST}`, UNSEEN_TOAST_HINT, '🤖 AUTOPLAY']))
+    expect(texts).toEqual(expect.arrayContaining(['1,234', 'MISS', 'Watch your left leg', UNSEEN_TOAST, UNSEEN_TOAST_HINT, 'AUTOPLAY']))
   })
 
   it('shows the combo from ×2 up', () => {
