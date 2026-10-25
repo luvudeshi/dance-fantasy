@@ -178,13 +178,13 @@ function drawCueStrip(ctx: Ctx2D, L: PlayLayout, f: PlayFrame, theme: CoachTheme
 
   // Panel.
   const bg = ctx.createLinearGradient(0, strip.y, 0, strip.y + strip.h)
-  bg.addColorStop(0, 'rgba(14, 14, 44, 0.66)')
-  bg.addColorStop(1, 'rgba(30, 18, 70, 0.72)')
+  bg.addColorStop(0, 'rgba(248, 240, 222, 0.94)')
+  bg.addColorStop(1, 'rgba(234, 223, 199, 0.94)')
   roundRect(ctx, strip.x, strip.y, strip.w, strip.h, 20)
   ctx.fillStyle = bg
   ctx.fill()
-  ctx.lineWidth = 1
-  ctx.strokeStyle = 'rgba(196, 181, 253, 0.22)'
+  ctx.lineWidth = 4
+  ctx.strokeStyle = '#fffaf0'
   ctx.stroke()
 
   // Cards, clipped to the panel.
@@ -203,9 +203,9 @@ function drawCueStrip(ctx: Ctx2D, L: PlayLayout, f: PlayFrame, theme: CoachTheme
   ctx.restore()
 
   // Hit marker (pulses on the beat).
-  ctx.shadowColor = theme.accent
+  ctx.shadowColor = '#dbb35e'
   ctx.shadowBlur = 8 + 18 * pulse
-  ctx.strokeStyle = theme.accent
+  ctx.strokeStyle = '#963248'
   ctx.globalAlpha = 0.6 + 0.4 * pulse
   ctx.lineWidth = 2 + 1.5 * pulse
   roundRect(ctx, hitX - card.w / 2 - 5, card.y - 5, card.w + 10, card.h + 10, 15)
@@ -236,23 +236,23 @@ function drawCueCard(
   drawPictogram(ctx, move, { x: x0, y, w, h }, { mirrored, theme, active: c.active })
   roundRect(ctx, x0, y, w, h, Math.min(w, h) * 0.17)
   if (c.active) {
-    ctx.shadowColor = theme.accent
+    ctx.shadowColor = '#dbb35e'
     ctx.shadowBlur = 12 + 12 * pulse
   }
   ctx.lineWidth = c.active ? 2.5 : 1.25
-  ctx.strokeStyle = c.active ? theme.accent : 'rgba(196, 181, 253, 0.32)'
+  ctx.strokeStyle = c.active ? '#963248' : 'rgba(91, 74, 59, 0.3)'
   ctx.stroke()
   ctx.shadowBlur = 0
 
   if (c.active) {
-    ctx.fillStyle = theme.accent
+    ctx.fillStyle = '#963248'
     roundRect(ctx, x0 + 8, y + h - 6, (w - 16) * c.progress, 3, 1.5)
     ctx.fill()
   }
-  ctx.font = `600 ${Math.round(clamp(h * 0.12, 12, 16))}px system-ui, -apple-system, sans-serif`
+  ctx.font = `700 ${Math.round(clamp(h * 0.12, 12, 16))}px Figtree, system-ui, -apple-system, sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
-  ctx.fillStyle = c.active ? '#ffffff' : 'rgba(226, 232, 255, 0.72)'
+  ctx.fillStyle = c.active ? '#2e2421' : '#5b4a3b'
   ctx.fillText(move.name, c.x, y + h + 16, w + L.gap - 6)
   ctx.restore()
 }
@@ -267,17 +267,17 @@ function drawBeatDots(ctx: Ctx2D, cx: number, y: number, n: number, theme: Coach
     const k = 3 - i
     const x = cx + (i - 1) * 24
     if (i > 0) {
-      ctx.fillStyle = 'rgba(196, 181, 253, 0.45)'
+      ctx.fillStyle = 'rgba(91, 74, 59, 0.5)'
       ctx.beginPath()
       ctx.arc(x - 12, y, 1.6, 0, Math.PI * 2)
       ctx.fill()
     }
     const current = k === n
     const lit = k >= n
-    ctx.font = `800 ${current ? Math.round(15 + 4 * pulse) : 12}px system-ui, -apple-system, sans-serif`
+    ctx.font = `800 ${current ? Math.round(15 + 4 * pulse) : 12}px Figtree, system-ui, -apple-system, sans-serif`
     ctx.shadowColor = theme.accent
     ctx.shadowBlur = current ? 10 + 10 * pulse : 0
-    ctx.fillStyle = current ? '#ffffff' : lit ? theme.accent : 'rgba(196, 181, 253, 0.28)'
+    ctx.fillStyle = current ? '#963248' : lit ? '#75561f' : 'rgba(91, 74, 59, 0.4)'
     ctx.fillText(String(k), x, y)
   }
   ctx.restore()
@@ -300,8 +300,8 @@ export function drawCountIn(ctx: Ctx2D, L: Pick<PlayLayout, 'coachArea'>, timeli
     if (times.length > 0 && t < times[0]) {
       ctx.globalAlpha = 0.9
       ctx.shadowBlur = 18
-      ctx.fillStyle = '#f5f3ff'
-      ctx.font = `italic 600 ${Math.round(clamp(area.h * 0.06, 20, 40))}px Georgia, 'Times New Roman', serif`
+      ctx.fillStyle = '#fffaf0'
+      ctx.font = `italic 600 ${Math.round(clamp(area.h * 0.06, 20, 40))}px Fraunces, Georgia, 'Times New Roman', serif`
       ctx.fillText('Get ready…', cx, area.y + area.h * 0.12)
     }
     ctx.restore()
@@ -313,15 +313,15 @@ export function drawCountIn(ctx: Ctx2D, L: Pick<PlayLayout, 'coachArea'>, timeli
   ctx.globalAlpha = go ? 1 - cd.phase * cd.phase : 1 - 0.7 * cd.phase * cd.phase
   const size = Math.round(base * pop)
   const y = area.y + area.h * 0.42
-  ctx.font = `${go ? 'italic ' : ''}800 ${size}px Georgia, 'Times New Roman', serif`
+  ctx.font = go ? `italic 800 ${size}px Fraunces, Georgia, serif` : `800 ${size}px Figtree, system-ui, sans-serif`
   // Dark outline first: the digits sit over the (white) coach's chest and must still read.
   ctx.shadowBlur = 36
   ctx.lineJoin = 'round'
   ctx.lineWidth = Math.max(3, size * 0.09)
-  ctx.strokeStyle = 'rgba(22, 12, 58, 0.9)'
+  ctx.strokeStyle = 'rgba(150, 50, 72, 0.95)'
   ctx.strokeText(cd.label, cx, y)
   ctx.shadowBlur = 0
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = '#fffaf0'
   ctx.fillText(cd.label, cx, y)
   ctx.restore()
 }
