@@ -1,0 +1,517 @@
+/* Room modes (versus / crew): the host's mode picker, the play-stage HUDs and the results.
+   Built from the Dance Fantasy tokens and df- pieces; dfm- is only the glue. HUD pieces sit over the live
+   canvas and change every second, so they use the filter-free die-cut (box-shadow) instead of #dc. */
+
+/* ---------- mode picker ---------- */
+.dfm-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.dfm-picker > legend {
+  margin-bottom: 10px;
+  padding: 0;
+}
+.dfm-picker-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 18px;
+}
+.dfm-mode {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--df-r-md);
+  background: var(--df-paper) var(--df-paper-tex);
+  color: var(--df-ink);
+  cursor: pointer;
+  filter: url(#dc);
+  transition:
+    background-color var(--df-dur-fast) var(--df-ease),
+    translate var(--df-dur-fast) var(--df-ease);
+}
+.dfm-mode:hover {
+  background-color: var(--df-cut);
+}
+.dfm-mode:active {
+  translate: 0 1px;
+}
+.dfm-mode.is-on {
+  box-shadow: inset 0 0 0 3px var(--df-rasp-deep);
+}
+.dfm-mode:has(:focus-visible) {
+  outline: 3px solid var(--df-rasp-deep);
+  outline-offset: 3px;
+}
+.dfm-picker:disabled .dfm-mode {
+  cursor: default;
+}
+.dfm-picker:disabled .dfm-mode:not(.is-on) {
+  opacity: 0.6;
+}
+.dfm-mode-icon {
+  flex: none;
+  rotate: -6deg;
+}
+.dfm-mode.is-on .dfm-mode-icon {
+  animation: df-pop var(--df-dur-slow) var(--df-ease);
+}
+.dfm-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dfm-mode-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-family: var(--df-font-display);
+  font-variation-settings: var(--df-fvs-display);
+  font-weight: 700;
+  font-size: 1.45rem;
+  line-height: 1.1;
+}
+.dfm-mode .df-voice {
+  font-size: 1.1rem;
+}
+.dfm-mode .df-note {
+  margin-top: 4px;
+}
+
+/* ---------- HUD overlay (mount inside the positioned play stage) ---------- */
+.dfm-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  font-family: var(--df-font-ui);
+  color: var(--df-ink);
+}
+.dfm-panel {
+  position: absolute;
+  top: 76px; /* under the stage's 64 px top bar */
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(300px, calc(100% - 32px));
+  padding: 12px 14px 14px;
+  border-radius: var(--df-r-md);
+  background: var(--df-paper) var(--df-paper-tex);
+  box-shadow: var(--df-shadow-lift);
+}
+.dfm-panel > .df-voice {
+  font-size: 1.05rem;
+}
+.dfm-big {
+  display: block;
+  font-size: 2.1rem;
+  line-height: 1;
+  color: var(--df-ink);
+}
+
+/* crew: team score, in-sync meter + streak flames, dancers */
+.dfm-crew-score {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dfm-sync {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dfm-sync-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.dfm-sync-streak {
+  font-size: 1.25rem;
+  color: var(--df-rasp-deep);
+}
+.dfm-meter,
+.dfm-vs-bar {
+  position: relative;
+  display: block;
+  height: 14px;
+  overflow: hidden;
+  border-radius: var(--df-r-pill);
+  background: var(--df-ground-deep);
+  box-shadow: var(--df-shadow-well);
+}
+.dfm-meter > span,
+.dfm-vs-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--dfm-fill, 0%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--df-gold), var(--df-gold-light));
+  box-shadow: inset 0 -3px 0 var(--df-gold-shade);
+  transition: width var(--df-dur-slow) var(--df-ease);
+}
+.dfm-meter > span {
+  background: linear-gradient(90deg, var(--df-gold), var(--df-rasp));
+  box-shadow: inset 0 -3px 0 rgb(110 35 56 / 0.35);
+}
+.dfm-flames {
+  display: flex;
+  gap: 4px;
+}
+.dfm-flame {
+  width: 20px;
+  height: 26px;
+}
+.dfm-flame-outer {
+  fill: var(--df-ground-deep);
+  stroke: var(--df-rule);
+  stroke-width: 1.2;
+}
+.dfm-flame-inner {
+  fill: transparent;
+}
+.dfm-flame.is-lit .dfm-flame-outer {
+  fill: var(--df-rasp);
+  stroke: var(--df-burg);
+}
+.dfm-flame.is-lit .dfm-flame-inner {
+  fill: var(--df-gold-light);
+}
+.dfm-flame.is-lit {
+  animation: dfm-flicker 0.9s ease-in-out infinite alternate;
+  transform-origin: 50% 100%;
+}
+.dfm-flame.is-lit:nth-child(2n) {
+  animation-delay: -0.45s;
+}
+.dfm-sync-next b {
+  color: var(--df-rasp-deep);
+}
+.dfm-crew-dancers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dfm-crew-dancers .df-token > img {
+  filter: none; /* over the canvas: no SVG filter */
+}
+
+/* the "IN SYNC x5!" burst, centred over the coach */
+.dfm-burst {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  translate: -50% 0;
+  pointer-events: none;
+  animation: dfm-burst 1.4s var(--df-ease) both;
+}
+.dfm-burst-ribbon {
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dfm-burst-ribbon > img {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+/* versus: head-to-head bars, beats-won tally, leader crown */
+.dfm-vs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dfm-vs-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'token name won'
+    'token bar won';
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 3px;
+  padding: 4px 6px;
+  border-radius: var(--df-r-sm);
+}
+.dfm-vs-row.is-me {
+  background: var(--df-cut);
+  box-shadow: inset 0 0 0 2px var(--df-rasp-deep);
+}
+.dfm-vs-token {
+  position: relative;
+  grid-area: token;
+}
+.dfm-vs-token .df-token > img {
+  filter: none;
+}
+.dfm-vs-crown {
+  position: absolute;
+  left: 50%;
+  top: -16px;
+  translate: -50% 0;
+  rotate: -10deg;
+  animation: df-pop var(--df-dur-slow) var(--df-ease);
+}
+.dfm-vs-name {
+  grid-area: name;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--df-font-display);
+  font-variation-settings: 'SOFT' 100;
+  font-weight: 650;
+  font-size: 1.05rem;
+}
+.dfm-vs-name small {
+  font-family: var(--df-font-ui);
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--df-ink-soft);
+}
+.dfm-vs-bar {
+  grid-area: bar;
+  height: 10px;
+}
+.dfm-vs-row.is-leader .dfm-vs-bar > span {
+  background: linear-gradient(90deg, var(--df-rasp-deep), var(--df-rasp));
+  box-shadow: inset 0 -3px 0 rgb(70 14 34 / 0.35);
+}
+.dfm-vs-won {
+  grid-area: won;
+  min-width: 2ch;
+  font-size: 1.5rem;
+  text-align: right;
+}
+
+/* ---------- results ---------- */
+.dfm-results {
+  --df-gap: 28px;
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+.dfm-center {
+  align-items: center;
+  text-align: center;
+}
+.dfm-crew-result {
+  --df-gap: 18px;
+  align-items: stretch;
+}
+.dfm-crew-result > .dfm-stars {
+  align-self: center;
+}
+.dfm-dl-row {
+  display: contents;
+}
+.dfm-stars {
+  display: inline-flex;
+  gap: 6px;
+}
+.dfm-star {
+  width: 2.4rem;
+  height: 2.4rem;
+  color: var(--df-ground-deep);
+}
+.dfm-star.is-lit {
+  color: var(--df-gold);
+  filter: drop-shadow(0 2px 0 var(--df-gold-shade));
+  animation: df-pop var(--df-dur-slow) var(--df-ease) both;
+}
+.dfm-star.is-lit:nth-child(2) {
+  animation-delay: 80ms;
+}
+.dfm-star.is-lit:nth-child(3) {
+  animation-delay: 160ms;
+}
+.dfm-star.is-lit:nth-child(4) {
+  animation-delay: 240ms;
+}
+.dfm-star.is-lit:nth-child(5) {
+  animation-delay: 320ms;
+}
+
+/* versus podium: second, first, third */
+.dfm-podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dfm-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.dfm-step-1 {
+  grid-column: 2;
+  grid-row: 1;
+}
+.dfm-step-2 {
+  grid-column: 1;
+  grid-row: 1;
+}
+.dfm-step-3 {
+  grid-column: 3;
+  grid-row: 1;
+}
+.dfm-step-token {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+.dfm-step-crown {
+  position: absolute;
+  top: -44px;
+  left: 50%;
+  translate: -50% 0;
+  rotate: -8deg;
+  z-index: 1;
+}
+.dfm-step .df-tag {
+  max-width: 100%;
+}
+.dfm-step .df-tag-name {
+  max-width: 100%;
+}
+.dfm-step.is-me .df-tag {
+  box-shadow: inset 0 0 0 3px var(--df-rasp-deep);
+}
+.dfm-step-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 14px 8px;
+  border-radius: var(--df-r-md) var(--df-r-md) var(--df-r-xs) var(--df-r-xs);
+  background: var(--df-parchment) var(--df-paper-tex);
+  box-shadow:
+    inset 0 -8px 0 var(--df-parchment-edge),
+    var(--df-shadow-lift);
+}
+.dfm-step-1 .dfm-step-block {
+  min-height: 9rem;
+}
+.dfm-step-2 .dfm-step-block {
+  min-height: 6.5rem;
+}
+.dfm-step-3 .dfm-step-block {
+  min-height: 5rem;
+}
+
+/* hardest moments: one cell per beat, height and colour by the average score */
+.dfm-heat-strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 64px;
+  padding: 6px;
+  border-radius: var(--df-r-sm);
+  background: var(--df-ground-deep);
+  box-shadow: var(--df-shadow-well);
+}
+.dfm-heat-cell {
+  flex: 1 1 0;
+  min-width: 1px;
+  height: var(--dfm-h, 50%);
+  border-radius: 2px 2px 0 0;
+}
+.dfm-heat-cell.is-perfect {
+  background: var(--df-gold);
+}
+.dfm-heat-cell.is-good {
+  background: var(--df-sage);
+}
+.dfm-heat-cell.is-ok {
+  background: var(--df-blue-shade);
+}
+.dfm-heat-cell.is-miss {
+  background: var(--df-rasp-deep);
+}
+.dfm-heat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@keyframes dfm-burst {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+    rotate: -10deg;
+  }
+  18% {
+    opacity: 1;
+    scale: 1.12;
+    rotate: 3deg;
+  }
+  30% {
+    scale: 1;
+    rotate: -2deg;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: -50% -24px;
+  }
+}
+@keyframes dfm-flicker {
+  from {
+    scale: 1 1;
+  }
+  to {
+    scale: 0.92 1.08;
+  }
+}
+
+@media (max-width: 520px) {
+  .dfm-panel {
+    top: 70px;
+    left: 10px;
+    width: min(220px, calc(100% - 20px));
+    padding: 8px 10px 10px;
+    gap: 6px;
+  }
+  .dfm-big {
+    font-size: 1.6rem;
+  }
+  .dfm-flame {
+    width: 15px;
+    height: 20px;
+  }
+  .dfm-sync-next {
+    display: none;
+  }
+  .dfm-podium {
+    gap: 6px;
+  }
+  .dfm-step .df-tag {
+    min-width: 0;
+    padding-inline: 6px;
+  }
+}
