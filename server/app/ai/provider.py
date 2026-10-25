@@ -34,6 +34,7 @@ MIN_BUDGET_SEC = 0.2  # not worth starting a call with less time than this
 # Muse often answers HTTP 404 model_not_found in ~0.1 s, in bursts (flaky upstream routing): an HTTP error this fast
 # is retried on the same provider after a short pause (RETRY_PAUSE_SEC x attempt), up to FAST_RETRIES times.
 FAST_FAIL_SEC = 1.0
+MUSE_FALLBACK_MODEL = "muse-spark-1.1"  # answered 18/18 in 1.8-4 s when 1.3 404ed half the time
 FAST_RETRIES = 3
 RETRY_PAUSE_SEC = 0.3
 KEY_ENV: dict[Provider, str] = {"muse": "MUSE_API_KEY", "gemini": "GEMINI_API_KEY"}
@@ -79,7 +80,17 @@ def _muse(key: str, system: str, user: str, json_mode: bool, temperature: float,
     if json_mode:
         body["response_format"] = {"type": "json_object"}
     base = env("MUSE_BASE_URL", "https://api.meta.ai/v1").rstrip("/")
-    doc = _post(f"{base}/chat/completions", {"authorization": f"Bearer {key}"}, body, timeout)
+    started = time.monotonic()
+    try:
+        doc = _post(f"{base}/chat/completions", {"authorization": f"Bearer {key}"}, body, timeout)
+    except urllib.error.HTTPError as exc:
+        # The newest model often answers 404 model_not_found (flaky routing); the older one answers reliably.
+        fallback = env("MUSE_FALLBACK_MODEL", MUSE_FALLBACK_MODEL)
+        if exc.code != 404 or body["model"] == fallback:
+            raise
+        log.warning("ai.call provider=muse model=%s error=HTTP 404, trying %s", body["model"], fallback)
+        body["model"] = fallback
+        doc = _post(f"{base}/chat/completions", {"authorization": f"Bearer {key}"}, body, timeout - (time.monotonic() - started))
     return _text(doc["choices"][0]["message"]["content"])
 
 

@@ -173,6 +173,36 @@ def test_generate_text_retries_a_provider_that_fails_instantly(monkeypatch: pyte
         server.shutdown()
 
 
+def test_muse_falls_back_to_the_older_model_on_404(monkeypatch: pytest.MonkeyPatch) -> None:
+    models: list[str] = []
+
+    class OnlyOld(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            model = json.loads(self.rfile.read(int(self.headers["Content-Length"])))["model"]
+            models.append(model)
+            ok = model == "muse-spark-1.1"
+            body = {"choices": [{"message": {"content": '{"lines": ["Huzzah!"]}'}}]} if ok else {"error": {"code": "model_not_found"}}
+            self.send_response(200 if ok else 404)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(body).encode())
+
+        def log_message(self, *args: object) -> None:
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), OnlyOld)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setenv("MUSE_API_KEY", "test-key")
+        monkeypatch.setenv("MUSE_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
+        monkeypatch.setenv("MUSE_TEXT_MODEL", "muse-spark-1.3")
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        text, provider = generate_text("system", "user", deadline_sec=5.0, json_mode=True)
+        assert provider == "muse" and "Huzzah!" in text and models == ["muse-spark-1.3", "muse-spark-1.1"]
+    finally:
+        server.shutdown()
+
+
 def test_generate_text_without_keys_raises() -> None:
     with pytest.raises(AIUnavailable, match="no AI provider key"):
         generate_text("system", "user", deadline_sec=1)
