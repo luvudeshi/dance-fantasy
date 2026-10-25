@@ -9,8 +9,8 @@ Lock order, to stay deadlock-free on Postgres: a transaction locks its room row 
 
 Per-beat judgements go to ``df_room_beats`` and outlive their room: they feed each song's
 "hardest moments" heatmap. On Postgres with the timescaledb extension that table is a hypertable
-on ``round_ms`` (the round's start, epoch ms) and ``df_beat_heat`` is a continuous aggregate of
-score sums per (analysis_id, beat, day); without timescaledb the heatmap reads the table itself.
+on ``round_ms`` (the round's start, epoch ms) and ``df_round_heat`` is a continuous aggregate of
+clamped score sums per (analysis_id, room round, beat); without it the heatmap reads the table itself.
 """
 
 from __future__ import annotations
@@ -100,6 +100,7 @@ _ROOM_COLUMNS = (
 )
 
 # Postgres with timescaledb only; if any of it fails the heatmap reads df_room_beats (_pg_timescale).
+# The aggregate keeps one row per room round and beat, so the heatmap weighs every round once.
 _TIMESCALE = (
     "create extension if not exists timescaledb",
     "select create_hypertable('df_room_beats', 'round_ms', chunk_time_interval => bigint '604800000',"
@@ -111,11 +112,12 @@ _TIMESCALE = (
 _HEAT_VIEW = (
     # "with no data": creating a continuous aggregate with data can't run inside a transaction.
     # materialized_only = false: reads include rows newer than the last refresh, so it's always current.
-    "create materialized view df_beat_heat"
+    "create materialized view df_round_heat"
     " with (timescaledb.continuous, timescaledb.materialized_only = false) as"
-    " select analysis_id, beat, time_bucket(bigint '86400000', round_ms) as bucket,"
-    " sum(score) as total, count(*) as n from df_room_beats group by analysis_id, beat, bucket with no data",
-    "select add_continuous_aggregate_policy('df_beat_heat', start_offset => bigint '34560000000',"
+    " select analysis_id, code, round_ms, beat, time_bucket(bigint '86400000', round_ms) as bucket,"
+    " sum(least(greatest(score, 0), 100)) as total, count(*) as n from df_room_beats"
+    " group by analysis_id, code, round_ms, beat, bucket with no data",
+    "select add_continuous_aggregate_policy('df_round_heat', start_offset => bigint '34560000000',"
     " end_offset => bigint '60000', schedule_interval => interval '15 minutes', if_not_exists => true)",
 )
 
@@ -154,8 +156,8 @@ def _add_room_columns(tx: Tx, existing: set[str]) -> None:
 
 
 def heat_view_exists(tx: Tx) -> bool:
-    """Whether the df_beat_heat continuous aggregate exists (Postgres with timescaledb)."""
-    row = tx.one("select to_regclass('df_beat_heat') is not null as ok") if tx.postgres else None
+    """Whether the df_round_heat continuous aggregate exists (Postgres with timescaledb)."""
+    row = tx.one("select to_regclass('df_round_heat') is not null as ok") if tx.postgres else None
     return bool(row and row["ok"])
 
 
@@ -261,24 +263,22 @@ def _pg_bootstrap(con: pg8000.dbapi.Connection, url: str) -> None:
 
 
 def _pg_timescale(tx: Tx) -> None:
-    """Make df_room_beats a hypertable with the df_beat_heat aggregate, when timescaledb is available."""
+    """Make df_room_beats a hypertable with the df_round_heat aggregate, when timescaledb is available."""
     if not tx.one("select 1 as ok from pg_available_extensions where name = 'timescaledb'"):
         log.info("rooms: no timescaledb here; the heatmap reads df_room_beats")
         return
-    tx.run("savepoint df_timescale")
-    try:
-        for stmt in _TIMESCALE:
-            tx.run(stmt)
-        if not heat_view_exists(tx):
-            for stmt in _HEAT_VIEW:
+    # Each step in its own savepoint: the plain tables are already there, a failed extra is just skipped.
+    for name, stmts in (("df_timescale", _TIMESCALE), ("df_heat", () if heat_view_exists(tx) else _HEAT_VIEW)):
+        tx.run(f"savepoint {name}")
+        try:
+            for stmt in stmts:
                 tx.run(stmt)
-    except pg8000.dbapi.DatabaseError as exc:
-        # The plain tables are already there; only the timescale extras are skipped.
-        tx.run("rollback to savepoint df_timescale")
-        log.warning("rooms: timescaledb setup failed, the heatmap reads df_room_beats: %s", exc)
-        return
-    tx.run("release savepoint df_timescale")
-    log.info("rooms: df_room_beats is a hypertable feeding the df_beat_heat aggregate")
+        except pg8000.dbapi.DatabaseError as exc:
+            tx.run(f"rollback to savepoint {name}")
+            log.warning("rooms: timescaledb setup (%s) failed, the heatmap reads df_room_beats: %s", name, exc)
+            return
+        tx.run(f"release savepoint {name}")
+    log.info("rooms: df_room_beats is a hypertable feeding the df_round_heat aggregate")
 
 
 def _postgres[T](url: str, fn: Callable[[Tx], T]) -> T:

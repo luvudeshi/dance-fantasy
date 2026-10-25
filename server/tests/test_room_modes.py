@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from test_rooms import ROUTINE, SCORE, auth, backend, client, now_ms, rewind_start  # noqa: F401 - fixtures
+from test_rooms import ROUTINE, SCORE, auth, backend, client, now_ms, rewind_start, write_routine  # noqa: F401 - fixtures
 
 from app.config import get_settings
 from app.rooms import modes, store
@@ -227,21 +227,21 @@ def test_rematch_replays_the_same_routine_and_mode(backend: str) -> None:
     assert again.startAt is not None
     beats(code, host, good(0), again.startAt + 100)
     assert beats(code, guest, good(0), again.startAt + 100).crew.syncedBeats == 1
-    assert [b.samples for b in modes.heatmap(routine.analysisId).beats] == [4]
+    assert [b.samples for b in modes.heatmap(routine.analysisId).beats] == [2]  # two rounds
 
 
-def test_heatmap_averages_each_beat_across_rooms(backend: str) -> None:
+def test_heatmap_averages_each_round_then_across_rounds(backend: str) -> None:
     routine = song()
-    first, (guest,), s1 = room(1, "versus", routine)
+    first, guests, s1 = room(3, "versus", routine)
     second, _, s2 = room(0, "crew", routine)
     other, _, s3 = room(0, "versus")  # another song
-    beats(first.code, first, judge((0, 100, "perfect"), (1, 20, "miss")), s1 + 1_000)
-    beats(first.code, guest, judge((0, 80, "good"), (1, 40, "ok")), s1 + 1_000)
-    beats(second.code, second, judge((1, 30, "miss"), (2, 66, "ok")), s2 + 1_000)
+    for p in (first, *guests):  # four dancers in one round still weigh as one round
+        beats(first.code, p, judge((0, 100, "perfect"), (1, 20, "miss")), s1 + 1_000)
+    beats(second.code, second, judge((0, 0, "miss"), (1, 40, "ok"), (2, 66, "ok")), s2 + 1_000)
     beats(other.code, other, judge((0, 1, "miss")), s3 + 1_000)
     heat = modes.heatmap(routine.analysisId)
     assert heat.analysisId == routine.analysisId
-    assert [(b.beat, b.avgScore, b.samples) for b in heat.beats] == [(0, 90.0, 2), (1, 30.0, 3), (2, 66.0, 1)]
+    assert [(b.beat, b.avgScore, b.samples) for b in heat.beats] == [(0, 50.0, 2), (1, 30.0, 2), (2, 66.0, 1)]
     assert modes.heatmap(secrets.token_hex(32)).beats == []
 
 
@@ -269,7 +269,9 @@ def test_modes_over_http(client: TestClient) -> None:
     code = host["code"]
     guest = client.post(f"/api/rooms/{code}/join", json={"name": "Guest"}).json()
     analysis = secrets.token_hex(32)
-    client.post(f"/api/rooms/{code}/routine", json={**ROUTINE, "analysisId": analysis}, headers=auth(host["token"]))
+    write_routine("00000000000000aa", analysis)
+    routine = {**ROUTINE, "routineId": "00000000000000aa", "analysisId": analysis}
+    assert client.post(f"/api/rooms/{code}/routine", json=routine, headers=auth(host["token"])).status_code == 200
     assert client.post(f"/api/rooms/{code}/mode", json={"mode": "solo"}, headers=auth(host["token"])).status_code == 400
     r = client.post(f"/api/rooms/{code}/mode", json={"mode": "crew"}, headers=auth(host["token"]))
     assert r.status_code == 200 and r.json()["mode"] == "crew"
@@ -296,5 +298,5 @@ def test_modes_over_http(client: TestClient) -> None:
 
     heat = client.get(f"/api/songs/{analysis}/heatmap")
     assert heat.status_code == 200
-    assert heat.json() == {"analysisId": analysis, "beats": [{"beat": 0, "avgScore": 88.5, "samples": 2}]}
+    assert heat.json() == {"analysisId": analysis, "beats": [{"beat": 0, "avgScore": 88.5, "samples": 1}]}
     assert client.get("/api/songs/not-a-song/heatmap").status_code == 400

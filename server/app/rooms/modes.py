@@ -141,18 +141,30 @@ def crew_stats(room: Row, total_score: int) -> CrewStats:
 
 
 def heatmap(analysis_id: str) -> Heatmap:
-    """Average score per beat of this song across every room and round (the continuous aggregate if any)."""
+    """Average score per beat of this song: each room round's (clamped) average first, then the mean over
+    rounds, so every round weighs the same however many dancers or judgements it had (the continuous
+    aggregate if there is one)."""
 
     def run(tx: Tx) -> Heatmap:
         if heat_view_exists(tx):
-            sql = "select beat, sum(total) as total, sum(n) as n from df_beat_heat where analysis_id = :aid"
+            per_round = (
+                "select beat, sum(total) * 1.0 / sum(n) as r from df_round_heat where analysis_id = :aid"
+                " group by code, round_ms, beat"
+            )
         else:
-            sql = "select beat, sum(score) as total, count(*) as n from df_room_beats where analysis_id = :aid"
-        rows = tx.all(sql + " group by beat order by beat", aid=analysis_id)
+            per_round = (
+                "select beat, avg(case when score < 0 then 0 when score > 100 then 100 else score end) as r"
+                " from df_room_beats where analysis_id = :aid group by code, round_ms, beat"
+            )
+        rows = tx.all(
+            f"select beat, avg(r) as avg_score, count(*) as rounds from ({per_round}) as per_round"
+            " group by beat order by beat",
+            aid=analysis_id,
+        )
         return Heatmap(
             analysisId=analysis_id,
             beats=[
-                HeatBeat(beat=int(r["beat"]), avgScore=round(float(r["total"]) / int(r["n"]), 2), samples=int(r["n"]))
+                HeatBeat(beat=int(r["beat"]), avgScore=round(float(r["avg_score"]), 2), samples=int(r["rounds"]))
                 for r in rows
             ],
         )

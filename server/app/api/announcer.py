@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from collections import deque
 from typing import Annotated, Literal
@@ -30,6 +29,7 @@ from app.ai.prompts import (
 )
 from app.ai.provider import AIUnavailable, configured, env, generate_text
 from app.ai.voice import VoiceUnavailable, cached_wav, known_text, remember, synthesize, voice_name
+from app.api.limits import client_ip
 from app.config import Settings, get_settings
 
 log = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ async def _announce(req: AnnouncerRequest) -> AnnouncerReply:
 @router.post("/announcer")
 async def announcer(req: AnnouncerRequest, request: Request, settings: SettingsDep) -> AnnouncerReply:
     """1-3 announcer lines (<= 90 chars each) for the event, each with the id that voices it. 429 when too many."""
-    _rate_limit(_line_hits, LINES_RATE_LIMIT, _client(request), "Too many announcer requests; slow down.")
+    _rate_limit(_line_hits, LINES_RATE_LIMIT, client_ip(request), "Too many announcer requests; slow down.")
     key = req.model_dump_json()
     now = time.monotonic()
     hit = _cache.get(key)
@@ -138,13 +138,6 @@ _hits: dict[str, deque[float]] = {}
 _line_hits: dict[str, deque[float]] = {}
 
 
-def _client(request: Request) -> str:
-    # Vercel's edge sets x-real-ip to the caller's address (a client can't spoof it there); elsewhere the socket.
-    if os.environ.get("VERCEL") and (ip := request.headers.get("x-real-ip")):
-        return ip
-    return request.client.host if request.client else "?"
-
-
 def _rate_limit(hits: dict[str, deque[float]], limit: int, client: str, message: str) -> None:
     """429 once ``client`` has made ``limit`` requests (tracked in ``hits``) in the last RATE_WINDOW_SEC."""
     now = time.monotonic()
@@ -167,7 +160,7 @@ def _rate_limit(hits: dict[str, deque[float]], limit: int, client: str, message:
 )
 async def announcer_voice(lid: str, request: Request, settings: SettingsDep) -> Response:
     """A line /api/announcer gave out, voiced by the herald. 404 unknown id, 429 too many, 503 no voice."""
-    _rate_limit(_hits, RATE_LIMIT, _client(request), "Too many voice requests; slow down.")
+    _rate_limit(_hits, RATE_LIMIT, client_ip(request), "Too many voice requests; slow down.")
     text = await asyncio.to_thread(known_text, settings.cache_dir, lid)
     if text is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown announcer line.")

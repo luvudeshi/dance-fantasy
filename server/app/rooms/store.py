@@ -31,6 +31,7 @@ from app.rooms.models import (
     Joined,
     PlayerView,
     RoomMode,
+    RoomPeek,
     RoomState,
     RoomView,
     RoutineChoice,
@@ -264,6 +265,17 @@ def get_room(code: str, token: str | None, chat_after: int | None, now: int) -> 
         if token is not None:
             _player(tx, room, token, now, touch_room=False)
         return _view(tx, room, chat_after, now)
+
+    return transaction(run)
+
+
+def peek_room(code: str, now: int) -> RoomPeek:
+    """The public summary of a room (no players, no chat): what GET answers without a seat token."""
+
+    def run(tx: Tx) -> RoomPeek:
+        room = _live_room(tx, code, now, lock=False)
+        players = _players(tx, room["code"])
+        return RoomPeek(code=room["code"], state=_state(room, players, now), playerCount=len(players), mode=room["mode"])
 
     return transaction(run)
 

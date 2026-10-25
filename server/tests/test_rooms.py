@@ -7,6 +7,7 @@ API tests use the real clock and fast-forward by moving ``start_at`` back in the
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from collections.abc import Iterator
@@ -17,6 +18,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from app.api import rooms as rooms_api
 from app.config import get_settings
 from app.main import app
 from app.rooms import store
@@ -35,12 +37,21 @@ SCORE = {"score": 1200, "combo": 4, "maxCombo": 9, "accuracy": 81.5, "progress":
 MIN = 60_000
 
 
+def write_routine(routine_id: str, analysis_id: str) -> None:
+    """A generated routine on disk (the routine store), so rooms accept it for that song."""
+    path = get_settings().cache_dir / "routines" / f"{routine_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"meta": {"routineId": routine_id, "analysisId": analysis_id}}))
+
+
 @pytest.fixture(params=BACKENDS)
 def backend(request: pytest.FixtureRequest, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     monkeypatch.setenv("ASSETS_DIR", str(tmp_path))  # SQLite file lands in tmp_path/cache
     if request.param == "sqlite":
         monkeypatch.delenv("DATABASE_URL", raising=False)
     get_settings.cache_clear()
+    rooms_api._misses.clear()
+    write_routine(ROUTINE["routineId"], ROUTINE["analysisId"])
     yield str(request.param)
     get_settings.cache_clear()
 
@@ -78,7 +89,9 @@ def test_full_flow(client: TestClient) -> None:
     guest = client.post(f"/api/rooms/{code.lower()}/join", json={"name": "ana lopez"}).json()
     third = client.post(f"/api/rooms/{code}/join", json={"name": "Zoë"}).json()
 
-    room = client.get(f"/api/rooms/{code}").json()
+    # Without a seat token only the public summary: no players, no chat.
+    assert client.get(f"/api/rooms/{code}").json() == {"code": code, "state": "lobby", "playerCount": 3, "mode": "versus"}
+    room = client.get(f"/api/rooms/{code}", headers=auth(third["token"])).json()
     assert room["state"] == "lobby" and room["startAt"] is None and room["routine"] is None
     assert room["hostId"] == host["playerId"]
     assert [p["name"] for p in room["players"]] == ["Ana Lopez", "ana lopez 2", "Zoë"]
@@ -127,10 +140,12 @@ def test_full_flow(client: TestClient) -> None:
     # Chat: polling with the last id seen returns only newer messages.
     r = client.post(f"/api/rooms/{code}/chat", json={"text": "  good \n game! 🎉 "}, headers=auth(third["token"]))
     assert r.status_code == 200
-    first = client.get(f"/api/rooms/{code}").json()["chat"]
+    first = client.get(f"/api/rooms/{code}", headers=auth(third["token"])).json()["chat"]
     assert [(m["name"], m["text"], m["playerId"]) for m in first] == [("Zoë", "good game! 🎉", third["playerId"])]
     client.post(f"/api/rooms/{code}/chat", json={"text": "rematch?"}, headers=auth(host["token"]))
-    newer = client.get(f"/api/rooms/{code}", params={"chatAfter": first[0]["id"]}).json()["chat"]
+    newer = client.get(f"/api/rooms/{code}", params={"chatAfter": first[0]["id"]}, headers=auth(third["token"])).json()[
+        "chat"
+    ]
     assert [m["text"] for m in newer] == ["rematch?"]
 
     # Picking a routine after the song resets the room to the lobby.
@@ -170,6 +185,29 @@ def test_auth_and_unknown_rooms(client: TestClient) -> None:
         assert client.post(f"/api/rooms/{bad}/join", json={"name": "x"}).status_code == 404, bad
 
 
+def test_room_code_guessing_is_throttled(client: TestClient) -> None:
+    host = client.post("/api/rooms", json={"name": "Host"}).json()
+    missing = next(c for c in ("BCDF", "GHJK", "MNPQ") if c != host["code"])
+    for i in range(rooms_api.LOOKUP_MISSES):
+        url = f"/api/rooms/{missing}" + ("/join" if i % 2 else "")
+        r = client.post(url, json={"name": "x"}) if i % 2 else client.get(url)
+        assert r.status_code == 404
+    # Out of misses: every lookup from this client waits, hits included; seated polls too.
+    r = client.get(f"/api/rooms/{host['code']}")
+    assert r.status_code == 429 and int(r.headers["retry-after"]) >= 1
+    assert client.post(f"/api/rooms/{host['code']}/join", json={"name": "x"}).status_code == 429
+    rooms_api._misses.clear()  # the window passed
+    assert client.get(f"/api/rooms/{host['code']}").json()["playerCount"] == 1
+
+
+def test_routines_must_exist_for_their_song(client: TestClient) -> None:
+    host = client.post("/api/rooms", json={"name": "Host"}).json()
+    url, h = f"/api/rooms/{host['code']}/routine", auth(host["token"])
+    assert client.post(url, json={**ROUTINE, "routineId": "fedcba9876543210"}, headers=h).status_code == 404
+    assert client.post(url, json={**ROUTINE, "analysisId": "cd" * 32}, headers=h).status_code == 404  # another song
+    assert client.post(url, json=ROUTINE, headers=h).status_code == 200
+
+
 def test_validation(client: TestClient) -> None:
     for name in ("", "   ", "x" * 25, "bad\x00name", 7):
         assert client.post("/api/rooms", json={"name": name}).status_code == 400, name
@@ -193,7 +231,7 @@ def test_validation(client: TestClient) -> None:
     for text in ("", " \n ", "x" * 201):
         assert client.post(f"/api/rooms/{code}/chat", json={"text": text}, headers=h).status_code == 400
     assert client.post(f"/api/rooms/{code}/chat", json={"text": "x" * 200}, headers=h).status_code == 200
-    assert client.get(f"/api/rooms/{code}", params={"chatAfter": -1}).status_code == 400
+    assert client.get(f"/api/rooms/{code}", params={"chatAfter": -1}, headers=h).status_code == 400
 
 
 def test_room_limits(client: TestClient) -> None:
@@ -205,13 +243,13 @@ def test_room_limits(client: TestClient) -> None:
     assert all("token" in n for n in names)
     r = client.post(f"/api/rooms/{code}/join", json={"name": "Late"})
     assert r.status_code == 409
-    room = client.get(f"/api/rooms/{code}").json()
+    room = client.get(f"/api/rooms/{code}", headers=auth(host["token"])).json()
     assert [p["name"] for p in room["players"]] == ["Dancer"] + [f"dancer {i}" for i in range(2, 9)]
 
     # Unique names stay within 24 characters.
     long = client.post("/api/rooms", json={"name": "y" * 24}).json()
     twin = client.post(f"/api/rooms/{long['code']}/join", json={"name": "Y" * 24}).json()
-    names_long = [p["name"] for p in client.get(f"/api/rooms/{long['code']}").json()["players"]]
+    names_long = [p["name"] for p in client.get(f"/api/rooms/{long['code']}", headers=auth(long["token"])).json()["players"]]
     assert twin["playerId"] and names_long == ["y" * 24, "Y" * 22 + " 2"]
 
     # Chat rate limit: a burst of 5, then 429.
@@ -231,7 +269,7 @@ def test_leave_moves_host_and_empty_rooms_close(client: TestClient) -> None:
     b = client.post(f"/api/rooms/{code}/join", json={"name": "B"}).json()
     c = client.post(f"/api/rooms/{code}/join", json={"name": "C"}).json()
     assert client.post(f"/api/rooms/{code}/leave", headers=auth(host["token"])).json() == {"ok": True}
-    room = client.get(f"/api/rooms/{code}").json()
+    room = client.get(f"/api/rooms/{code}", headers=auth(b["token"])).json()
     assert room["hostId"] == b["playerId"] and [p["name"] for p in room["players"]] == ["B", "C"]
     assert client.get(f"/api/rooms/{code}", headers=auth(host["token"])).status_code == 401
     client.post(f"/api/rooms/{code}/leave", headers=auth(c["token"]))

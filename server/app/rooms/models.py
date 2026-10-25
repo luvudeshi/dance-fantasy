@@ -140,10 +140,19 @@ class RoomView(BaseModel):
     chat: list[ChatMessage]
 
 
+class RoomPeek(BaseModel):
+    """GET /api/rooms/{code} without a seat: enough for a join page to show the room exists."""
+
+    code: str
+    state: RoomState
+    playerCount: int
+    mode: RoomMode
+
+
 class HeatBeat(BaseModel):
     beat: int
     avgScore: float
-    samples: int
+    samples: int  # rounds that judged this beat (each round counts once)
 
 
 class Heatmap(BaseModel):
