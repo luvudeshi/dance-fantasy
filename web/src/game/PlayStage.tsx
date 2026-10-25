@@ -1,19 +1,24 @@
 // Full-window play stage: one canvas redrawn every animation frame from the audio clock
 // (clock.songTime()), an HTML top bar (song, section, progress) updated from the same frame,
-// the D debug overlay and whatever overlays the page passes as children.
+// the D debug overlay and whatever overlays the page passes as children. With a scored run,
+// each frame also ticks the run (bot, then scoring) and paints the HUD and the webcam PIP.
 
 import { useEffect, useRef, type ReactNode } from 'react'
 import { prepareCanvas } from '../lib/canvas'
 import { RateMeter } from '../lib/rateMeter'
 import { useLatest } from '../lib/useLatest'
 import type { GameClock } from './clock'
+import { drawHud, drawPip, pipBox } from './hud'
 import { renderIdleStage, renderPlayFrame } from './render'
+import type { GameRun } from './run'
 import type { PreparedGame } from './session'
 import { estimateSongTime, type SyncMonitor, type SyncStats } from './sync'
 
 export interface ActiveGame {
   game: PreparedGame
   monitor: SyncMonitor
+  /** The scored play-through (pose source + ScoreKeeper + HUD); null = coach only. */
+  run?: GameRun | null
 }
 
 interface Props {
@@ -21,6 +26,8 @@ interface Props {
   active: ActiveGame | null
   mirrored: boolean
   debug: boolean
+  /** Webcam picture-in-picture (C). */
+  pip: boolean
   paused: boolean
   title: string
   subtitle: string
@@ -56,13 +63,13 @@ function debugText(o: {
 }
 
 export default function PlayStage(props: Props) {
-  const { clock, active, mirrored, debug, paused, title, subtitle, onTogglePause, onExit, children } = props
+  const { clock, active, mirrored, debug, pip, paused, title, subtitle, onTogglePause, onExit, children } = props
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sectionRef = useRef<HTMLSpanElement>(null)
   const progressRef = useRef<HTMLSpanElement>(null)
   const debugRef = useRef<HTMLPreElement>(null)
-  const viewRef = useLatest({ mirrored, debug })
+  const viewRef = useLatest({ mirrored, debug, pip })
 
   // The frame loop: everything visual is derived from clock.songTime() each frame.
   useEffect(() => {
@@ -95,6 +102,9 @@ export default function PlayStage(props: Props) {
       if (active) {
         t = clock.songTime()
         monitor?.frame(frameMs, t, (at) => estimateSongTime(clock.outputTimestamp(), at, clock.startAt))
+        // Bot first, then scoring: results finalized up to the time drawn this frame.
+        const run = active.run ?? null
+        run?.tick(t)
         if (prepared) {
           const { game } = active
           const info = renderPlayFrame(prepared.ctx, prepared.width, prepared.height, {
@@ -111,6 +121,20 @@ export default function PlayStage(props: Props) {
             rootRef.current?.style.setProperty('--stage-accent', info.theme.accent)
           }
           if (progressRef.current) progressRef.current.style.transform = `scaleX(${info.progress.toFixed(4)})`
+          if (run) {
+            const hv = run.hud.view(performance.now(), clock.playing)
+            if (view.pip) {
+              const video = run.source.video
+              const aspect = video && video.videoWidth > 0 && video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 4 / 3
+              drawPip(prepared.ctx, pipBox(prepared.width, info.layout, aspect), {
+                kind: run.source.kind,
+                video,
+                frame: run.source.latest(),
+                tint: hv.tint,
+              })
+            }
+            drawHud(prepared.ctx, { width: prepared.width, height: prepared.height, layout: info.layout, popAnchor: info.popAnchor }, hv)
+          }
         }
       } else if (prepared) {
         renderIdleStage(prepared.ctx, prepared.width, prepared.height, frameMs / 1000)
@@ -169,7 +193,7 @@ export default function PlayStage(props: Props) {
       {debug && <pre ref={debugRef} className="play-debug" />}
       {children}
       <div className="play-keys">
-        Space pause · R restart · M mirror ({mirrored ? 'on' : 'off'}) · D debug · Esc lobby
+        Space pause · R restart · M mirror ({mirrored ? 'on' : 'off'}) · C camera · D debug · Esc lobby
       </div>
     </div>
   )

@@ -17,7 +17,7 @@ HackTX 2026 · storybook theme.
 | 1 | Audio analysis (`/api/analyze`) + debug timeline | ✅ |
 | 2 | Move library (50 moves + mirrors) + choreography generator | ✅ |
 | 3 | Glowing coach, smooth motion, `#/play` with cue strip + audio-clock sync | ✅ |
-| 4 | Scoring + game loop (**MVP**) | |
+| 4 | Calibration, per-beat webcam scoring, HUD, results (**MVP**, tag `mvp`) | ✅ |
 | 5 | Difficulty, seated mode, teach mode | |
 | 6 | Remote dance-off | |
 | 7 | SerpApi features | |
@@ -38,11 +38,27 @@ make setup     # first time: Python venv + npm deps + MediaPipe wasm/models (~60
 make dev       # API on :8000 and web on :5173 together; Ctrl-C stops both
 ```
 
-Open **http://localhost:5173**. It starts on **▶ Play**: pick a song, difficulty
-(easy/normal/hard), standing or seated, and press **Start the ball**. The glowing coach
-dances the generated routine in sync with the music, and upcoming moves slide in at the
-bottom with a 3 · 2 · 1 countdown. Keys: Space pause, R restart, M mirror, D debug
-overlay (FPS, latency, sync drift), Esc back to the lobby.
+Open **http://localhost:5173** in Chrome. It starts on **▶ Play**:
+
+1. Pick a song, difficulty (easy/normal/hard), standing or seated, and press **Start the ball**.
+2. **Magic mirror (calibration):** stand back until your whole body is in view (upper body
+   when seated), hold a star pose (both hands up and out) for a second, then clap along
+   with 8 clicks so the game can measure your camera's delay. `K` skips it.
+3. **Dance:** copy the glowing coach like a mirror. Every beat is judged
+   **Perfect / Good / OK / Miss** from your limb angles; keep the combo going for bonus
+   points. Upcoming moves slide in at the bottom with a 3 · 2 · 1 countdown.
+4. **Results:** score, stars, accuracy, your hardest and best moves, then play again or
+   get a new routine.
+
+No camera (or judging from across the room)? Turn on **Autoplay (bot)** in the lobby.
+Keys: Space pause, R restart, M mirror, C camera window, D debug overlay (FPS, latency,
+sync drift), Esc back to the lobby.
+
+How scoring works: each on-beat pose of a move is a checkpoint. Your upper arms, forearms,
+thighs, shins and (for leaning moves) torso are compared with the coach's by 2D direction
+(100 within 15°, 0 beyond 60°), taking your best frame within ±150 ms after subtracting the
+measured camera delay. Beats where the coach is just resting aren't scored, so standing
+still earns nothing. Pose detection runs entirely in your browser.
 
 Dev pages:
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { coachThemeFor } from '../render/coach'
 import { stubContext } from '../render/stubCanvas'
-import { drawCountIn, playLayout } from './render'
+import { NEUTRAL_POSE } from '../routine/pose'
+import { drawCountIn, playLayout, popAnchor } from './render'
 
 describe('count-in overlay', () => {
   const L = playLayout(1024, 768, true)
@@ -36,6 +37,30 @@ describe('play layout', () => {
       expect(L.coach.floorY).toBeLessThanOrEqual(L.strip.y)
       expect(L.coach.floorY).toBeGreaterThan(L.coachArea.y)
       expect(L.hitX).toBeGreaterThan(L.strip.x)
+    }
+  })
+})
+
+describe('judgment pop anchor', () => {
+  it('sits left of the coach\'s screen-left shoulder, above it, inside the coach area', () => {
+    for (const mirrored of [true, false]) {
+      const L = playLayout(1280, 720, mirrored)
+      const [x, y] = popAnchor(NEUTRAL_POSE, [0, 0], L)
+      const shoulderY = L.coach.floorY - (1.85 + 1) * L.coach.scale
+      expect(x).toBeLessThan(L.coach.cx - 0.45 * L.coach.scale)
+      expect(y).toBeLessThan(shoulderY)
+      expect(x).toBeGreaterThan(L.coachArea.x)
+      expect(y).toBeGreaterThan(L.coachArea.y)
+    }
+  })
+
+  it('stays on screen on a narrow phone layout and without shoulders', () => {
+    const L = playLayout(390, 844, true)
+    for (const pose of [NEUTRAL_POSE, {}]) {
+      const [x, y] = popAnchor(pose, [0, 0], L)
+      expect(x).toBeGreaterThanOrEqual(L.coachArea.x)
+      expect(x).toBeLessThanOrEqual(L.coachArea.x + L.coachArea.w)
+      expect(y).toBeGreaterThanOrEqual(L.coachArea.y)
     }
   })
 })

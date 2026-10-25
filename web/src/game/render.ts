@@ -3,11 +3,13 @@
 // overlay. Every visual is a function of the song time `t` passed in (the audio clock).
 
 import type { Routine } from '@shared/routine'
+import type { Pose2D, Vec2 } from '@shared/skeleton'
 import type { Ctx2D } from '../pose/draw'
+import { bodyToScreen } from '../pose/normalize'
 import { coachThemeFor, drawCoach, type CoachTheme, type CoachView } from '../render/coach'
 import { drawPictogram, type Box } from '../render/pictogram'
 import { drawStage } from '../render/stage'
-import { fitFigureView } from '../render/stickFigure'
+import { figureBodyView, fitFigureView } from '../render/stickFigure'
 import type { MotionTrack } from '../routine/track'
 import {
   beatPulse,
@@ -71,6 +73,26 @@ export interface PlayFrameInfo {
   theme: CoachTheme
   /** 0..1 through the song. */
   progress: number
+  layout: PlayLayout
+  /** Screen point beside the coach's (screen-left) shoulder where judgment pops appear. */
+  popAnchor: Vec2
+}
+
+/**
+ * Where judgment pops go: beside the coach's shoulder that is on the screen's left (away from
+ * the score panel and the webcam PIP on the right), kept inside the coach area.
+ */
+export function popAnchor(pose: Pose2D, root: Vec2, L: Pick<PlayLayout, 'coach' | 'coachArea'>): Vec2 {
+  const bv = figureBodyView(L.coach, root)
+  const s = L.coach.scale
+  const pts = [pose.l_shoulder, pose.r_shoulder].filter((p): p is Vec2 => p !== undefined).map((p) => bodyToScreen(p, bv))
+  const sh: Vec2 =
+    pts.length > 0 ? pts.reduce((a, b) => (b[0] < a[0] ? b : a)) : bodyToScreen([0, -1], bv)
+  const a = L.coachArea
+  const marginX = Math.min(a.w / 2, Math.max(90, s * 0.9))
+  const x = clamp(sh[0] - s * 1.05, a.x + marginX, a.x + a.w - marginX)
+  const y = clamp(sh[1] - s * 0.25, a.y + 40, a.y + Math.max(40, a.h - 40))
+  return [x, y]
 }
 
 export function renderPlayFrame(ctx: Ctx2D, width: number, height: number, f: PlayFrame): PlayFrameInfo {
@@ -88,7 +110,13 @@ export function renderPlayFrame(ctx: Ctx2D, width: number, height: number, f: Pl
   drawCountIn(ctx, L, timeline, t, theme)
 
   const dur = f.durationSec > 0 ? f.durationSec : routine.song.durationSec
-  return { section: label, theme, progress: dur > 0 ? clamp(t / dur, 0, 1) : 0 }
+  return {
+    section: label,
+    theme,
+    progress: dur > 0 ? clamp(t / dur, 0, 1) : 0,
+    layout: L,
+    popAnchor: popAnchor(sample.pose, sample.root, L),
+  }
 }
 
 /** Backdrop while the routine is loading (ambient time from the frame clock; no song yet). */

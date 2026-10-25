@@ -1,20 +1,34 @@
-// The game: a lobby (song, difficulty, mode, seed) and a full-window stage where the glowing
-// coach dances to the song, cue cards slide in and a 3-2-1 count-in starts the ball. Playback
-// and every visual run on the AudioContext clock (src/game/clock.ts); Stage 4 adds scoring.
+// The game: a lobby (song, difficulty, mode, seed, autoplay, skip calibration) and a
+// full-window stage. Flow (game/flow.ts): lobby -> generating (analysis + routine + audio) ->
+// calibration (webcam framing + latency) -> warmup (camera ready) -> game (glowing coach,
+// cue strip, live per-beat scoring + HUD) -> results. Playback and every visual run on the
+// AudioContext clock (src/game/clock.ts). Webcam frames and poses never leave the browser.
 
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useReducer, useRef, useState, type ChangeEvent } from 'react'
 import type { Analysis } from '@shared/analysis'
 import type { Difficulty, Mode } from '@shared/routine'
 import { ApiError, listSongs, type SongInfo } from '../api'
+import { BotPoseSource, type BotSkill } from '../game/botSource'
+import CalibrationScreen from '../game/CalibrationScreen'
+import { loadCalibration, type Calibration } from '../game/calibration'
 import { GameClock } from '../game/clock'
+import { flowReducer, needsCalibration } from '../game/flow'
 import PlayStage, { type ActiveGame } from '../game/PlayStage'
+import ResultsScreen from '../game/ResultsScreen'
+import { buildResultsView, type ResultsView } from '../game/results'
+import { GameRun } from '../game/run'
+import { buildCheckpoints, ScoreKeeper } from '../game/scoring'
 import { apiSessionDeps, prepareGame, STEP_LABELS, type PreparedGame, type SessionState, type SongChoice } from '../game/session'
 import { DriftMeter, SyncMonitor } from '../game/sync'
+import { songTimeAtFromClock, WebcamPoseSource } from '../game/webcamSource'
 import { errorMessage, isAbortError } from '../lib/errors'
 import { useLatest } from '../lib/useLatest'
 import './play.css'
 
 const randomSeed = (): number => Math.floor(Math.random() * 1_000_000)
+
+/** Autoplay dances well but not flawlessly, so a demo shows every judgment. */
+const BOT_SKILL: BotSkill = 'good'
 
 const DIFFICULTIES: readonly { value: Difficulty; label: string }[] = [
   { value: 'easy', label: 'Easy' },
@@ -43,6 +57,11 @@ function blurFocus(): void {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
 }
 
+interface Camera {
+  source: WebcamPoseSource
+  offError: () => void
+}
+
 export default function Play() {
   // Survives dispose() (the AudioContext is recreated on the next unlock), so StrictMode's
   // mount -> unmount -> mount keeps working with the same instance.
@@ -54,36 +73,110 @@ export default function Play() {
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
   const [mode, setMode] = useState<Mode>('standing')
   const [seed, setSeed] = useState(randomSeed)
+  const [autoplay, setAutoplay] = useState(false)
+  const [skipCal, setSkipCal] = useState(false)
   const [onStage, setOnStage] = useState(false)
+  const [phase, dispatch] = useReducer(flowReducer, 'lobby')
   const [session, setSession] = useState<SessionState>({ status: 'idle' })
+  /** The game waiting for calibration / the camera (not playing yet). */
+  const [prepared, setPrepared] = useState<PreparedGame | null>(null)
   const [active, setActive] = useState<ActiveGame | null>(null)
+  const [results, setResults] = useState<ResultsView | null>(null)
+  const [camSource, setCamSource] = useState<WebcamPoseSource | null>(null)
+  const [camError, setCamError] = useState<string | null>(null)
   const [paused, setPaused] = useState(false)
-  const [finished, setFinished] = useState(false)
   const [mirrored, setMirrored] = useState(true)
+  const [pip, setPip] = useState(true)
   const [debug, setDebug] = useState(false)
   const sessionRef = useRef<AbortController | null>(null)
+  const camRef = useRef<Camera | null>(null)
+  /** This visit's calibration (done or skipped); reset in the lobby (a new dancer may step up). */
+  const calRef = useRef<Calibration | null>(null)
+  /** Bumped on every start / exit: stale async continuations compare and bail. */
+  const tokenRef = useRef(0)
+  /** tokenRef value whose calibration was already handled (onDone / onSkip fire once). */
+  const calibratedTokenRef = useRef(-1)
+  /** Whether the current play-through uses the bot (fixed per run; the lobby toggle may change). */
+  const playAutoRef = useRef(false)
   const activeRef = useLatest(active)
+  const phaseRef = useLatest(phase)
+
+  // --- pose sources ----------------------------------------------------------------------
+  const stopCamera = (): void => {
+    const cam = camRef.current
+    camRef.current = null
+    if (cam) {
+      cam.offError()
+      cam.source.stop()
+    }
+    setCamSource(null)
+  }
+
+  /**
+   * Opens the camera + loads the model (one source per visit to the stage). start() is
+   * idempotent while starting / running and retries after a failure (also one the
+   * calibration screen retried itself), so every caller gets the live state.
+   */
+  const ensureCamera = (): Promise<void> => {
+    let cam = camRef.current
+    if (!cam) {
+      const cal = calRef.current ?? loadCalibration()
+      const source = new WebcamPoseSource({ songTimeAt: songTimeAtFromClock(clock), latencySec: cal.latencySec })
+      const created: Camera = { source, offError: source.onError((msg) => camRef.current === created && setCamError(msg)) }
+      cam = created
+      camRef.current = cam
+      setCamSource(source)
+      setCamError(null)
+    }
+    const mine = cam
+    const ready = mine.source.start()
+    ready.catch((err: unknown) => {
+      if (camRef.current === mine && !isAbortError(err)) setCamError(errorMessage(err))
+    })
+    return ready
+  }
+
+  /** Stops listening to the current run (and the bot); the webcam stays on. */
+  const disposeRun = (): void => {
+    const run = activeRef.current?.run
+    if (!run) return
+    run.dispose()
+    if (run.source.kind === 'bot') run.source.stop()
+  }
 
   // --- lifecycle -----------------------------------------------------------------------
-  // At most one AudioContext, closed on unmount (stops audio, frees the decoded song).
-  useEffect(
-    () => () => {
-      sessionRef.current?.abort()
-      sessionRef.current = null
-      clock.dispose()
-    },
-    [clock],
-  )
+  // At most one AudioContext, closed on unmount (stops audio, frees the decoded song); the
+  // camera is released too.
+  const unmountRef = useLatest(() => {
+    sessionRef.current?.abort()
+    sessionRef.current = null
+    tokenRef.current++
+    disposeRun()
+    const cam = camRef.current
+    camRef.current = null
+    cam?.offError()
+    cam?.source.stop()
+    clock.dispose()
+  })
+  useEffect(() => () => unmountRef.current(), [unmountRef])
 
+  /** The song ended: close the last windows, show the results, release the camera. */
+  const finishRef = useLatest((): void => {
+    setPaused(false)
+    const a = activeRef.current
+    const run = a?.run
+    if (!a || !run || phaseRef.current !== 'game') return
+    const summary = run.finish(a.game.routine, a.game.durationSec)
+    console.log(a.monitor.summary())
+    setResults(buildResultsView(summary, run.keeper.results(), a.game.routine))
+    if (run.source.kind === 'bot') run.source.stop()
+    stopCamera()
+    dispatch({ type: 'finished' })
+  })
   useEffect(() => {
-    clock.setOnEnded(() => {
-      setFinished(true)
-      setPaused(false)
-      const monitor = activeRef.current?.monitor
-      if (monitor) console.log(monitor.summary())
-    })
+    clock.setOnEnded(() => finishRef.current())
     return () => clock.setOnEnded(null)
-  }, [clock, activeRef])
+  }, [clock, finishRef])
 
   // Automation hook for sync checks.
   useEffect(() => {
@@ -123,11 +216,36 @@ export default function Play() {
   }, [onStage])
 
   // --- game flow -----------------------------------------------------------------------
+  /** Starts a scored play-through of `game` (count-in first). The pose source must be ready. */
   const begin = (game: PreparedGame): void => {
-    setActive({ game, monitor: new SyncMonitor(game.routine.song.beats) })
+    const auto = playAutoRef.current
+    const cam = camRef.current
+    if (!auto && !cam) return
+    disposeRun()
+    const bot = auto ? new BotPoseSource({ track: game.track, skill: BOT_SKILL, seed: game.routine.seed }) : null
+    if (bot) void bot.start()
+    const source = bot ?? cam?.source
+    if (!source) return
+    const keeper = new ScoreKeeper(buildCheckpoints(game.routine, game.routine.mode))
+    const run = new GameRun({ keeper, source, bot, isPlaying: () => clock.playing })
+    setActive({ game, monitor: new SyncMonitor(game.routine.song.beats), run })
+    setPrepared(null)
     setPaused(false)
-    setFinished(false)
+    dispatch({ type: 'ready' })
     clock.play(-game.timeline.countdown.preRollSec, game.timeline.countInClicks)
+  }
+
+  /** Waits for the camera (no wait for the bot), then begins. Camera errors show an overlay. */
+  const warmup = async (game: PreparedGame): Promise<void> => {
+    const token = tokenRef.current
+    if (!playAutoRef.current) {
+      try {
+        await ensureCamera()
+      } catch {
+        return // camError is on screen
+      }
+    }
+    if (tokenRef.current === token) begin(game)
   }
 
   /** Must run inside a click / key handler: it unlocks audio for the autoplay policy. */
@@ -138,29 +256,89 @@ export default function Play() {
     sessionRef.current?.abort()
     const ac = new AbortController()
     sessionRef.current = ac
+    tokenRef.current++
+    disposeRun()
     blurFocus()
+    const auto = autoplay
+    playAutoRef.current = auto
     setOnStage(true)
     setActive(null)
+    setPrepared(null)
+    setResults(null)
     setPaused(false)
-    setFinished(false)
+    setCamError(null)
+    dispatch({ type: 'generate' })
+    // Open the camera and load the model while the song is analyzed.
+    if (auto) stopCamera()
+    else void ensureCamera().catch(() => undefined)
     const step = opts.reuse ? 'choreographing' : 'analyzing'
     setSession({ status: 'loading', step, label: STEP_LABELS[step] })
     const req = { song: choice, difficulty, mode, seed: opts.seed ?? seed }
     void prepareGame(req, apiSessionDeps(clock), setSession, ac.signal, { analysis: opts.reuse }).then((game) => {
-      if (game && sessionRef.current === ac) begin(game)
+      if (!game || sessionRef.current !== ac) return
+      setPrepared(game)
+      const calibrate = needsCalibration({ autoplay: auto, skipCalibration: skipCal, calibrated: calRef.current !== null })
+      dispatch({ type: 'prepared', calibrate })
+      if (!calibrate) void warmup(game)
     })
   }
 
+  /** CalibrationScreen finished (or was skipped: then the saved / default calibration). */
+  const onCalibrated = (cal: Calibration): void => {
+    if (phaseRef.current !== 'calibration' || !prepared || calibratedTokenRef.current === tokenRef.current) return
+    calibratedTokenRef.current = tokenRef.current
+    calRef.current = cal
+    camRef.current?.source.setLatency(cal.latencySec)
+    setCamError(null) // the calibration screen may have retried the camera successfully
+    dispatch({ type: 'calibrated' })
+    void warmup(prepared)
+  }
+  const skipCalibration = (): void => onCalibrated(loadCalibration())
+
+  /** R: same routine from the top; the pose source stays on. */
   const restart = (): void => {
-    if (!active) return
-    active.monitor.reset()
-    clock.play(-active.game.timeline.countdown.preRollSec, active.game.timeline.countInClicks)
-    setPaused(false)
-    setFinished(false)
+    if (!active || phase !== 'game') return
+    clock.unlock()
+    begin(active.game)
+  }
+
+  /** Results -> the same routine again (the camera reopens; same calibration). */
+  const playAgain = (): void => {
+    const game = active?.game
+    if (!game) return
+    clock.unlock()
+    tokenRef.current++
+    disposeRun()
+    setResults(null)
+    setActive(null)
+    setPrepared(game)
+    setCamError(null)
+    dispatch({ type: 'replay' })
+    void warmup(game)
+  }
+
+  /** Camera failed: retry it. */
+  const retryCamera = (): void => {
+    stopCamera()
+    setCamError(null)
+    if (phase === 'warmup' && prepared) void warmup(prepared)
+    else void ensureCamera().catch(() => undefined)
+  }
+
+  /** Camera failed (or none): let the bot dance this one. */
+  const switchToAutoplay = (): void => {
+    stopCamera()
+    setCamError(null)
+    setAutoplay(true)
+    playAutoRef.current = true
+    if (!prepared) return
+    clock.unlock()
+    if (phase === 'calibration') dispatch({ type: 'calibrated' })
+    begin(prepared)
   }
 
   const togglePause = (): void => {
-    if (!active || finished) return
+    if (!active || phase !== 'game') return
     if (clock.playing) {
       clock.pause()
       setPaused(true)
@@ -173,18 +351,25 @@ export default function Play() {
   const newRoutine = (): void => {
     const s = randomSeed()
     setSeed(s)
-    start({ seed: s, reuse: active?.game.analysis })
+    start({ seed: s, reuse: (active?.game ?? prepared)?.analysis })
   }
 
   const exitToLobby = (): void => {
     sessionRef.current?.abort()
     sessionRef.current = null
+    tokenRef.current++
     clock.stop()
+    disposeRun()
+    stopCamera()
+    calRef.current = null
     setActive(null)
+    setPrepared(null)
+    setResults(null)
+    setCamError(null)
     setSession({ status: 'idle' })
     setPaused(false)
-    setFinished(false)
     setOnStage(false)
+    dispatch({ type: 'exit' })
   }
 
   const onKey = useLatest((e: KeyboardEvent): void => {
@@ -192,7 +377,7 @@ export default function Play() {
     const onControl = e.target instanceof Element && e.target.closest('button, input, select, textarea, a') !== null
     switch (e.key) {
       case ' ':
-        if (onControl) return
+        if (onControl || phase !== 'game') return
         e.preventDefault()
         if (!e.repeat) togglePause()
         break
@@ -207,6 +392,10 @@ export default function Play() {
       case 'm':
       case 'M':
         if (!e.repeat) setMirrored((m) => !m)
+        break
+      case 'c':
+      case 'C':
+        if (!e.repeat) setPip((p) => !p)
         break
       case 'd':
       case 'D':
@@ -229,11 +418,14 @@ export default function Play() {
   }
 
   // --- render --------------------------------------------------------------------------
-  const routine = active?.game.routine
-  const stageTitle = active ? active.game.analysis.title : choiceTitle(choice)
+  const shown = active?.game ?? prepared
+  const routine = shown?.routine
+  const stageTitle = shown ? shown.analysis.title : choiceTitle(choice)
   const stageSubtitle = routine
     ? `${routine.difficulty} · ${routine.mode} · seed ${routine.seed}`
     : `${difficulty} · ${mode} · seed ${seed}`
+  // The calibration screen shows camera errors itself (with a retry); warmup needs this overlay.
+  const camTrouble = camError !== null && phase === 'warmup'
 
   return (
     <section className="play-lobby">
@@ -358,10 +550,28 @@ export default function Play() {
               </button>
             </div>
           </div>
+          <div className="field lobby-toggles">
+            <label className="toggle">
+              <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} />
+              <span>
+                Autoplay (bot) <span className="dim">· no camera, for demos</span>
+              </span>
+            </label>
+            <label className={`toggle${autoplay ? ' disabled' : ''}`}>
+              <input type="checkbox" checked={skipCal} disabled={autoplay} onChange={(e) => setSkipCal(e.target.checked)} />
+              <span>
+                Skip calibration <span className="dim">· use the saved timing</span>
+              </span>
+            </label>
+          </div>
           <button type="button" className="start-button" disabled={!choice} onClick={() => start()}>
             ▶ Start the ball
           </button>
-          <p className="hint lobby-keys">Space pause · R restart · M mirror · D debug · Esc back here</p>
+          <p className="hint lobby-keys">
+            {autoplay ? 'The bot dances, you watch.' : 'Your camera stays on this device: no video ever leaves the browser.'}
+            <br />
+            Space pause · R restart · M mirror · C camera · K skip calibration · D debug · Esc back here
+          </p>
         </div>
       </div>
       </div>
@@ -372,6 +582,7 @@ export default function Play() {
           active={active}
           mirrored={mirrored}
           debug={debug}
+          pip={pip}
           paused={paused}
           title={stageTitle}
           subtitle={stageSubtitle}
@@ -407,7 +618,61 @@ export default function Play() {
               </div>
             </div>
           )}
-          {paused && !finished && (
+          {phase === 'calibration' && camSource && routine && (
+            <>
+              {/* K inside the calibration screen calls onSkip. */}
+              <CalibrationScreen
+                source={camSource}
+                mode={routine.mode}
+                clock={clock}
+                onDone={onCalibrated}
+                onSkip={skipCalibration}
+                cameraErrorActions={
+                  <>
+                    <button type="button" onClick={switchToAutoplay}>
+                      🤖 No camera? Let the bot dance
+                    </button>
+                    <button type="button" onClick={exitToLobby}>
+                      Lobby
+                    </button>
+                  </>
+                }
+              />
+            </>
+          )}
+          {phase === 'warmup' && !camTrouble && (
+            <div className="play-overlay">
+              <div className="play-card loading">
+                <div className="slipper-spinner" aria-hidden="true" />
+                <p className="play-loading-label" aria-live="polite">
+                  Waking the magic mirror…
+                </p>
+                <button type="button" onClick={exitToLobby}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {camTrouble && (
+            <div className="play-overlay dim-bg">
+              <div className="play-card">
+                <h2>The magic mirror stayed dark</h2>
+                <p className="error">{camError}</p>
+                <div className="play-card-actions">
+                  <button type="button" className="primary" onClick={retryCamera}>
+                    Try the camera again
+                  </button>
+                  <button type="button" onClick={switchToAutoplay}>
+                    🤖 Let the bot dance
+                  </button>
+                  <button type="button" onClick={exitToLobby}>
+                    Lobby
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {paused && phase === 'game' && (
             <div className="play-overlay dim-bg">
               <div className="play-card">
                 <h2>Paused</h2>
@@ -423,25 +688,16 @@ export default function Play() {
               </div>
             </div>
           )}
-          {finished && (
-            <div className="play-overlay dim-bg">
-              <div className="play-card finished">
-                <p className="lobby-kicker">The last note fades…</p>
-                <h2>Finished!</h2>
-                <p className="dim">Your slippers are worn right through. What a ball!</p>
-                <div className="play-card-actions">
-                  <button type="button" className="primary" onClick={restart}>
-                    Play again
-                  </button>
-                  <button type="button" onClick={newRoutine}>
-                    New routine
-                  </button>
-                  <button type="button" onClick={exitToLobby}>
-                    Lobby
-                  </button>
-                </div>
-              </div>
-            </div>
+          {phase === 'results' && results && active && (
+            <ResultsScreen
+              view={results}
+              moves={active.game.routine.moves}
+              mirrored={mirrored}
+              autoplay={active.run?.source.kind === 'bot'}
+              onPlayAgain={playAgain}
+              onNewRoutine={newRoutine}
+              onLobby={exitToLobby}
+            />
           )}
         </PlayStage>
       )}

@@ -14,16 +14,17 @@ from fastapi.responses import JSONResponse
 from app import __version__
 from app.api import api_router
 from app.api.limits import BodySizeLimitMiddleware
-from app.audio import warmup
 from app.config import get_settings
+from app.warm import warm_caches
 
 MULTIPART_OVERHEAD_BYTES = 64 * 1024  # headroom for boundaries/headers around an upload
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    # numba compiles librosa's beat tracker on first use (seconds); do it off the startup path.
-    threading.Thread(target=warmup, name="beat-tracker-warmup", daemon=True).start()
+    # numba compiles librosa's beat tracker on first use (seconds), and library songs are analyzed
+    # ahead of time so demo songs start instantly; both happen off the startup path.
+    threading.Thread(target=warm_caches, name="cache-warmup", daemon=True).start()
     yield
 
 

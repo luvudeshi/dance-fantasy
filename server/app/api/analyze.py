@@ -59,7 +59,7 @@ async def analyze_upload(
         async with ANALYSIS_SLOTS:  # read inside the slot: queued uploads stay spooled on disk, not in RAM
             data = await read_upload(file, settings.max_upload_bytes)
             return await run_in_threadpool(
-                _analyze_and_store, store, digest, data, meta, file.filename, settings.max_duration_sec
+                analyze_and_store, store, digest, data, meta, file.filename, settings.max_duration_sec
             )
 
 
@@ -68,12 +68,7 @@ async def analyze_library_song(file: str, settings: SettingsDep, refresh: Refres
     """Analyze a song in assets/songs/ (title and artist from its sidecar)."""
     path = song_path(settings.songs_dir, file)
     digest = await run_in_threadpool(sha256_file, path)
-    meta = {
-        "title": song_title(path),
-        "artist": song_artist(path),
-        "source": {"kind": "library", "file": file},
-        "audioUrl": f"/api/songs/{quote(file, safe='')}",
-    }
+    meta = library_meta(file, path)
     store = AnalysisStore(settings.cache_dir)
     async with _one_at_a_time(digest):
         if not refresh:
@@ -82,7 +77,7 @@ async def analyze_library_song(file: str, settings: SettingsDep, refresh: Refres
                 return cached
         async with ANALYSIS_SLOTS:
             return await run_in_threadpool(
-                _analyze_and_store, store, digest, path, meta, file, settings.max_duration_sec
+                analyze_and_store, store, digest, path, meta, file, settings.max_duration_sec
             )
 
 
@@ -117,7 +112,17 @@ async def _load_cached(store: AnalysisStore, digest: str, meta: dict[str, Any]) 
         return None
 
 
-def _analyze_and_store(
+def library_meta(file: str, path: Path) -> dict[str, Any]:
+    """Request-specific fields of a library song's analysis (title/artist from its sidecar)."""
+    return {
+        "title": song_title(path),
+        "artist": song_artist(path),
+        "source": {"kind": "library", "file": file},
+        "audioUrl": f"/api/songs/{quote(file, safe='')}",
+    }
+
+
+def analyze_and_store(
     store: AnalysisStore,
     digest: str,
     source: Path | bytes,
