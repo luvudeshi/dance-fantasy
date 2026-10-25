@@ -41,6 +41,7 @@ import math
 import threading
 import weakref
 from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -48,6 +49,7 @@ import numpy as np
 from app.analysis import Analysis, AnalysisSection, song_from_analysis
 from app.moves.types import NEUTRAL_ANCHOR, CompiledMove, MoveLibrary
 from app.routine import Routine
+from app.signature.pins import pin_key, pinned_sections, with_pinned_moves
 from app.skeleton import JOINTS
 
 # Bump when output for the same inputs changes (it is part of routine ids).
@@ -133,9 +135,10 @@ def routine_id(
     mode: str,
     seed: int,
     generator: str = GENERATOR,
+    pins: Sequence[Any] = (),
 ) -> str:
     """First 16 hex chars of sha256 over the canonical JSON of everything that determines a routine."""
-    payload = {
+    payload: dict[str, Any] = {
         "analysisId": analysis_id,
         "analysisVersion": analysis_version,
         "libraryVersion": library_version,
@@ -144,6 +147,8 @@ def routine_id(
         "mode": mode,
         "seed": seed,
     }
+    if pins:  # signature dances (app.signature); absent = the same ids as before pins existed
+        payload["pinnedMoves"] = list(pins)
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
@@ -249,9 +254,13 @@ def _prepared(library: MoveLibrary) -> _Prepared:
     return prep
 
 
-def _eligible(prep: _Prepared, difficulty: str, mode: str, cfg: ChoreoConfig) -> tuple[np.ndarray, np.ndarray]:
-    """(pool mask, per-move length cost with inf outside the pool)."""
+def _eligible(
+    prep: _Prepared, difficulty: str, mode: str, cfg: ChoreoConfig, exclude: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """(pool mask, per-move length cost with inf outside the pool). ``exclude``: moves the search never picks."""
     base_mask = prep.upper.copy() if mode == "seated" else np.ones(len(prep.moves), dtype=bool)
+    if exclude is not None:
+        base_mask &= ~exclude
     len_cost = np.array(cfg.length_cost(difficulty), dtype=np.float64)[prep.length_class]
     len_ok = np.isfinite(len_cost)
     level_sets = {"easy": [(0,), (0, 1)], "normal": [(0, 1)], "hard": [(0, 1, 2)]}[difficulty]
@@ -286,11 +295,13 @@ class _Costs(NamedTuple):
 class _Planner:
     """Places moves in playback order; each search sees everything placed so far as context."""
 
-    def __init__(self, prep: _Prepared, difficulty: str, mode: str, seed: int, cfg: ChoreoConfig) -> None:
+    def __init__(
+        self, prep: _Prepared, difficulty: str, mode: str, seed: int, cfg: ChoreoConfig, exclude: np.ndarray | None = None
+    ) -> None:
         self.prep, self.cfg, self.seed = prep, cfg, seed
         self.level = DIFFICULTY_LEVEL[difficulty]
         self.pairs = difficulty != "hard"  # 1-beat moves only as identical pairs on even beats
-        self.pool, self.len_cost = _eligible(prep, difficulty, mode, cfg)
+        self.pool, self.len_cost = _eligible(prep, difficulty, mode, cfg, exclude)
         self.trans = cfg.w_trans * (prep.joint_dist + cfg.w_root * prep.root_dist + cfg.w_anchor * prep.anchor_diff)
         self.placed: list[tuple[int, int]] = []  # (move index, start beat)
         self.usage = np.zeros(prep.n_bases)
@@ -404,6 +415,25 @@ class _Planner:
             self.usage[self.prep.base[m]] += 1
 
 
+def _pinned_search(planner: _Planner, pins: tuple[int, ...], total: int, costs: _Costs, finale: bool) -> list[tuple[int, int]]:
+    """planner.search, with the pinned moves (whole bars) first; the search continues from the last of them."""
+    head, offset = [], 0
+    for m in pins:
+        if offset + int(planner.prep.length[m]) <= total:
+            head.append((m, offset))
+            offset += int(planner.prep.length[m])
+    if not head:
+        return planner.search(total, costs, finale=finale)
+    if offset == total:
+        return head
+    planner.placed.extend((m, -1) for m, _ in head)  # context only (transition, repetition), removed again
+    try:
+        rest = planner.search(total - offset, costs, finale=finale)
+    finally:
+        del planner.placed[-len(head) :]
+    return head + [(m, offset + o) for m, o in rest]
+
+
 # --------------------------------------------------------------------------- bars & sections
 
 
@@ -446,14 +476,24 @@ def generate_routine(
     mode: str = "standing",
     seed: int = 0,
     config: ChoreoConfig = DEFAULT_CONFIG,
+    pinned: Sequence[Any] = (),
 ) -> Routine:
-    """A beat-synced routine for ``analysis``. Same inputs (incl. seed) -> identical routine."""
+    """A beat-synced routine for ``analysis``. Same inputs (incl. seed) -> identical routine.
+
+    ``pinned``: signature dances (app.signature.pins.PinnedMove: ``move``, ``placement``, ``tag``), each placed on
+    the first downbeat of every matching section; the beam search fills everything else and never picks them.
+    """
     if difficulty not in DIFFICULTY_LEVEL:
         raise ValueError(f"difficulty must be one of {sorted(DIFFICULTY_LEVEL)}")
     if mode not in MODES:
         raise ValueError(f"mode must be one of {list(MODES)}")
+    n_base = len(library.moves)
+    if pinned:
+        library = with_pinned_moves(library, pinned)
     prep = _prepared(library)
-    planner = _Planner(prep, difficulty, mode, seed, config)
+    pin_ids = {m.id for m in library.moves[n_base:]}
+    exclude = np.array([m.id in pin_ids for m in prep.moves], dtype=bool) if pinned else None
+    planner = _Planner(prep, difficulty, mode, seed, config, exclude)
 
     beats = [float(b) for b in analysis.beats]
     n_beats = len(beats)
@@ -484,23 +524,32 @@ def generate_routine(
     if has_finisher and with_bars and len(occurrences[sections[with_bars[-1]].group]) == 1:
         finale_group = sections[with_bars[-1]].group
 
+    pins_at: dict[int, tuple[int, ...]] = {}  # section -> pinned move indices, placed from its first downbeat
+    if pinned:
+        index = {m.id: j for j, m in enumerate(prep.moves)}
+        info = [(s.label, s.group, s.energy, len(sec_bars[j])) for j, s in enumerate(sections)]
+        for pin in pinned:
+            for j in pinned_sections(info, pin.placement):
+                pins_at[j] = pins_at.get(j, ()) + (index[pin.move.id],)
+
     rows: dict[int, dict[str, Any]] = {}
     statics: dict[str, _Costs] = {}
-    plans: dict[str, list[tuple[int, int]]] = {}
-    variants: dict[tuple[str, int], list[tuple[int, int]]] = {}
+    plans: dict[tuple[str, tuple[int, ...]], list[tuple[int, int]]] = {}
+    variants: dict[tuple[str, int, tuple[int, ...]], list[tuple[int, int]]] = {}
     for i in order:
         sec = sections[i]
         first = len(planner.placed)
         occ_bars = sec_bars[i]
         if occ_bars:
-            g, k = sec.group, len(occ_bars)
-            if g not in plans:
+            g, k, pins = sec.group, len(occ_bars), pins_at.get(i, ())
+            if g not in statics:
                 statics[g] = planner.static_cost(group_target[g], f"group:{g}")
-                plans[g] = planner.search(BEATS_PER_BAR * group_bars[g], statics[g], finale=g == finale_group)
-            if (g, k) in variants:
-                planner.place(variants[(g, k)], occ_bars)
+            if (g, pins) not in plans:
+                plans[(g, pins)] = _pinned_search(planner, pins, BEATS_PER_BAR * group_bars[g], statics[g], g == finale_group)
+            if (g, k, pins) in variants:
+                planner.place(variants[(g, k, pins)], occ_bars)
             else:  # first occurrence with this many bars: play the plan's prefix, patch a cut 8-beat move
-                prefix = [(m, o) for m, o in plans[g] if o + prep.length[m] <= BEATS_PER_BAR * k]
+                prefix = [(m, o) for m, o in plans[(g, pins)] if o + prep.length[m] <= BEATS_PER_BAR * k]
                 planner.place(prefix, occ_bars)
                 covered = sum(int(prep.length[m]) for m, _ in prefix)
                 patch: list[tuple[int, int]] = []
@@ -508,7 +557,7 @@ def generate_routine(
                     rest = planner.search(BEATS_PER_BAR * k - covered, statics[g], finale=False)
                     patch = [(m, covered + o) for m, o in rest]
                     planner.place(patch, occ_bars)
-                variants[(g, k)] = prefix + patch
+                variants[(g, k, pins)] = prefix + patch
         rows[i] = {
             "section": i,
             "group": sec.group,
@@ -556,8 +605,10 @@ def generate_routine(
                 "keyframes": prep.keyframes[m_idx],
             }
         )
+        if m.id in pin_ids:
+            moves_out[-1]["signatureDance"] = next(p.tag for p in pinned if p.move.id == m.id)
 
-    rid = routine_id(analysis.id, analysis.analysisVersion, library.version, difficulty, mode, seed)
+    rid = routine_id(analysis.id, analysis.analysisVersion, library.version, difficulty, mode, seed, pins=pin_key(pinned))
     return Routine.model_validate(
         {
             "version": 1,
@@ -573,6 +624,7 @@ def generate_routine(
                 "analysisId": analysis.id,
                 "analysisVersion": analysis.analysisVersion,
                 "sectionPlan": [rows[i] for i in range(len(sections))],
+                **({"pinnedMoves": [{"moveId": p.move.id, "placement": p.placement} for p in pinned]} if pinned else {}),
             },
         }
     )
