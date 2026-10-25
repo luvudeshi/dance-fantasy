@@ -140,6 +140,8 @@ lines and ballrooms use a local database. Technical docs: [shared/README.md](sha
 
 - **Claude Code** (Anthropic) helped us scaffold and write the code, including parallel agents that
   built and reviewed features on separate branches.
+- **Cursor** for AI-assisted coding alongside Claude Code.
+- **Grok** bot automations helped us build the project.
 - **Meta Muse**, **Google Gemini** and **SerpApi** power features in the game, as described above.
 - **MediaPipe** (Google) for pose tracking.
 
