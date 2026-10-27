@@ -1,5 +1,8 @@
 # Dance Fantasy
 
+> 🏆 **1st Place Overall** (Best Overall, *Cinderella's Castle*) at **HackTX 2026**, out of 695 hackers  
+> 🥇 **1st Place, Best Use of SerpApi**
+
 **Bring any song to the enchanted ball.** Dance Fantasy listens to a song you choose, choreographs
 a dance routine for it that has never existed before, and teaches it to you with a 3D storybook
 dancer while your webcam scores every beat. Dance alone, with friends in front of one laptop, or
@@ -11,9 +14,9 @@ in an online ballroom with friends on their own phones.
 
 | | Track | What it does in Dance Fantasy |
 |---|---|---|
+| 🔎 | **SerpApi** 🥇 *Track winner* | Finds the song's viral dance online; those moves get pinned to the chorus and score **2x** |
 | 🎺 | **Meta Muse** | Writes the Royal Herald's live intro and final verdict from your name, song, score and best move |
 | ✨ | **Google Gemini** (MLH) | The herald's expressive voice, turns a viral dance into playable moves, backup writer |
-| 🔎 | **SerpApi** | Finds the song's viral dance online; those moves get pinned to the chorus and score **2x** |
 | 🐯 | **Tiger Data** (MLH) | Hypertables + continuous aggregates: ballrooms, friends, history, "hardest moments", Hall of Fame |
 | ☁️ | **Vultr** (MLH) | An always-warm song-analysis worker on Vultr Cloud Compute, so uploads skip serverless cold starts |
 | 🌐 | **.tech domain** (MLH) | The game lives at [DanceFantasy.tech](https://dancefantasy.tech) |
