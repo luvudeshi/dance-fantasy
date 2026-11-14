@@ -27,9 +27,7 @@ in an online ballroom with friends on their own phones.
 ## 💡 Inspiration
 
 Dance games only let you dance to the songs someone already choreographed. We wanted the opposite:
-*any* song, even one you recorded yesterday, becomes a playable dance. Then we wrapped it in the
-fairy tale of the Twelve Dancing Princesses, who slip out every night to dance until their
-slippers wear through, because a dance game should feel like a night at the ball.
+*any* song, even one you recorded yesterday, becomes a playable dance.
 
 ## 🩰 What it does
 
